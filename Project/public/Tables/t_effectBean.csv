@@ -1,0 +1,16 @@
+﻿t_id,t_abname,t_scale,t_time,t_sound
+~s,~s,~s,~s,~s
+int32,string,int32,int32,int32
+Id,,特效缩放比1000倍,特效持续时间(该时间要比预制件上长些，确保预制件可以播放完毕再隐藏 ms),特效声音
+0,prefab/effects/eff_player0_dazhao_attack.jpg,1000,3000,
+1,prefab/effects/eff_player0_dazhao_attack.jpg,1000,3000,
+2,prefab/effects/eff_maxlevel.jpg,1000,3000,
+3,prefab/effects/eff_xiaosan.jpg,1000,3000,
+20,prefab/effects/eff_player2_attack.jpg,1000,3000,
+53,prefab/effects/eff_player0_attack.jpg,1000,3000,
+54,prefab/effects/eff_player2_attack.jpg,1000,3000,
+55,prefab/effects/eff_player2_attack_big.jpg,1000,3000,
+80,prefab/effects/eff_bangbangtang_hit.jpg,1000,3000,
+81,prefab/effects/eff_disappear.jpg,1000,3000,
+99,prefab/effects/eff_level_up.jpg,1000,3000,
+100,prefab/effects/line_hit_eff.jpg,1000,0,

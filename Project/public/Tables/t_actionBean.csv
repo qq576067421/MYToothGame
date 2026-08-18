@@ -1,0 +1,12 @@
+﻿t_id,t_ac_name,t_ac_cast_point,t_ac_finish,t_frame_rate
+~s,~s,~s,~s,~s
+string,string,int32,int32,int32
+Id,动作名字,技能生效时机（在动作的哪一帧生效）,攻击动作结束,帧率（默认30fps）
+100_attack,attack,1,10,10
+110_attack,attack,26,50,90
+120_attack,attack,4,10,20
+130_attack,attack,26,10,90
+100_skill,attack,10,10,20
+110_skill,attack,10,10,20
+120_skill,attack,10,10,20
+130_skill,attack,10,10,20

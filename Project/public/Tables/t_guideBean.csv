@@ -1,0 +1,4 @@
+﻿t_id,t_guide_group,t_guide_step,t_shape,t_arrow_x,t_arrow_y,t_arrow_type,t_desc_x,t_desc_y,t_desc_w,t_desc_h,t_desc_rel,t_desc,t_finish_step_style,t_trigger_next_step,t_trigger_next_group,t_step_state,t_jump,t_next_group_id,t_close_pop,t_black,t_need,t_3d_mask_w,t_3d_mask_h,t_story
+~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s
+int32,string,string,int32,int32,int32,int32,int32,int32,int32,int32,int32,string,int32,int32,int32,int32,int32,int32,int32,int32,int32,int32,int32,int64
+Id（分组 * 100 + 步骤 步骤从1开始）,用于生成程序里面的分组数据（同一组名字一样）,用于生成程序里面的分组步骤数据,0,箭头偏移X,箭头偏移Y,箭头种类(指向 0右下 1左下 2右上 3左上),描述偏移值X,描述偏移值Y,描述宽,描述高,是否相对位置（0相对位置 1绝对位置）,引导描述,0点击 1手动 2点击任意,0打开界面和列表内剩余步骤 1步骤结束后触发后续新步骤,0打开界面 1上一组结束后触发,消耗物品等步骤，保存引导(0普通步骤， 1需要保存的重要步骤，2分组最后一步，3需要保存的重要步骤且是最后一步),是否可以跳过（0不可以 1可以跳过）,每一组的开始步骤配置下一组分组,关闭弹窗,0显示 1不显示,非强制临时程序添加(1是),显示3d高亮的宽,显示3d高亮的高,触发故事

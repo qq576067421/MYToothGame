@@ -1,0 +1,311 @@
+﻿t_id,t_content
+~s,
+string,string
+Id,
+td_mode_chapter,关卡模式
+td_mode_endless,无尽模式
+td_mode_tutorial,教程模式
+td_lobby_entry,{0} 第{1}关 {2}人
+td_hud_default_player,玩家{0}
+td_hud_stage,关卡 {0}
+td_hud_wave,波次 {0}/{1}
+td_hud_base,基地 {0}/{1}
+td_hud_monster,怪物 {0}
+td_hud_energy,能量 {0}%
+td_hud_battle_end,战斗结束
+td_hud_prepare,准备 {0}
+td_hud_level_up_time,升级挑战 {0}
+td_hud_battle_run,战斗中
+td_hud_level_up_run,升级挑战中
+td_hud_level_up_ready,升级挑战 可用
+td_hud_score,得分 {0}
+td_hud_full_level,已满级
+td_hud_level_short,Lv.{0}
+td_hud_hp,HP {0}%
+td_hud_cd,CD {0}s
+td_hud_skill_empty,技能 --
+td_hud_skill_ready,技能 可用
+td_hud_energy_empty,能量 --
+td_hud_team_exp,升级挑战
+td_notice_level_up,升级挑战
+td_notice_elite,精英
+td_notice_boss,BOSS
+td_notice_theme,主题切换
+td_notice_wave,第 {0} 波
+td_notice_boss_skill,BOSS 技能吟唱
+td_notice_upgrade_attack,攻击棒棒糖
+td_lobby_profile,金币 {0} | 已解锁关卡 {1} | 无尽最佳 {2}
+td_lobby_stage_label,选择关卡
+td_lobby_endless_stage_label,入口配置
+td_lobby_stage,关卡 {0}
+td_lobby_stage_invalid,未配置
+td_lobby_player_label,选择人数
+td_lobby_player_count,{0}人
+td_prepare_title,战斗准备
+td_prepare_stage,关卡 {0}
+td_prepare_player_count,人数 {0}
+td_prepare_base,基地 {0}/{1}
+td_prepare_player,玩家 {0}
+td_prepare_role,角色 {0}
+td_prepare_hand,惯用手 {0}
+td_prepare_state_ready,已准备
+td_prepare_state_no_ready,未准备
+td_prepare_state_desc,所有人准备好后，按确定键开始
+td_prepare_role_fallback,角色 {0}
+td_hand_left,左手
+td_hand_right,右手
+td_pause_title,游戏暂停
+td_pause_summary,可选择继续游戏、重新开始或返回主页。
+td_result_chapter_title,恭喜
+td_result_chapter_fail_title,闯关
+td_result_stage,关卡 {0}
+td_result_star,星级 {0}
+td_result_base,基地 {0}/{1}
+td_result_kill_summary,小怪 {0}  精英 {1}  Boss {2}
+td_result_kill_reward,击杀奖励 {0}
+td_result_clear_reward,通关奖励 {0}
+td_result_total_reward,总金币 {0}
+td_result_time,战斗时长 {0}
+td_result_unlock_stage,已解锁关卡 {0}
+td_result_endless_title,无尽结算
+td_result_endless_wave,挑战波次 {0}
+td_result_endless_best_wave,历史最佳 {0}
+td_result_endless_kill_detail_line,{0} x{1}
+td_result_endless_kill_detail_empty,本次未记录到怪物击杀明细
+td_result_endless_rank_score,排行榜分数 {0}
+td_result_endless_rank_position,当前排名 {0}
+td_result_endless_rank_pending,排行榜上传待接 SDK
+td_result_endless_rank_submitted,排行榜已上传
+td_result_endless_rank_failed,排行榜上传失败
+td_result_endless_fail,零食大军蛀坏了你的牙齿
+td_result_endless_win,你成功击败了零食大军
+td_loading_enter_battle,正在进入战斗
+td_loading_return_lobby,正在返回主页
+td_game_title,武装到牙齿
+hero_tooth_1,破阵犬牙
+hero_tooth_1_desc,高频近战输出，技能可短时冲刺并强化爆发。
+hero_tooth_2,寒霜法牙
+hero_tooth_2_desc,持续控制型角色，擅长减速与冻结敌群。
+hero_tooth_3,爆弹门牙
+hero_tooth_3_desc,范围轰炸型角色，擅长清理密集怪潮。
+hero_tooth_4,穿云尖牙
+hero_tooth_4_desc,中距离连射角色，技能具备穿透压制能力。
+hero_tooth_normal_name,牙齿普攻
+hero_tooth_normal_desc,持续体感动作触发普通攻击。
+hero_tooth_1_skill_name,猛犬突袭
+hero_tooth_1_skill_desc,5秒内暴击伤害提高50%。
+hero_tooth_2_skill_name,冰霜蔓延
+hero_tooth_2_skill_desc,使命中的中毒效果向周围蔓延，最多传染3个目标，持续5秒。
+hero_tooth_3_skill_name,爆弹风暴
+hero_tooth_3_skill_desc,5秒内发射的炮弹伤害必定暴击。
+hero_tooth_4_skill_name,穿云连射
+hero_tooth_4_skill_desc,5秒内箭矢变为风矢，可穿透敌人且不会命中即消失。
+boss_desc_icecream,冰淇淋主题Boss，擅长冻结与减速。
+boss_desc_icecream_2,冰淇淋主题Boss强化体，擅长大范围冻结。
+boss_desc_icecream_3,冰淇淋主题护卫Boss，擅长召唤冰雾。
+boss_desc_cake,蛋糕主题Boss，擅长范围压制。
+boss_desc_cake_2,蛋糕主题强化Boss，擅长持续召唤。
+boss_desc_candy,糖果主题Boss，擅长高速冲撞。
+boss_desc_candy_2,糖果主题强化Boss，擅长群体增益。
+boss_desc_jelly,果冻主题Boss，擅长粘滞束缚。
+boss_desc_jelly_2,果冻主题强化Boss，擅长持续压迫。
+boss_desc_donut,甜甜圈主题Boss，擅长全体减速与捆缚。
+hero_tooth_1_normal_name,裂阵撕咬
+hero_tooth_1_normal_desc,高速近战撕咬，对单体造成持续压制。
+hero_tooth_2_normal_name,霜牙弹
+hero_tooth_2_normal_desc,发射附带减速效果的寒霜牙弹。
+hero_tooth_3_normal_name,爆芯炮
+hero_tooth_3_normal_desc,发射范围爆炸弹，擅长清理密集怪潮。
+hero_tooth_4_normal_name,穿云矢
+hero_tooth_4_normal_desc,发射直线穿刺箭矢，持续压制前排敌人。
+td_buff_role1_lv2_name,撕裂节奏
+td_buff_role1_lv2_desc,普攻速度提升20%。
+td_buff_role1_lv4_name,狂犬凶牙
+td_buff_role1_lv4_desc,暴击率提升12%。
+td_buff_role2_lv2_name,寒牙浸蚀
+td_buff_role2_lv2_desc,造成的伤害提升15%。
+td_buff_role2_lv4_name,极寒压制
+td_buff_role2_lv4_desc,造成的伤害提升25%。
+td_buff_role3_lv2_name,爆芯装填
+td_buff_role3_lv2_desc,造成的伤害提升30%。
+td_buff_role3_lv4_name,爆燃校准
+td_buff_role3_lv4_desc,暴击伤害提升25%。
+td_buff_role4_lv2_name,风矢疾驰
+td_buff_role4_lv2_desc,普攻速度提升15%。
+td_buff_role4_lv4_name,贯云穿透
+td_buff_role4_lv4_desc,箭矢获得穿透能力。
+sdk_demo_account_info_missing,未能获取到账号信息
+sdk_demo_audio_is_playing,音频是否正在播放：{0}
+sdk_demo_audio_path,获取音频路径
+sdk_demo_audio_play_pause,暂停播放音频
+sdk_demo_audio_play_resume,恢复播放音频
+sdk_demo_audio_play_start,开始播放音频：{0}
+sdk_demo_audio_play_stop,停止播放音频
+sdk_demo_audio_progress,获取当前播放进度百分比
+sdk_demo_audio_release,释放资源
+sdk_demo_audio_state,获取音频播放器的当前状态
+sdk_demo_batch_file_written,文件批量写入
+sdk_demo_camera_index,相机索引: {0}
+sdk_demo_cancel,取消
+sdk_demo_change_camera,改变相机
+sdk_demo_change_model,改变模型
+sdk_demo_change_resolution,改变分辨率
+sdk_demo_check_log,请看日志
+sdk_demo_confirm,确定
+sdk_demo_currency_info_empty,虚拟币信息: 无
+sdk_demo_currency_info_header,虚拟币信息:
+sdk_demo_currency_info_line,"类型: {0}, 数量: {1}"
+sdk_demo_current_vip,当前是VIP?{0}
+sdk_demo_current_yuanqidou,当前剩余元气豆：{0}
+sdk_demo_distance_check_close,关闭距离检测
+sdk_demo_distance_check_open,开启距离检测
+sdk_demo_enter_sub_navigation,进入子导航模式
+sdk_demo_face_area_threshold,人脸面积阈值: {0}
+sdk_demo_face_check_frame_interval,间隔多少帧才检测一次: {0}
+sdk_demo_face_feature_not_enough,没有足够的特征数据进行对比
+sdk_demo_face_output_all,对应完整的数据
+sdk_demo_face_output_minimal,对应简化的数据
+sdk_demo_face_output_user,对应到 User 的数据
+sdk_demo_face_queue_empty,队列中没有人脸识别数据
+sdk_demo_face_recognition_start,开启人脸识别
+sdk_demo_face_recognition_stop,停止人脸识别
+sdk_demo_face_similarity_a,人脸相似度A: {0}
+sdk_demo_face_similarity_b,人脸相似度B: {0}
+sdk_demo_face_size,角色{0}的脸部大小:{1}
+sdk_demo_face_threshold,设置人脸相似度阈值: {0}
+sdk_demo_file_count,获取文件数量{0}
+sdk_demo_file_list_count,获取文件列表{0}
+sdk_demo_free,免费
+sdk_demo_global_status_title,<b>=== 全局状态 ===</b>
+sdk_demo_gyro_option,陀螺仪 {0} - {1}
+sdk_demo_hand_code,手势 Code: {0}
+sdk_demo_hand_left_pos,"手势 Left Pos: ({0}, {1})"
+sdk_demo_hand_left_press,手势 Left Press: {0}
+sdk_demo_hand_right_pos,"手势 Right Pos: ({0}, {1})"
+sdk_demo_hand_right_press,手势 Right Press: {0}
+sdk_demo_head_image_missing,headImageController 未赋值！
+sdk_demo_input_height,输入高度: {0}
+sdk_demo_input_width,输入宽度: {0}
+sdk_demo_kpt_num,关键点数量: {0}
+sdk_demo_led_closed,LED灯已经关闭了
+sdk_demo_led_opened,LED灯已经开启了{0}
+sdk_demo_method_deprecated,这个方法已经不需要了
+sdk_demo_model_title,当前模型有{0}种，当前相机有{1}种，分辨率有{2}种
+sdk_demo_name,名字: {0}
+sdk_demo_nfc_action,行为 (action): {0}
+sdk_demo_nfc_card_id,卡片唯一标识 (cardId): {0}
+sdk_demo_nfc_card_info_null,NFCCardInfo 为 null，无法打印
+sdk_demo_nfc_custom_data,业务数据 (customData): {0}
+sdk_demo_nfc_detail_title,=== NFC卡片详细信息 ===
+sdk_demo_nfc_flags,标记位 (flags): {0}
+sdk_demo_nfc_key_card_ignored,钥匙卡游戏中不做处理
+sdk_demo_nfc_permissions,权限 (permissions): {0}
+sdk_demo_nfc_status,状态 (status): {0}
+sdk_demo_nfc_type,卡片类型 (type): {0}
+sdk_demo_nfc_ver,数据结构版本号 (ver): {0}
+sdk_demo_no_gyro,无陀螺仪
+sdk_demo_player_lost,<color=red>玩家消失（丢失目标）</color>
+sdk_demo_player_not_game,<color=yellow>本轮不玩游戏 (双手抱胸)</color>
+sdk_demo_player_recovered,<color=green>玩家重新出现</color>
+sdk_demo_player_status_empty,暂无玩家状态数据...
+sdk_demo_player_status_line,玩家槽位 {0} : {1}
+sdk_demo_player_status_title,<b>=== 玩家状态 ===</b>
+sdk_demo_product_already_purchased_detail,⚠ 此商品已购买，不能再次购买。商品: {0}，ID: {1}
+sdk_demo_product_already_purchased_tip,此商品已购买，不能再次购买
+sdk_demo_product_detail_id,ID: {0}
+sdk_demo_product_detail_intro,简介: {0}
+sdk_demo_product_detail_name,名称: {0}
+sdk_demo_product_detail_original,原价: {0}
+sdk_demo_product_detail_price,售价: {0}
+sdk_demo_product_detail_sub_name,子名称: {0}
+sdk_demo_product_detail_title,--- 当前商品详情 ---
+sdk_demo_product_item_line,  · {0} x{1}
+sdk_demo_product_items_header,内含道具 ({0}):
+sdk_demo_product_list_empty_hint,商品列表: 暂无数据，请先执行「查询游戏商品」(按钮3)
+sdk_demo_product_list_header,商品列表 ({0}/{1}):
+sdk_demo_product_list_item,    [{0}] {1}
+sdk_demo_product_list_selected,>>> [{0}] {1} <<<
+sdk_demo_product_query_first_buy,请先执行「查询游戏商品」(按钮3)，获取商品列表后再购买
+sdk_demo_product_query_first_switch,请先执行「查询游戏商品」(按钮3)，获取商品列表后再切换
+sdk_demo_purchase_failed_detail,购买失败，错误码: {0}，{1}
+sdk_demo_purchase_prepare,准备购买: {0}，正在验证购买记录，请稍候...
+sdk_demo_purchase_product_failed,购买游戏产品失败
+sdk_demo_purchase_product_success,购买游戏产品成功
+sdk_demo_purchase_record_failed_detail,⚠ 无法获取购买记录，购买操作已取消。错误码: {0}，请重试
+sdk_demo_purchase_record_failed_tip,无法获取购买记录，购买已取消
+sdk_demo_purchase_success_detail,购买成功！{0}
+sdk_demo_purchasing_detail,正在购买: {0}，ID={1}，售价={2}，请等待回调...
+sdk_demo_query_product_failed,查询游戏产品失败
+sdk_demo_query_product_failed_detail,查询商品失败，错误码: {0}，{1}
+sdk_demo_query_product_success,查询游戏产品成功
+sdk_demo_query_product_success_count,查询商品成功！共 {0} 个商品，左右键切换按钮组，上下键选择商品
+sdk_demo_query_product_success_empty,查询商品成功，但列表为空
+sdk_demo_query_product_wait,正在查询游戏商品...请等待回调
+sdk_demo_query_purchased_failed,查询已购买数据失败
+sdk_demo_query_purchased_failed_detail,查询已购买记录失败，错误码: {0}，{1}
+sdk_demo_query_purchased_success,查询已购买数据成功
+sdk_demo_query_purchased_success_detail,查询已购买记录成功，{0}
+sdk_demo_query_purchased_success_product_empty,查询已购买记录成功，但商品列表为空
+sdk_demo_query_purchased_wait,正在查询已购买记录...请等待回调
+sdk_demo_ready_all_done,所有玩家已准备，可以开始游戏！
+sdk_demo_ready_cancel,取消了准备
+sdk_demo_ready_done,已准备就绪
+sdk_demo_ready_empty,区域内无人
+sdk_demo_ready_no_pose,未做出准备动作
+sdk_demo_ready_out_area,不在准备区域
+sdk_demo_ready_progress,正在准备 ({0}/{1})
+sdk_demo_recording_is_recording,是否正在录屏：{0}
+sdk_demo_region_index,区域{0}
+sdk_demo_remote_speaker_enabled,遥控的蜂鸣器是否可用:{0}
+sdk_demo_remote_vibration_enabled,遥控的震动是否可用:{0}
+sdk_demo_resolution_height,分辨率高度: {0}
+sdk_demo_resolution_width,分辨率宽度: {0}
+sdk_demo_restart_game,"重新开始游戏 (参数: {0}, {1}, {2})"
+sdk_demo_role_select_enter,进入选角模式，当前选中槽位: {0}
+sdk_demo_role_select_exit,退出选角模式
+sdk_demo_role_select_slot,选中槽位: {0}
+sdk_demo_role_select_success,选角成功！槽位: {0}
+sdk_demo_role_select_wait,对槽位 {0} 发起选角，等待结果...
+sdk_demo_screenshot_is_capturing,是否正在截屏：{0}
+sdk_demo_single_file_written,文件单个写入
+sdk_demo_speaker_opened,蜂鸣器已经开启了{0}
+sdk_demo_stats_account_changed,数据统计 账户变更
+sdk_demo_stats_service_bind_failed,数据统计 服务绑定失败
+sdk_demo_stats_service_disconnected,数据统计 服务断开连接
+sdk_demo_test_toast,这是测试Toast消息
+sdk_demo_type,类型: {0}
+sdk_demo_video_is_generating,是否正在生成视频：{0}
+sdk_demo_vip_info_empty,VIP信息: 无
+sdk_demo_vip_info_header,VIP信息:
+sdk_demo_vip_info_line,"类型: {0}, 过期时间: {1}"
+sdk_demo_wifi_error_detail,⚠ 网络连接异常，请检查 WiFi 后重试
+sdk_demo_wifi_error_tip,网络连接异常，请检查网络后重试
+sdk_demo_global_status_waiting_update,等待状态更新...
+td_result_continue_challenge,继续挑战
+td_result_retry_challenge,重新挑战
+td_prepare_wait_center,请站在画面中间
+td_prepare_face_recognizing,正在识别人脸
+td_prepare_wait_raise_hand,举手准备
+td_prepare_error_sdk_data_missing,真机准备界面尚未拿到准备数据。
+td_prepare_error_all_ready,请让全部玩家完成准备。
+td_chapter_locked,当前章节暂未解锁
+td_error_battle_request_empty,战斗启动请求为空。
+td_error_prepare_request_empty,准备请求为空。
+td_error_prepare_no_guard_roles,当前关卡没有可用的防守角色。
+td_error_stage_guard_map_missing,关卡 {0} 缺少塔防防守角色映射配置。
+td_error_stage_guard_map_empty,关卡 {0} 的防守角色映射为空。
+td_error_stage_guard_map_invalid,关卡 {0} 的防守角色映射没有有效角色。
+td_error_prepare_invalid_seat,准备界面传入了无效的位置编号。
+td_error_prepare_seat_out_count,该位置不属于当前选择的人数。
+td_error_prepare_sdk_seat_only,真机位置由 SDK 判定，手动切换位置只用于 Editor 调试。
+td_error_prepare_sdk_binding_missing,真机准备界面尚未拿到 SDK 绑定信息。
+td_error_select_min_one_seat,请至少选择一个位置。
+td_error_battle_stage_missing,战斗启动请求缺少有效的关卡配置。
+td_error_battle_stage_locked,战斗启动请求中的关卡入口配置无效，当前模式下不可进入该关卡。
+td_error_battle_player_map_missing,无法构建战斗玩家数据：关卡 {0} 缺少塔防防守角色映射配置。
+td_error_stage_guard_slot_missing,关卡 {0} 的防守角色映射缺少槽位 {1}。
+td_error_selected_role_missing,准备界面选择的角色配置不存在，角色ID：{0}
+td_error_battle_player_role_missing,无法构建战斗玩家数据：角色配置不存在，角色ID：{0}
+td_prepare_face_enter_area,请进入人脸识别区域
+td_prepare_face_wait_avatar_select,等待选择头像
+td_prepare_face_select_avatar,请选择头像

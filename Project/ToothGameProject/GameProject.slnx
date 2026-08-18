@@ -1,0 +1,20 @@
+<Solution>
+  <Project Path="AmazingAssets.CurvedWorld.csproj" />
+  <Project Path="AmazingAssets.CurvedWorld.Editor.csproj" />
+  <Project Path="AmazingAssets.CurvedWorld.Editor.Universal.ShaderGUI.csproj" />
+  <Project Path="Assembly-CSharp-Editor-firstpass.csproj" />
+  <Project Path="Assembly-CSharp-Editor.csproj" />
+  <Project Path="Assembly-CSharp-firstpass.csproj" />
+  <Project Path="Assembly-CSharp.csproj" />
+  <Project Path="Febucci.Attributes.Editor.csproj" />
+  <Project Path="Febucci.Attributes.Runtime.csproj" />
+  <Project Path="Febucci.TextAnimator.Demo.Runtime.csproj" />
+  <Project Path="Febucci.TextAnimator.Editor.csproj" />
+  <Project Path="Febucci.TextAnimator.Runtime.csproj" />
+  <Project Path="Febucci.TextAnimator.TMP.Runtime.csproj" />
+  <Project Path="GameDll/GameDll.csproj" Id="77fb753b-f101-4bac-bc0f-1209bdbca18d" />
+  <Project Path="ParticleImage.csproj" />
+  <Project Path="ParticleImage.Editor.csproj" />
+  <Project Path="RayFireAssembly.csproj" />
+  <Project Path="RayFireEditorAssembly.csproj" />
+</Solution>

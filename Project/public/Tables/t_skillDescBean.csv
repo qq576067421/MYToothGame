@@ -1,0 +1,20 @@
+﻿t_id,t_name,t_desc,t_atk_eff,t_atk_eff_pos,t_atk_eff_parent,t_hitEff,t_attackSound,t_hitSound,t_skill_op_type,t_skill_op_radius,t_skill_op_deg,t_change_attack,t_finish_change_idle,t_action,t_warning,t_icon,t_gesture,t_gesture_phase
+占位,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s
+int64,string,string,int,string,int32,int,int32,int32,int32,int32,int32,int32,int32,string,int32,string,int32,int32
+技能Id ,技能名,描述,技能特效,技能特效位置挂点,0挂在节点，1挂在场景,受击特效,发动技能时的音效,击中音效,技能操作方式（0圆形 1通道 2扇形 3内外圆）,指示器半径(大圆的半径),指示器度数（小圆的半径或者扇形的角度）,释放技能是否打断当前状态，切到attack（0是 1否）,释放技能结束是否打断当前状态，切到dile（0是 1否）,动作（连招id0+连招id1|连招id0+连招id1）,预警特效(46圆 47长方体 48~51扇形),技能图标,手势,手势触发的阶段
+100,hero_tooth_normal_name,角色1，1级普攻,53,fire_pos_l+fire_pos_r,0,,10,,0,48,48,48,1,100_attack,48,texture/skills/spell_icons/paladin10.jpg,2001,4
+101,hero_tooth_normal_name,角色1，3级普攻,1,fire_point1,1,,12,,0,,,,1,100_attack,,texture/skills/spell_icons/paladin10.jpg,2001,4
+102,hero_tooth_normal_name,角色1，5级普攻,1,fire_point1,1,,12,,0,,,,1,100_attack,,texture/skills/spell_icons/paladin10.jpg,2001,4
+103,hero_tooth_1_skill_name,角色1，技能,,,,,10,,1,,,,1,100_skill,,texture/skills/spell_icons/pyromancer2.jpg,2004,4
+110,hero_tooth_1_normal_name,角色2，1级普攻,,,,,20,,0,,,,,110_attack,,texture/skills/spell_icons/paladin10.jpg,2001,4
+111,hero_tooth_1_normal_name,角色2，3级普攻,,,,,20,,0,,,,,110_attack,,texture/skills/spell_icons/paladin10.jpg,2001,4
+112,hero_tooth_1_normal_name,角色2，5级普攻,,,,,20,,0,,,,,110_attack,,texture/skills/spell_icons/paladin10.jpg,2001,4
+113,hero_tooth_2_skill_name,角色2，技能,,,,,20,,1,,,,,110_skill,,texture/skills/spell_icons/geomancer5.jpg,2004,4
+120,hero_tooth_2_normal_name,角色3，1级普攻,54,fire_pos,0,,30,,0,,,,1,120_attack,,texture/skills/spell_icons/pyromancer7.jpg,2001,4
+121,hero_tooth_2_normal_name,角色3，3级普攻,54,fire_pos,0,,30,,0,,,,1,120_attack,,texture/skills/spell_icons/pyromancer7.jpg,2001,4
+122,hero_tooth_2_normal_name,角色3，5级普攻,55,fire_pos,0,,30,,0,,,,1,120_attack,,texture/skills/spell_icons/pyromancer7.jpg,2001,4
+123,hero_tooth_3_skill_name,角色3，技能,,,,,30,,0,,,,1,120_skill,,texture/skills/spell_icons/pyromancer7.jpg,2004,4
+130,hero_tooth_4_normal_name,角色4，1级普攻,,,,,40,,1,,,,,130_attack,,texture/skills/spell_icons/paladin10.jpg,2001,4
+131,hero_tooth_4_normal_name,角色4，3级普攻,,,,,40,,1,,,,,130_attack,,texture/skills/spell_icons/paladin10.jpg,2001,4
+132,hero_tooth_4_normal_name,角色4，5级普攻,,,,,40,,1,,,,,130_attack,,texture/skills/spell_icons/paladin10.jpg,2001,4
+133,hero_tooth_4_skill_name,角色4，技能,,,,,40,,1,,,,,130_skill,,texture/skills/spell_icons/paladin10.jpg,2004,4

@@ -1,0 +1,8 @@
+﻿t_id,t_model_res,t_ui_show_pos,t_ui_show_rot,t_ui_show_scale,t_head_res,t_fire_positions,t_fire_points,t_hit_point,t_size,t_move_speed
+~s,~s,~s,~s,~s,~s,~s,~s,~s,~s,~s
+int64,string,string,string,int32,string,int32[][],string,int32,int32,int32
+Id,,位置px+py+pz,旋转rx+ry+rz,缩放s,,开火点（x+y+z|x+y+z 数值放大1000）,开火点（预制件节点名，point+point）,受击点,模型直径,模型walk基础速度(这个值和属性表对应值不是一样的，他和属性的值有一定关系 主要用于判断何时进入跑，值越小越容易跑，防御塔的填写100是为了防止除法问题，其实防御塔应该填0)
+1000,prefab/char/player0.jpg,,0+120+0,840,texture/head/dog.jpg,,fire_point1,500,600,300
+1001,prefab/char/dogpbr.jpg,,0+120+0,760,texture/head/dog.jpg,,fire_point1,500,560,260
+1002,prefab/char/player2.jpg,,0+120+0,840,texture/head/dog.jpg,,fire_point1,500,600,300
+1003,prefab/char/dogpbr.jpg,,0+120+0,840,texture/head/dog.jpg,,fire_point1,500,600,300
