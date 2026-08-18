@@ -1,0 +1,23 @@
+fileFormatVersion: 2
+guid: CSsX4yioUn17gJXiZP6plIqZ0//BAGRGMahHl+1aC/PT3OVYQlJ7psc=
+AudioImporter:
+  externalObjects: {}
+  serializedVersion: 7
+  defaultSettings:
+    serializedVersion: 2
+    loadType: 0
+    sampleRateSetting: 0
+    sampleRateOverride: 0
+    compressionFormat: 1
+    quality: 1
+    conversionMode: 0
+    preloadAudioData: 1
+  platformSettingOverrides: {}
+  forceToMono: 0
+  normalize: 1
+  loadInBackground: 0
+  ambisonic: 0
+  3D: 1
+  userData: 
+  assetBundleName: sound/short_effect/world/effect/slide_sharp_00.jpg
+  assetBundleVariant: 

@@ -1,0 +1,10 @@
+fileFormatVersion: 2
+guid: DX8d5CKvBimtaIBV5eAlDGNeVBWAkZGqoXv7zgmTNBjWvdTJibfB9lw=
+ScriptedImporter:
+  internalIDToNameTable: []
+  externalObjects: {}
+  serializedVersion: 2
+  userData: 
+  assetBundleName: shader/customshaders/tiled_uv.jpg
+  assetBundleVariant: 
+  script: {fileID: 11500000, guid: 60072b568d64c40a485e0fc55012dc9f, type: 3}

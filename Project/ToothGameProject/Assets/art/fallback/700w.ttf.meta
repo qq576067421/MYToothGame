@@ -1,0 +1,25 @@
+fileFormatVersion: 2
+guid: DH4XtCn8WnxtrAfDzPEOgROj1DxFWoPA/VLZ+qBLY5h3S0s52eIHR6Y=
+TrueTypeFontImporter:
+  externalObjects: {}
+  serializedVersion: 4
+  fontSize: 16
+  forceTextureCase: -2
+  characterSpacing: 0
+  characterPadding: 1
+  includeFontData: 1
+  fontNames:
+  - JiangChengYuanTi700w
+  fallbackFontReferences:
+  - {fileID: 12800000, guid: 3cda210227c4ff6409d83c25b63b3a85, type: 3}
+  - {fileID: 12800000, guid: b60ff82ff3702e84aa2581d731871bec, type: 3}
+  - {fileID: 12800000, guid: 58a41230c39402847babf9b537937b18, type: 3}
+  - {fileID: 12800000, guid: 3b5de2324b60ef347a7643226ee18344, type: 3}
+  customCharacters: 
+  fontRenderingMode: 0
+  ascentCalculationMode: 1
+  useLegacyBoundsCalculation: 0
+  shouldRoundAdvanceValue: 1
+  userData: 
+  assetBundleName: 
+  assetBundleVariant: 

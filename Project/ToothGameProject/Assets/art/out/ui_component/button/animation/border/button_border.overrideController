@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!221 &22100000
+AnimatorOverrideController:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: button_border
+  m_Controller: {fileID: 9100000, guid: 511a4274e4843ec448b99537c48147ec, type: 2}
+  m_Clips:
+  - m_OriginalClip: {fileID: 9016973905912431862, guid: 511a4274e4843ec448b99537c48147ec,
+      type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 7814aeb4113e76d4683daa8b884c0f1f, type: 2}
+  - m_OriginalClip: {fileID: 3677353307482832315, guid: 511a4274e4843ec448b99537c48147ec,
+      type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 9e84e3ea84712d443b5cf57d115f154c, type: 2}
+  - m_OriginalClip: {fileID: 5664052757845141802, guid: 511a4274e4843ec448b99537c48147ec,
+      type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: ec9f0025ff0219142b304b259c0c9185, type: 2}
+  - m_OriginalClip: {fileID: 2747083197027444588, guid: 511a4274e4843ec448b99537c48147ec,
+      type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: cfde109c6859e0945b1668078fac5094, type: 2}
+  - m_OriginalClip: {fileID: 8601833516153416230, guid: 511a4274e4843ec448b99537c48147ec,
+      type: 2}
+    m_OverrideClip: {fileID: 7400000, guid: 5f01d4e7ce9f7bb48919919d67a774da, type: 2}

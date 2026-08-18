@@ -1,0 +1,60 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!1 &146144
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 7
+  m_Component:
+  - component: {fileID: 429194}
+  - component: {fileID: 11408258}
+  m_Layer: 0
+  m_HasEditorInfo: 1
+  m_Name: shaderslist
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &429194
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 146144}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -0.0236547, y: -0.6255923, z: 0.6668441}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &11408258
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 146144}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 77e21250d0966c7479ac1158f507e2a7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  list:
+  - {fileID: 4800000, guid: f69c4fb21c20d9c45a844d3bf3fa42a6, type: 3}
+  - {fileID: 4800000, guid: 8fc27629b7f431f47bbf3aeab4f2d73b, type: 3}
+  - {fileID: 4800000, guid: 02c9658a33a3a5c4092af9d884d55200, type: 3}
+  - {fileID: 4800000, guid: 97193a32b180f704184b90635b93b6ee, type: 3}
+  - {fileID: 4800000, guid: 3dda0d7368abe0544ac843a889fe0964, type: 3}
+  - {fileID: 4800000, guid: 183c2ff406fcf6b4aa8a3fd1b7e9085e, type: 3}
+  - {fileID: 4800000, guid: 4e5cd5b199fa4b143998b83bfcef43b5, type: 3}
+  - {fileID: -6465566751694194690, guid: f404b8b0339d35343830370fa3396c6f, type: 3}
+  - {fileID: -6465566751694194690, guid: 7f11fe28133f1a74594785107b98f2fe, type: 3}
+  - {fileID: 4800000, guid: 52631ca9af193a749870ffeaa2ce9987, type: 3}
+  - {fileID: 4800000, guid: 07c913323128df44c90acf8df005dafa, type: 3}
+  - {fileID: -6465566751694194690, guid: 754ef2851bbe1954bac89e35a01967f2, type: 3}

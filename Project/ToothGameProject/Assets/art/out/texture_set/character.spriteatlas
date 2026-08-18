@@ -1,0 +1,113 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!687078895 &4343727234628468602
+SpriteAtlas:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: character
+  serializedVersion: 2
+  m_EditorData:
+    serializedVersion: 2
+    textureSettings:
+      serializedVersion: 3
+      anisoLevel: 0
+      compressionQuality: 0
+      maxTextureSize: 0
+      textureCompression: 0
+      filterMode: 1
+      generateMipMaps: 0
+      readable: 0
+      crunchedCompression: 0
+      webStreaming: 0
+      sRGB: 1
+    platformSettings:
+    - serializedVersion: 3
+      m_BuildTarget: DefaultTexturePlatform
+      m_MaxTextureSize: 2048
+      m_MaxPlaceholderSize: 32
+      m_ResizeAlgorithm: 0
+      m_TextureFormat: 50
+      m_TextureCompression: 1
+      m_CompressionQuality: 50
+      m_CrunchedCompression: 0
+      m_AllowsAlphaSplitting: 0
+      m_Overridden: 0
+      m_IgnorePlatformSupport: 0
+      m_AndroidETC2FallbackOverride: 0
+      m_ForceMaximumCompressionQuality_BC6H_BC7: 0
+    packingSettings:
+      serializedVersion: 2
+      padding: 2
+      blockOffset: 1
+      allowAlphaSplitting: 0
+      enableRotation: 0
+      enableTightPacking: 0
+      enableAlphaDilation: 0
+    secondaryTextureSettings: {}
+    variantMultiplier: 1
+    packables:
+    - {fileID: 102900000, guid: 7ffb2aeb11309714cacaaf70b67e44a7, type: 3}
+    bindAsDefault: 1
+    isAtlasV2: 0
+    cachedData: {fileID: 0}
+    packedSpriteRenderDataKeys:
+    - a1e83ca2f0d16d64a9c32f86ee1e8213: 21300000
+    - 8e8146e2b99660e4a98a103be793a08c: 21300000
+    - 74f484b3cc302e04f816c24b0f255153: 21300000
+    - 8f9f20f451cd05748a07facbe5b74ef8: 21300000
+    - bfeb9fb63db867d43a565686ca557ca1: 21300000
+    - 67fbd0471e48a8147b092d83ccf7f2fb: 21300000
+    - 1089cb3948586014e8bf0570c55fbb12: 21300000
+    - 7803ae39677964c42993e7dbf563688f: 21300000
+    - 20b3ab0afbef7e24fa38abbd9b3f2e57: 21300000
+    - ab5648da0f078074ab8ffcdf368aa416: 21300000
+    - c56662ac43050d34a86c96ded6f253b8: 21300000
+    - fc29d5ec07831d148b7be95caa49244a: 21300000
+    - e8aa59ad79a0aae4e9e3b2beb81fbd2d: 21300000
+    - d3e3640e673908b49a382f85ae75d844: 21300000
+    - 43fe822e9f2761e4fa0a4fbf623aa1b6: 21300000
+    - 0474deae14d5caa49842c68677b60a69: 21300000
+    - daa187ff7f93bfd40b8622b5d7a110e6: 21300000
+  m_MasterAtlas: {fileID: 0}
+  m_PackedSprites:
+  - {fileID: 21300000, guid: a1e83ca2f0d16d64a9c32f86ee1e8213, type: 3}
+  - {fileID: 21300000, guid: 8e8146e2b99660e4a98a103be793a08c, type: 3}
+  - {fileID: 21300000, guid: 74f484b3cc302e04f816c24b0f255153, type: 3}
+  - {fileID: 21300000, guid: 8f9f20f451cd05748a07facbe5b74ef8, type: 3}
+  - {fileID: 21300000, guid: bfeb9fb63db867d43a565686ca557ca1, type: 3}
+  - {fileID: 21300000, guid: 67fbd0471e48a8147b092d83ccf7f2fb, type: 3}
+  - {fileID: 21300000, guid: 1089cb3948586014e8bf0570c55fbb12, type: 3}
+  - {fileID: 21300000, guid: 7803ae39677964c42993e7dbf563688f, type: 3}
+  - {fileID: 21300000, guid: 20b3ab0afbef7e24fa38abbd9b3f2e57, type: 3}
+  - {fileID: 21300000, guid: ab5648da0f078074ab8ffcdf368aa416, type: 3}
+  - {fileID: 21300000, guid: c56662ac43050d34a86c96ded6f253b8, type: 3}
+  - {fileID: 21300000, guid: fc29d5ec07831d148b7be95caa49244a, type: 3}
+  - {fileID: 21300000, guid: e8aa59ad79a0aae4e9e3b2beb81fbd2d, type: 3}
+  - {fileID: 21300000, guid: d3e3640e673908b49a382f85ae75d844, type: 3}
+  - {fileID: 21300000, guid: 43fe822e9f2761e4fa0a4fbf623aa1b6, type: 3}
+  - {fileID: 21300000, guid: 0474deae14d5caa49842c68677b60a69, type: 3}
+  - {fileID: 21300000, guid: daa187ff7f93bfd40b8622b5d7a110e6, type: 3}
+  m_PackedSpriteNamesToIndex:
+  - prepare3
+  - prepare1
+  - character12
+  - character1
+  - preparefill1
+  - character0_1
+  - preparefill0
+  - character3
+  - preparefill2
+  - character2
+  - prepare2
+  - character10
+  - character0
+  - prepare0
+  - character11
+  - preparefill3
+  - character13
+  m_RenderDataMap: {}
+  m_Tag: character
+  m_IsVariant: 0
+  m_IsPlaceholder: 0

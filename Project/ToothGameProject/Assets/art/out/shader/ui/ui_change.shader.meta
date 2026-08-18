@@ -1,0 +1,11 @@
+fileFormatVersion: 2
+guid: Cn5Kty6rWi3nhIEJbT+/SF6stYKDWJ3QJcJE/c5zZZjQO16ZWfhIJgk=
+ShaderImporter:
+  externalObjects: {}
+  defaultTextures:
+  - _Main: {fileID: 2800000, guid: 355f05c9367f7644a8fcbb003887bfec, type: 3}
+  - _TextureSample1: {fileID: 2800000, guid: 5c03bc4b80b50384a9904843f3769487, type: 3}
+  nonModifiableTextures: []
+  userData: 
+  assetBundleName: shader/ui/ui_change.jpg
+  assetBundleVariant: 
