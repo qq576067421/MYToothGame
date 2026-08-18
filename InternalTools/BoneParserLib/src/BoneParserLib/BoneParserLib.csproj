@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.1</TargetFramework>
+    <Nullable>disable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <AssemblyName>BoneParserLib</AssemblyName>
+    <RootNamespace>CompanyInternalTools.BoneParserLib</RootNamespace>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+
+  <Target Name="CopyToMainProject" AfterTargets="Build">
+    <PropertyGroup>
+      <BoneParserDir>$(MSBuildThisFileDirectory)..\..\..\..\Project\ToothGameProject\Assets\Scripts\Game\BoneParser\</BoneParserDir>
+    </PropertyGroup>
+    <MakeDir Directories="$(BoneParserDir)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(BoneParserDir)" />
+    <Copy
+      SourceFiles="$(TargetDir)$(AssemblyName).pdb"
+      DestinationFolder="$(BoneParserDir)"
+      Condition="Exists('$(TargetDir)$(AssemblyName).pdb')" />
+  </Target>
+</Project>
