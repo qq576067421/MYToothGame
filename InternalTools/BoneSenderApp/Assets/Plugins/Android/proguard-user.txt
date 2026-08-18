@@ -1,0 +1,5 @@
+# 1. 保留你的核心SDK（主体）
+-keep class com.youdoo.androidLibrary.** { *; }
+-keep class com.sdt.game.service.** { *; }
+-keep class com.sdt.rcu_comom.** { *; }
+

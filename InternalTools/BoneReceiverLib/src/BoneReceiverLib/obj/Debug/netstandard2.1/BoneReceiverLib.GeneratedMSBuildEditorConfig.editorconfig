@@ -1,0 +1,8 @@
+is_global = true
+build_property.RootNamespace = CompanyInternalTools.BoneReceiverLib
+build_property.ProjectDir = D:\tooth\公司内部工具\BoneReceiverLib\src\BoneReceiverLib\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.CsWinRTUseWindowsUIXamlProjections = false
+build_property.EffectiveAnalysisLevelStyle = 
+build_property.EnableCodeStyleSeverity = 

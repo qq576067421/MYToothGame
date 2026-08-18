@@ -1,0 +1,8 @@
+D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.deps.json
+D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.dll
+D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.pdb
+D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.GeneratedMSBuildEditorConfig.editorconfig
+D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.csproj.CoreCompileInputs.cache
+D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.sourcelink.json
+D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.dll
+D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.pdb

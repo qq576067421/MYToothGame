@@ -1,0 +1,8 @@
+is_global = true
+build_property.RootNamespace = CompanyInternalTools.BoneParserLib
+build_property.ProjectDir = D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\
+build_property.EnableComHosting = 
+build_property.EnableGeneratedComInterfaceComImportInterop = 
+build_property.CsWinRTUseWindowsUIXamlProjections = false
+build_property.EffectiveAnalysisLevelStyle = 
+build_property.EnableCodeStyleSeverity = 

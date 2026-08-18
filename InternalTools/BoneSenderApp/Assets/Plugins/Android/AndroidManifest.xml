@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+    <uses-permission android:name="com.sdt.game.service.ACCESS" />
+    <uses-permission android:name="com.sdt.permission.API_SERVICE" />
+    <uses-permission android:name="com.sdt.game.service.PERMISSION_TO_BIND" />
+    <!-- 蓝牙权限 -->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
+    <!-- 摄像头权限 -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- 音频权限 -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />  
+    <uses-permission android:name="android.permission.NFC" />
+    <!--文件读写-->
+  
+  <!-- Android 10+ 新增权限（可选） -->
+  <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION" />
+
+   <!-- 录屏 -->
+   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+   <uses-permission android:name="android.permission.READ_PHONE_STATE" />
+ 
+  
+ 
+  <queries>
+    <package android:name="com.youdoo.yms" />
+  </queries>
+    
+    <application android:usesCleartextTraffic="true">
+  
+      <activity android:name="com.unity3d.player.UnityPlayerActivity"
+                  android:theme="@style/TuanjieThemeSelector">
+            <intent-filter>
+                 <action android:name="android.intent.action.MAIN" />
+                 <category android:name="android.intent.category.LAUNCHER" />
+                 <action android:name="com.youdoo.action.START_GAME" />
+            </intent-filter>
+            <meta-data android:name="unityplayer.UnityActivity" android:value="true" />
+            <meta-data android:name="android.app.lib_name" android:value="game" />
+        </activity>
+    </application>
+</manifest>
