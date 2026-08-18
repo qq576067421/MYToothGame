@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 103e863f5c0347be8a512f431aaf5ec1, type: 3}
+  m_Name: Behaviors Database
+  m_EditorClassIdentifier: 
+  data:
+  - {fileID: 11400000, guid: 1a64593d30dd7d3489d9842e7a7296dc, type: 2}
+  - {fileID: 11400000, guid: 3bd53dcd731ae8c42a3b1e254d8cad18, type: 2}
+  - {fileID: 11400000, guid: 83ede3f740b9072458f57ba501b42656, type: 2}
+  - {fileID: 11400000, guid: f0c2b1f54d9035d4f8bb37e0bb917192, type: 2}
+  - {fileID: 11400000, guid: ea09a46498cf8ae4daf5a8f052d0ba37, type: 2}
+  - {fileID: 11400000, guid: c016d3853c1fafd4e95679c04975c130, type: 2}
+  - {fileID: 11400000, guid: f75b263e7a549eb4287a5808c19eccbd, type: 2}
+  - {fileID: 11400000, guid: 9d9c630dcecfc4d4cbf94ea1b6d5c73f, type: 2}
+  - {fileID: 11400000, guid: 727a1b98a65ac5f4289fe6aece2dedd9, type: 2}
+  - {fileID: 11400000, guid: f2c32461e02b28641b7f1fed4c16465b, type: 2}
+  - {fileID: 11400000, guid: 4ea427536746dcd49b4eae372b329079, type: 2}
+  - {fileID: 11400000, guid: 47d067dc293d1714d8f387e0c07b085d, type: 2}
