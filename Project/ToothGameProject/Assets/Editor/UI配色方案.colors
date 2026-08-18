@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &1
+MonoBehaviour:
+  m_ObjectHideFlags: 52
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 12323, guid: 0000000000000000e000000000000000, type: 0}
+  m_Name: "UI\u914D\u8272\u65B9\u6848"
+  m_EditorClassIdentifier: 
+  m_Presets:
+  - m_Name: "\u9EC4\u8272\u6309\u94AE\u6587\u5B57"
+    m_Color: {r: 0.5921569, g: 0.20784314, b: 0.015686275, a: 1}
+  - m_Name: "\u7EFF\u8272\u6309\u94AE\u6587\u5B57"
+    m_Color: {r: 0.015686275, g: 0.3529412, b: 0.22352941, a: 1}
+  - m_Name: "\u84DD\u8272\u6309\u94AE\u6587\u5B57"
+    m_Color: {r: 0.015686275, g: 0.3529412, b: 0.22352941, a: 1}
+  - m_Name: "\u8F93\u5165\u6846\u5360\u4F4D\u7B26\u989C\u8272"
+    m_Color: {r: 0.31764707, g: 0.28627452, b: 0.3882353, a: 1}
+  - m_Name: "\u8F93\u5165\u6846ICON\u989C\u8272"
+    m_Color: {r: 0.38431376, g: 0.32156864, b: 0.40784317, a: 1}
+  - m_Name: "\u8FDB\u5EA6\u6761\u80CC\u666F\u8272"
+    m_Color: {r: 0.09803922, g: 0.07450981, b: 0.08627451, a: 1}
+  - m_Name: "\u6587\u5B57\u7070\u8272"
+    m_Color: {r: 0.5176471, g: 0.47450984, b: 0.6156863, a: 1}
+  - m_Name: "\u6587\u5B57\u6D45\u8272"
+    m_Color: {r: 0.74509805, g: 0.70980394, b: 0.7137255, a: 1}
+  - m_Name: "\u9EC4\u8272\u6807\u9898"
+    m_Color: {r: 0.9647059, g: 0.9607843, b: 0.6117647, a: 1}
+  - m_Name: "\u6807\u6CE8"
+    m_Color: {r: 0.4627451, g: 0.78039217, b: 1, a: 1}
+  - m_Name: "\u9053\u5177\u5C5E\u6027\u63CF\u8FF0 "
+    m_Color: {r: 0.46274513, g: 0.7803922, b: 1, a: 1}
+  - m_Name: "\u9053\u5177\u5C5E\u6027\u4F7F\u7528"
+    m_Color: {r: 1, g: 0.976174, b: 0, a: 1}
+  - m_Name: "Popup\u80CC\u666F"
+    m_Color: {r: 0.18039216, g: 0.16078432, b: 0.23529412, a: 1}
