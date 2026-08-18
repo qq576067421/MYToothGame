@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="1920,1080">
+  <displayList>
+    <graph id="n6_luge" name="n6" xy="216,396" size="333,132" type="rect" lineSize="0" corner="25"/>
+    <image id="n12_ocox" name="n12" src="ocoxu" fileName="Resouce/风格1-概念图3.png" xy="0,0" size="1920,1080"/>
+    <graph id="n13_ocox" name="n13" xy="45,144" size="105,99" type="rect" lineSize="0" fillColor="#ff6fe6ff" corner="15"/>
+    <graph id="n14_ocox" name="n14" xy="43,19" size="107,99" type="rect" lineSize="0" fillColor="#ffeeeeee" corner="15"/>
+    <graph id="n15_ocox" name="n15" xy="312,912" size="196,99" type="rect" lineSize="0" fillColor="#ffff3300" corner="15"/>
+    <graph id="n16_ocox" name="n16" xy="99,873" size="210,99" type="rect" lineSize="0" fillColor="#ff33ffcc" corner="15"/>
+    <text id="n18_ocox" name="n18" xy="50,148" size="96,93" fontSize="25" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" text="牙齿&#xA;保健所"/>
+    <text id="n20_ocox" name="n20" xy="88,890" size="225,67" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" text="闯关模式"/>
+    <text id="n21_ocox" name="n21" xy="296,930" size="225,67" fontSize="40" color="#ffff00" align="center" vAlign="middle" autoSize="none" bold="true" text="无尽模式"/>
+    <image id="n22_ofrk" name="n22" src="l5ec13" fileName="Resouce/Pause_4.png" xy="55,27"/>
+    <graph id="n23_ofrk" name="n23" xy="1683,35" size="199,56" group="n26_ofrk" type="rect" lineSize="5" lineColor="#ff33cccc" fillColor="#3f000000" corner="5"/>
+    <graph id="n24_ofrk" name="n24" xy="1697,42" size="40,40" group="n26_ofrk" aspect="true" type="eclipse" lineSize="5" lineColor="#ffff9900" fillColor="#ffffff00"/>
+    <text id="n25_ofrk" name="n25" xy="1752,43" size="94,42" group="n26_ofrk" fontSize="30" color="#ffffff" align="center" bold="true" text="99999"/>
+    <group id="n26_ofrk" name="n26" xy="1683,35" size="199,56" advanced="true"/>
+  </displayList>
+</component>

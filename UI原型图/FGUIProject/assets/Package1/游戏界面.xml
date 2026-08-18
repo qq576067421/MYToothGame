@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="1920,1080">
+  <displayList>
+    <graph id="n6_luge" name="n6" xy="216,396" size="333,132" type="rect" lineSize="0" corner="25"/>
+    <image id="n12_ocox" name="n12" src="ocoxu" fileName="Resouce/风格1-概念图3.png" xy="0,0" size="1920,1080"/>
+    <graph id="n13_ocox" name="n13" xy="33,15" size="118,111" aspect="true" type="rect" lineSize="0" fillColor="#ff66ffcc" corner="15"/>
+    <graph id="n14_ocox" name="n14" xy="339,32" size="1241,33" type="rect" lineSize="0" fillColor="#ffeeeeee" corner="15"/>
+    <graph id="n15_ocox" name="n15" xy="416,1020" size="50,50" type="rect" lineSize="0" fillColor="#ffff3300" corner="15"/>
+    <graph id="n16_ocox" name="n16" xy="1044,1021" size="50,50" type="rect" lineSize="0" fillColor="#ff66ffcc" corner="15"/>
+    <text id="n18_ocox" name="n18" xy="44,12" size="96,116" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" text="关卡&#xA;2"/>
+    <text id="n20_ocox" name="n20" xy="412,1015" size="60,60" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="5"/>
+    <graph id="n22_ocox" name="n22" xy="740,1021" size="50,50" type="rect" lineSize="0" fillColor="#ff66ccff" corner="15"/>
+    <graph id="n23_ocox" name="n23" xy="1370,1021" size="50,50" type="rect" lineSize="0" fillColor="#ffffff00" corner="15"/>
+    <text id="n24_ocox" name="n24" xy="734,1012" size="64,67" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="5"/>
+    <text id="n25_ocox" name="n25" xy="1037,1013" size="64,67" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="5"/>
+    <text id="n26_ocox" name="n26" xy="1363,1013" size="64,67" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="5"/>
+    <graph id="n30_ocox" name="n30" xy="338,32" size="550,33" type="rect" lineSize="0" fillColor="#ff66ffff" corner="15"/>
+    <graph id="n31_ocox" name="n31" xy="530,1044" pivot="0.5,0.5" anchor="true" size="60,60" group="n35_ofrk" aspect="true" type="eclipse" lineSize="5" lineColor="#ff66ff66"/>
+    <text id="n21_ocox" name="n21" xy="501,1015" size="60,60" group="n35_ofrk" fontSize="18" color="#ff3300" align="center" vAlign="middle" autoSize="none" text="技能"/>
+    <image id="n33_ofrk" name="n33" src="ofrkw" fileName="Resouce/底.png" xy="529,1044" pivot="0.5,0.5" anchor="true" size="75,75" group="n35_ofrk" aspect="true" alpha="0.5" fillMethod="radial360" fillClockwise="false" fillAmount="68"/>
+    <group id="n35_ofrk" name="n35" xy="492,1007" size="75,75" advanced="true"/>
+    <graph id="n36_ofrk" name="n36" xy="859,1044" pivot="0.5,0.5" anchor="true" size="60,60" group="n39_ofrk" aspect="true" type="eclipse" lineSize="5" lineColor="#ff66ff66"/>
+    <text id="n37_ofrk" name="n37" xy="830,1015" size="60,60" group="n39_ofrk" fontSize="18" color="#ff3300" align="center" vAlign="middle" autoSize="none" text="技能"/>
+    <image id="n38_ofrk" name="n38" src="ofrkw" fileName="Resouce/底.png" xy="858,1044" pivot="0.5,0.5" anchor="true" size="75,75" group="n39_ofrk" aspect="true" alpha="0.5" fillMethod="radial360" fillClockwise="false" fillAmount="68"/>
+    <group id="n39_ofrk" name="n39" xy="821,1007" size="75,75" advanced="true"/>
+    <graph id="n40_ofrk" name="n40" xy="1159,1044" pivot="0.5,0.5" anchor="true" size="60,60" group="n43_ofrk" aspect="true" type="eclipse" lineSize="5" lineColor="#ff66ff66"/>
+    <text id="n41_ofrk" name="n41" xy="1130,1015" size="60,60" group="n43_ofrk" fontSize="18" color="#ff3300" align="center" vAlign="middle" autoSize="none" text="技能"/>
+    <image id="n42_ofrk" name="n42" src="ofrkw" fileName="Resouce/底.png" xy="1158,1044" pivot="0.5,0.5" anchor="true" size="75,75" group="n43_ofrk" aspect="true" alpha="0.5" fillMethod="radial360" fillClockwise="false" fillAmount="68"/>
+    <group id="n43_ofrk" name="n43" xy="1121,1007" size="75,75" advanced="true"/>
+    <graph id="n44_ofrk" name="n44" xy="1483,1046" pivot="0.5,0.5" anchor="true" size="60,60" group="n47_ofrk" aspect="true" type="eclipse" lineSize="5" lineColor="#ff66ff66"/>
+    <text id="n45_ofrk" name="n45" xy="1454,1017" size="60,60" group="n47_ofrk" fontSize="18" color="#ff3300" align="center" vAlign="middle" autoSize="none" text="技能"/>
+    <image id="n46_ofrk" name="n46" src="ofrkw" fileName="Resouce/底.png" xy="1482,1046" pivot="0.5,0.5" anchor="true" size="75,75" group="n47_ofrk" aspect="true" alpha="0.5" fillMethod="radial360" fillClockwise="false" fillAmount="68"/>
+    <group id="n47_ofrk" name="n47" xy="1445,1009" size="75,75" advanced="true"/>
+    <graph id="n48_ofrk" name="n48" xy="1496,321" size="390,50" type="rect" lineSize="0" lineColor="#ffff3300" fillColor="#ffff3300"/>
+    <graph id="n50_ofrk" name="n50" xy="1496,374" size="362,50" type="rect" lineSize="0" lineColor="#ffff3300" fillColor="#ff66ccff"/>
+    <graph id="n51_ofrk" name="n51" xy="1496,425" size="332,50" type="rect" lineSize="0" lineColor="#ffff3300" fillColor="#ff66ffcc"/>
+    <graph id="n52_ofrk" name="n52" xy="1496,476" size="307,50" type="rect" lineSize="0" lineColor="#ffff3300" fillColor="#ffffff00"/>
+    <text id="n53_ofrk" name="n53" xy="1502,321" size="339,50" fontSize="30" color="#ffffff" vAlign="middle" autoSize="none" strokeColor="#ff9900" strokeSize="2" text="999999"/>
+    <text id="n54_ofrk" name="n54" xy="1502,376" size="339,50" fontSize="30" color="#ffffff" vAlign="middle" autoSize="none" strokeColor="#ff9900" strokeSize="2" text="888888"/>
+    <text id="n55_ofrk" name="n55" xy="1502,427" size="339,50" fontSize="30" color="#ffffff" vAlign="middle" autoSize="none" strokeColor="#ff9900" strokeSize="2" text="777777"/>
+    <text id="n56_ofrk" name="n56" xy="1502,478" size="339,50" fontSize="30" color="#ffffff" vAlign="middle" autoSize="none" strokeColor="#ff9900" strokeSize="2" text="666666"/>
+  </displayList>
+</component>

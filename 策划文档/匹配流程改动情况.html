@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>塔防准备、战斗绑定与结算流程核对文档</title>
+    <style>
+        :root {
+            --ink: #18323a;
+            --muted: #667b80;
+            --paper: #fffdf7;
+            --canvas: #eef4ef;
+            --line: #d7e2dc;
+            --primary: #087f6b;
+            --primary-dark: #075d51;
+            --accent: #e66a43;
+            --done-bg: #dff3e9;
+            --done-ink: #176346;
+            --device-bg: #fff0cf;
+            --device-ink: #87590b;
+            --scope-bg: #e7edf0;
+            --scope-ink: #53666d;
+            --shadow: 0 18px 50px rgba(35, 65, 58, 0.12);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            margin: 0;
+            color: var(--ink);
+            background:
+                radial-gradient(circle at 8% 6%, rgba(230, 106, 67, 0.12), transparent 28rem),
+                radial-gradient(circle at 92% 18%, rgba(8, 127, 107, 0.13), transparent 32rem),
+                linear-gradient(145deg, #f5f3e9 0%, var(--canvas) 52%, #e6f0ed 100%);
+            font-family: "Microsoft YaHei", "Noto Sans SC", "PingFang SC", sans-serif;
+            line-height: 1.75;
+        }
+
+        a {
+            color: inherit;
+        }
+
+        .page-shell {
+            display: grid;
+            grid-template-columns: 270px minmax(0, 940px);
+            justify-content: center;
+            gap: 34px;
+            padding: 34px 28px 80px;
+        }
+
+        .sidebar {
+            position: sticky;
+            top: 24px;
+            align-self: start;
+            max-height: calc(100vh - 48px);
+            overflow: auto;
+            padding: 22px 18px;
+            border: 1px solid rgba(8, 127, 107, 0.18);
+            border-radius: 22px;
+            background: rgba(255, 253, 247, 0.88);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+        }
+
+        .sidebar-title {
+            margin: 0 0 14px;
+            color: var(--primary-dark);
+            font-size: 15px;
+            letter-spacing: 0.12em;
+        }
+
+        .toc {
+            display: grid;
+            gap: 4px;
+        }
+
+        .toc a {
+            padding: 7px 10px;
+            border-radius: 10px;
+            color: var(--muted);
+            font-size: 13px;
+            text-decoration: none;
+            transition: background 150ms ease, color 150ms ease, transform 150ms ease;
+        }
+
+        .toc a:hover,
+        .toc a:focus-visible {
+            color: var(--primary-dark);
+            background: var(--done-bg);
+            transform: translateX(3px);
+            outline: none;
+        }
+
+        .main {
+            min-width: 0;
+        }
+
+        .hero {
+            position: relative;
+            overflow: hidden;
+            padding: 48px 48px 42px;
+            border-radius: 28px;
+            color: #f5fffb;
+            background:
+                linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 48%),
+                linear-gradient(135deg, #075d51 0%, #087f6b 62%, #16977f 100%);
+            box-shadow: var(--shadow);
+        }
+
+        .hero::after {
+            content: "";
+            position: absolute;
+            right: -70px;
+            bottom: -90px;
+            width: 260px;
+            height: 260px;
+            border: 34px solid rgba(255, 255, 255, 0.09);
+            border-radius: 50%;
+        }
+
+        .eyebrow {
+            position: relative;
+            z-index: 1;
+            margin: 0 0 12px;
+            color: #bce9de;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0.18em;
+        }
+
+        h1 {
+            position: relative;
+            z-index: 1;
+            max-width: 760px;
+            margin: 0;
+            font-size: clamp(30px, 5vw, 48px);
+            line-height: 1.25;
+            letter-spacing: -0.03em;
+        }
+
+        .hero-copy {
+            position: relative;
+            z-index: 1;
+            max-width: 720px;
+            margin: 18px 0 0;
+            color: #d9f3ec;
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 14px;
+            margin: 20px 0 26px;
+        }
+
+        .summary-card {
+            padding: 18px 20px;
+            border: 1px solid rgba(8, 127, 107, 0.14);
+            border-radius: 18px;
+            background: rgba(255, 253, 247, 0.9);
+            box-shadow: 0 10px 28px rgba(35, 65, 58, 0.08);
+        }
+
+        .summary-value {
+            display: block;
+            color: var(--primary-dark);
+            font-size: 26px;
+            font-weight: 800;
+        }
+
+        .summary-label {
+            color: var(--muted);
+            font-size: 13px;
+        }
+
+        .section {
+            margin-top: 22px;
+            padding: 34px 38px;
+            border: 1px solid rgba(8, 127, 107, 0.13);
+            border-radius: 24px;
+            background: var(--paper);
+            box-shadow: 0 12px 36px rgba(35, 65, 58, 0.08);
+        }
+
+        h2 {
+            margin: 0 0 18px;
+            color: var(--primary-dark);
+            font-size: 25px;
+            line-height: 1.35;
+        }
+
+        h3 {
+            margin: 28px 0 12px;
+            color: var(--ink);
+            font-size: 18px;
+        }
+
+        p {
+            margin: 10px 0;
+        }
+
+        ul,
+        ol {
+            margin: 12px 0;
+            padding-left: 1.4em;
+        }
+
+        li + li {
+            margin-top: 7px;
+        }
+
+        code {
+            padding: 2px 6px;
+            border: 1px solid #d7e7e1;
+            border-radius: 6px;
+            color: #145c50;
+            background: #edf7f3;
+            font-family: Consolas, "Microsoft YaHei", monospace;
+            font-size: 0.92em;
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            margin: 2px 0 10px;
+            padding: 5px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .status::before {
+            content: "";
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            background: currentColor;
+        }
+
+        .done {
+            color: var(--done-ink);
+            background: var(--done-bg);
+        }
+
+        .device {
+            color: var(--device-ink);
+            background: var(--device-bg);
+        }
+
+        .scope {
+            color: var(--scope-ink);
+            background: var(--scope-bg);
+        }
+
+        .note {
+            margin: 18px 0;
+            padding: 15px 17px;
+            border-left: 4px solid var(--accent);
+            border-radius: 0 12px 12px 0;
+            color: #68432f;
+            background: #fff2e8;
+        }
+
+        .file-list {
+            margin-top: 18px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            color: #38565d;
+            background: #f0f5f2;
+            font-size: 13px;
+        }
+
+        .file-list strong {
+            color: var(--primary-dark);
+        }
+
+        .checklist-toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 16px;
+            margin-bottom: 20px;
+            padding: 14px 16px;
+            border-radius: 14px;
+            color: #f4fffb;
+            background: var(--primary-dark);
+        }
+
+        .progress-track {
+            flex: 1;
+            max-width: 360px;
+            height: 9px;
+            overflow: hidden;
+            border-radius: 99px;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .progress-fill {
+            width: 0;
+            height: 100%;
+            border-radius: inherit;
+            background: #ffc06a;
+            transition: width 220ms ease;
+        }
+
+        .check-group {
+            margin-top: 24px;
+        }
+
+        .check-item {
+            display: flex;
+            gap: 11px;
+            align-items: flex-start;
+            margin: 9px 0;
+            padding: 11px 13px;
+            border: 1px solid transparent;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: border-color 150ms ease, background 150ms ease;
+        }
+
+        .check-item:hover {
+            border-color: #c9ded6;
+            background: #f5faf7;
+        }
+
+        .check-item input {
+            width: 18px;
+            height: 18px;
+            margin-top: 4px;
+            accent-color: var(--primary);
+        }
+
+        .check-item:has(input:checked) span {
+            color: var(--muted);
+            text-decoration: line-through;
+        }
+
+        .reset-button {
+            padding: 7px 12px;
+            border: 1px solid rgba(255, 255, 255, 0.42);
+            border-radius: 9px;
+            color: #fff;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .reset-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        @media (max-width: 960px) {
+            .page-shell {
+                display: block;
+                padding: 18px 14px 60px;
+            }
+
+            .sidebar {
+                position: relative;
+                top: 0;
+                max-height: none;
+                margin-bottom: 18px;
+            }
+
+            .toc {
+                grid-template-columns: repeat(2, minmax(0, 1fr));
+            }
+
+            .hero,
+            .section {
+                padding: 28px 22px;
+            }
+        }
+
+        @media (max-width: 620px) {
+            .summary-grid,
+            .toc {
+                grid-template-columns: 1fr;
+            }
+
+            .checklist-toolbar {
+                align-items: stretch;
+                flex-direction: column;
+            }
+        }
+
+        @media print {
+            body {
+                background: #fff;
+            }
+
+            .page-shell {
+                display: block;
+                padding: 0;
+            }
+
+            .sidebar,
+            .reset-button {
+                display: none;
+            }
+
+            .hero,
+            .section {
+                box-shadow: none;
+                break-inside: avoid;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="page-shell">
+        <aside class="sidebar">
+            <p class="sidebar-title">功能目录</p>
+            <nav class="toc" aria-label="文档目录">
+                <a href="#purpose">1. 文档目的</a>
+                <a href="#overview">2. 完整流程</a>
+                <a href="#navigation">3. 窗口与返回</a>
+                <a href="#player-count">4. 人数选择</a>
+                <a href="#prepare">5. 准备状态机</a>
+                <a href="#remote-menu">6. 遥控菜单</a>
+                <a href="#battle-submit">7. 数据提交</a>
+                <a href="#loading">8. 加载衔接</a>
+                <a href="#battle-control">9. 战斗控制权</a>
+                <a href="#battle-view">10. 实时画面</a>
+                <a href="#result-transition">11. 结算过渡</a>
+                <a href="#result-action">12. 结算操作</a>
+                <a href="#result-return">13. 结算返回</a>
+                <a href="#cleanup">14. 状态清理</a>
+                <a href="#acceptance">15. 验收清单</a>
+                <a href="#boundary">16. 验证边界</a>
+            </nav>
+        </aside>
+
+        <main class="main">
+            <header class="hero">
+                <p class="eyebrow">TOWER DEFEND FLOW REVIEW</p>
+                <h1>塔防准备、战斗绑定与结算流程核对文档</h1>
+                <p class="hero-copy">记录从模式选择、多人准备、人脸头像、战斗控制权到结算返回的完整规则，供策划、客户端和真机测试逐项核对。</p>
+            </header>
+
+            <div class="summary-grid" aria-label="文档摘要">
+                <div class="summary-card">
+                    <span class="summary-value">16</span>
+                    <span class="summary-label">功能章节</span>
+                </div>
+                <div class="summary-card">
+                    <span class="summary-value" id="summaryChecked">0</span>
+                    <span class="summary-label">已勾选验收项</span>
+                </div>
+                <div class="summary-card">
+                    <span class="summary-value" id="summaryTotal">0</span>
+                    <span class="summary-label">真机验收项</span>
+                </div>
+            </div>
+
+            <section class="section" id="purpose">
+                <h2>1. 文档目的</h2>
+                <p>本文档记录当前塔防从模式选择到结算返回的完整规则，用于策划、客户端和真机测试共同核对功能。</p>
+                <p><span class="status done">已实现</span> 代码链路已经存在，并通过静态编译。</p>
+                <p><span class="status device">需要真机验收</span> 依赖骨骼、摄像头、人脸识别或原生选择界面，无法仅靠编辑器确认最终表现。</p>
+                <p><span class="status scope">不在当前范围</span> 策划示意图等纯表现资源，本轮不处理。</p>
+            </section>
+
+            <section class="section" id="overview">
+                <h2>2. 完整流程总览</h2>
+                <ol>
+                    <li>玩家进入塔防入口并选择模式。</li>
+                    <li>章节模式继续选择主题或关卡，无尽模式直接进入人数选择。</li>
+                    <li>人数选择界面选择 1 人、2 人、3 人或 4 人。</li>
+                    <li>准备界面只显示所选人数对应的 <code>Player0</code> 至 <code>Player3</code>。</li>
+                    <li>每个玩家依次完成站位绑定、人脸识别、角色选择和举手准备。</li>
+                    <li>所有指定人数都准备完成后，准备界面提交正式战斗请求。</li>
+                    <li>战斗请求成功后才将 SDK 从准备识别切换为战斗识别。</li>
+                    <li><code>loading_wnd</code> 完全覆盖后关闭大厅选择窗口并加载战斗。</li>
+                    <li>战斗结束后先经过 1 秒结算过渡，再打开结算界面。</li>
+                    <li>结算界面可继续挑战、重新挑战或返回大厅。</li>
+                </ol>
+            </section>
+
+            <section class="section" id="navigation">
+                <h2>3. 大厅窗口层级与返回</h2>
+
+                <h3>3.1 窗口打开顺序</h3>
+                <span class="status done">已实现</span>
+                <ul>
+                    <li>模式选择、章节选择、人数选择和准备界面按顺序打开。</li>
+                    <li>进入战斗前不主动关闭前面的选择窗口，便于遥控返回逐层关闭。</li>
+                    <li>只有 <code>__ParticipateCurrentActiveWindow = true</code> 的业务窗口参与当前顶层窗口判断。</li>
+                    <li><code>tip_wnd</code>、<code>loading_wnd</code> 等辅助窗口不抢占业务返回层级。</li>
+                </ul>
+                <div class="file-list"><strong>主要代码：</strong> <code>lobby_main_wnd.cs</code>、<code>CGamePro_Lobby.cs</code>、<code>UIManager.cs</code></div>
+
+                <h3>3.2 大厅遥控返回</h3>
+                <span class="status done">已实现</span>
+                <ul>
+                    <li>在准备界面按返回，关闭准备界面并回到人数选择。</li>
+                    <li>在人数选择按返回，回到上一个模式或关卡选择界面。</li>
+                    <li>只有退到 <code>lobby_main_wnd</code> 后再次返回，才进入原大厅返回登录流程。</li>
+                    <li><code>loading_wnd</code> 正在覆盖或切换场景时屏蔽返回输入，避免流程竞态。</li>
+                </ul>
+
+                <h3>3.3 不处理的表现资源</h3>
+                <span class="status scope">不在当前范围</span>
+                <p>左右挥手切换角色和举手准备的示意图片由界面资源单独维护，本轮不新增。</p>
+            </section>
+
+            <section class="section" id="player-count">
+                <h2>4. 人数选择</h2>
+                <span class="status done">已实现</span>
+                <ul>
+                    <li>支持选择 1 人、2 人、3 人、4 人。</li>
+                    <li>选择 1 人时使用 <code>Player0</code>。</li>
+                    <li>选择 2 人时使用 <code>Player0</code>、<code>Player1</code>。</li>
+                    <li>选择 3 人时使用 <code>Player0</code>、<code>Player1</code>、<code>Player2</code>。</li>
+                    <li>选择 4 人时使用全部四个位置。</li>
+                    <li>人数写入 <code>BattleStartupRequest.m_PreparePlayerCount</code>，准备界面和战斗读取同一份数据。</li>
+                    <li>重新选择人数时，清空上一轮玩家、SDK 槽位和角色选择结果。</li>
+                </ul>
+                <div class="note">编辑器允许手动点击座位进行调试。真机禁止手点座位，人数和位置由准备阶段 SDK 识别结果决定，并且不显示编辑器座位选中状态。</div>
+                <div class="file-list"><strong>主要代码：</strong> <code>tower_defend_player_count_wnd.cs</code>、<code>CGamePro_Lobby.cs</code>、<code>tower_defend_prepare_wnd.cs</code></div>
+            </section>
+
+            <section class="section" id="prepare">
+                <h2>5. 准备阶段状态机</h2>
+                <p>准备阶段每个座位独立维护以下状态，每个步骤不可跳过：</p>
+                <ol>
+                    <li><code>WaitCenter</code>：等待玩家进入对应区域。</li>
+                    <li><code>FaceRecognizing</code>：只对已绑定的骨骼编号执行人脸识别。</li>
+                    <li><code>WaitRaiseHand</code>：人脸阶段完成，等待举手准备。</li>
+                    <li><code>Ready</code>：玩家已准备完成。</li>
+                </ol>
+
+                <h3>5.1 进入区域并绑定骨骼</h3>
+                <span class="status device">已实现，需要真机验收</span>
+                <ul>
+                    <li>系统按所选人数建立对应数量的检测区域。</li>
+                    <li>玩家稳定进入对应区域后，绑定唯一骨骼编号。</li>
+                    <li>已被其他座位绑定的骨骼编号不会重复分配。</li>
+                    <li>准备阶段玩家离开当前区域或进入其他玩家区域时，释放原准备座位并回到步骤一。</li>
+                    <li>这里的区域重置只属于准备阶段，不等同于战斗阶段的控制权规则。</li>
+                </ul>
+
+                <h3>5.2 人脸识别</h3>
+                <span class="status device">已实现，需要真机验收</span>
+                <ul>
+                    <li>没有玩家时，头像显示 <code>NoPlayer</code>，提示“请进入人脸识别区域”。</li>
+                    <li>玩家进入后，提示“正在识别人脸”。</li>
+                    <li>自动识别只处理已经绑定到当前座位的骨骼编号。</li>
+                    <li>自动识别最长等待 5 秒。</li>
+                    <li>识别成功后保存 <code>userId</code>，头像优先加载 <code>avatarUri</code>，失败后再加载 <code>facePhotoPath</code>。</li>
+                    <li>自动识别超时或失败后显示 <code>SystemPlayer</code>，并进入举手准备阶段。</li>
+                    <li>人脸头像是否选择成功不阻塞角色切换、举手准备和进入战斗。</li>
+                </ul>
+                <div class="file-list"><strong>语言编号：</strong> <code>td_prepare_face_enter_area</code>、<code>td_prepare_face_recognizing</code>、<code>td_prepare_face_wait_avatar_select</code>、<code>td_prepare_face_select_avatar</code></div>
+
+                <h3>5.3 人工选择头像</h3>
+                <span class="status device">已实现，需要真机验收</span>
+                <ul>
+                    <li>每个有效玩家位置的 <code>head</code> 是可操作按钮。</li>
+                    <li>编辑器不打开原生头像选择功能。</li>
+                    <li>真机点击或通过遥控器确认 <code>head</code> 后，调用 SDK 人工头像选择。</li>
+                    <li>同一时间只允许一个玩家进入人工选择，其他玩家等待当前选择结束。</li>
+                    <li>选择成功后，将 SDK 返回的账号头像显示到对应 <code>head</code>。</li>
+                    <li>选择失败或取消时返回准备界面并保持当前头像；没有有效头像时继续使用 <code>SystemPlayer</code>。</li>
+                    <li>人工选择不会修改准备状态。</li>
+                    <li>不挂载也不修改 SDK 的 <code>HeadImageController</code>，当前游戏使用独立的 <code>tower_defend_prepare_face_controller</code>。</li>
+                </ul>
+
+                <h3>5.4 角色选择</h3>
+                <span class="status device">已实现，需要真机验收</span>
+                <ul>
+                    <li>每次进入准备界面时，按座位顺序分配不同初始角色。</li>
+                    <li>四个角色配置完整时，四个座位初始为四个不同角色。</li>
+                    <li>角色不限制唯一性，不同玩家可以选择相同角色。</li>
+                    <li>左挥手选择上一个角色，右挥手选择下一个角色。</li>
+                    <li><code>btnLeft</code> 和 <code>btnRight</code> 同样可以切换角色。</li>
+                    <li>当前挥手速度参考值为每秒 <code>0.7</code> 倍肩宽，低于阈值的慢速收手不应触发反向切换。</li>
+                    <li>角色图标读取角色配置，不再写死只开放第 1、3 个角色。</li>
+                </ul>
+
+                <h3>5.5 举手准备</h3>
+                <span class="status device">已实现，需要真机验收</span>
+                <ul>
+                    <li>只有人脸阶段完成后才检测举手准备。</li>
+                    <li>手腕需要超过头部，并保留约 <code>0.05</code> 倍肩宽的高度余量。</li>
+                    <li>需要连续满足 30 个识别帧才完成准备。</li>
+                    <li>举手过程中 <code>Fill</code> 从 0 平滑增加到 1。</li>
+                    <li>未准备显示 <code>noPrepare</code> 底图，准备完成后切换为已准备状态。</li>
+                    <li>当前规则要求所选人数全部准备，不能只由其中一人开始游戏。</li>
+                </ul>
+                <div class="file-list"><strong>主要代码：</strong> <code>AndroidParseDataDemo.cs</code>、<code>tower_defend_prepare_wnd.cs</code></div>
+            </section>
+
+            <section class="section" id="remote-menu">
+                <h2>6. 遥控器菜单选中状态</h2>
+                <span class="status done">已实现</span>
+                <ul>
+                    <li><code>LUIButton</code> 通过 <code>ChooseState</code> 保存自己的选中节点。</li>
+                    <li>遥控菜单统一调用 <code>LUIButton.SetAsChooseState()</code>，不再使用 <code>Transform.Find("choose")</code>。</li>
+                    <li>准备界面在 <code>OnOpen</code> 后根据本局人数动态绑定有效的 <code>head</code> 按钮。</li>
+                    <li>选择 2 人时只允许遥控器在两个有效头像按钮间移动，不会进入隐藏的第 3、4 个位置。</li>
+                    <li>所有 <code>_wnd.prefab</code> 中按钮直属的 <code>choose</code> 节点均已绑定到对应 <code>LUIButton</code>。</li>
+                </ul>
+                <div class="file-list"><strong>主要代码：</strong> <code>LUIButton.cs</code>、<code>RenderAPI.cs</code>、<code>WindowBase.cs</code>、<code>tower_defend_prepare_wnd.cs</code></div>
+            </section>
+
+            <section class="section" id="battle-submit">
+                <h2>7. 准备数据提交与战斗切换</h2>
+                <span class="status done">已实现</span>
+                <ul>
+                    <li>准备界面把“战斗座位到 SDK 槽位”的绑定写入 <code>BattleStartupRequest</code>。</li>
+                    <li>真机提交时按 <code>GetReadySeatIds()</code> 重建正式玩家列表。</li>
+                    <li>正式玩家数量必须等于人数选择结果。</li>
+                    <li>SDK 槽位绑定必须完整且不能重复。</li>
+                    <li>绑定错误使用语言编号 <code>td_error_prepare_sdk_binding_missing</code>，不显示代码中的中文明文。</li>
+                    <li>SDK 检测到全部准备时只通知业务尝试开战，不提前停止准备识别。</li>
+                    <li>只有 <code>StartBattleFromRequest()</code> 成功后，才调用 <code>EnterBattleWithConfirmedPlayers()</code> 切换到战斗识别。</li>
+                    <li>开战校验失败时，准备检测仍保持运行，不会出现界面仍在但无法继续识别的状态。</li>
+                </ul>
+            </section>
+
+            <section class="section" id="loading">
+                <h2>8. Loading 与界面关闭</h2>
+                <span class="status device">已实现，需要运行时验收</span>
+                <ul>
+                    <li>进入战斗、结算继续和返回大厅都先打开 <code>loading_wnd</code>。</li>
+                    <li><code>loading_wnd</code> 最少保持 2.5 秒，以覆盖约 2 秒的铺满动画。</li>
+                    <li>准备界面和前面的选择窗口不会在加载遮罩铺满前关闭。</li>
+                    <li>场景和第一波怪物预热完成后，战斗入口才允许关闭加载界面。</li>
+                    <li>加载状态屏蔽空格、确认和返回等非界面输入，避免重复切换。</li>
+                </ul>
+            </section>
+
+            <section class="section" id="battle-control">
+                <h2>9. 战斗阶段骨骼控制权</h2>
+                <span class="status device">已实现，需要真机验收</span>
+                <ul>
+                    <li>战斗开始时优先使用准备阶段确认的骨骼编号初始化每个战斗座位。</li>
+                    <li>战斗阶段一旦绑定骨骼编号，不再因人物左右移动或跨越准备区域而释放控制权。</li>
+                    <li>只要当前骨骼编号仍被识别，角色持续由该玩家控制。</li>
+                    <li>连续丢失超过 30 个骨骼帧后才释放控制权。</li>
+                    <li>释放后允许画面中的新骨骼编号接管空座位。</li>
+                    <li>原玩家重新进入时，也可以和其他新玩家一样参与空座位绑定。</li>
+                    <li>1 人战斗重绑时使用完整画面区域，不要求玩家站在原来的左侧或右侧。</li>
+                </ul>
+                <div class="file-list"><strong>主要代码：</strong> <code>BattleBoneParseData.cs</code>、<code>TowerDefendBattleScene.cs</code></div>
+            </section>
+
+            <section class="section" id="battle-view">
+                <h2>10. 战斗内玩家实时画面</h2>
+                <span class="status device">已实现，需要真机验收</span>
+                <ul>
+                    <li>战斗 HUD 按“战斗座位到 SDK 槽位”绑定实时摄像头画面。</li>
+                    <li>不依赖准备界面关闭后失效的节点引用。</li>
+                    <li>每个可见 <code>PlayerSlot</code> 使用自己的 <code>headView</code> 显示对应玩家。</li>
+                    <li>当前默认显示模式为 <code>Head</code>。</li>
+                    <li>当前默认跟随模式为 <code>IndependentUICamera</code>。</li>
+                    <li>画面可配置为全身、上半身或头部，但当前业务默认使用头部。</li>
+                    <li>玩家离开并由其他骨骼接管后，实时画面跟随新的战斗骨骼编号更新。</li>
+                    <li>战斗实时画面与准备阶段静态账号头像是两套独立功能。</li>
+                </ul>
+                <div class="file-list"><strong>主要代码：</strong> <code>tower_defend_battle_hud_wnd.cs</code>、<code>BattleHeadCameraTracker.cs</code></div>
+            </section>
+
+            <section class="section" id="result-transition">
+                <h2>11. 结算过渡</h2>
+                <span class="status done">已实现</span>
+                <ul>
+                    <li>战斗满足结束条件后不立即打开结算界面。</li>
+                    <li>战斗流程进入独立的结算过渡状态并等待 1 秒。</li>
+                    <li>等待结束后才生成并显示章节或无尽结算界面。</li>
+                </ul>
+                <div class="file-list"><strong>主要代码：</strong> <code>TowerDefendBattleProcess.cs</code></div>
+            </section>
+
+            <section class="section" id="result-action">
+                <h2>12. 结算继续、重新挑战与举手操作</h2>
+                <span class="status device">已实现，需要真机验收</span>
+                <ul>
+                    <li>结算继续按钮始终显示。</li>
+                    <li>章节胜利显示“继续挑战”。</li>
+                    <li>章节失败显示“重新挑战”。</li>
+                    <li>胜利时重新进入准备界面，并使用下一关。</li>
+                    <li>当前关已经是最后一关时，继续挑战会重新准备并重复最后一关。</li>
+                    <li>失败时重新进入准备界面，并重复当前关。</li>
+                    <li>无尽模式继续时重新进入准备界面，并重复当前无尽入口。</li>
+                    <li>继续和重新挑战都会重新执行人数对应的完整准备流程，不复用上一场的准备完成状态。</li>
+                    <li><code>imgRaise</code> 始终随继续按钮显示。</li>
+                    <li>结算界面识别到连续举手动作后，执行与继续按钮相同的行为。</li>
+                </ul>
+            </section>
+
+            <section class="section" id="result-return">
+                <h2>13. 结算返回</h2>
+                <span class="status done">已实现</span>
+                <ul>
+                    <li>章节和无尽结算的 <code>btn_return</code> 都返回 <code>lobby_main_wnd</code>。</li>
+                    <li>点击返回后先打开 <code>loading_wnd</code>，等待遮罩铺满，再关闭结算界面、停止战斗并加载大厅。</li>
+                    <li>在结算界面按遥控返回键时，直接调用当前结算窗口的返回入口。</li>
+                    <li>结算遥控返回与 <code>btn_return</code> 完全一致，不会打开 <code>tower_defend_setting_wnd</code>。</li>
+                    <li>加载切换过程中屏蔽重复返回，避免结算窗口提前关闭或触发第二条流程。</li>
+                    <li>普通战斗过程中按遥控返回仍打开暂停设置界面，不受结算返回规则影响。</li>
+                </ul>
+                <div class="file-list"><strong>主要代码：</strong> <code>tower_defend_chapter_result_wnd.cs</code>、<code>tower_defend_endless_result_wnd.cs</code>、<code>CGamePro_Scene.cs</code></div>
+            </section>
+
+            <section class="section" id="cleanup">
+                <h2>14. 状态清理</h2>
+                <span class="status device">已实现，需要重复进入验收</span>
+                <ul>
+                    <li>正常退出准备界面时清理人脸头像协程、运行时纹理和事件订阅。</li>
+                    <li>非进入战斗的关闭会重置 SDK 准备状态。</li>
+                    <li>进入战斗时保留已确认骨骼编号，供战斗初始化。</li>
+                    <li>重新进入准备界面时重新初始化为未准备，不沿用上一轮 <code>Ready</code>、<code>Fill</code> 或头像加载请求。</li>
+                    <li>旧头像异步请求通过座位版本校验，玩家离开后到达的旧结果不会覆盖 <code>NoPlayer</code>。</li>
+                </ul>
+            </section>
+
+            <section class="section" id="acceptance">
+                <h2>15. 真机验收清单</h2>
+                <div class="checklist-toolbar">
+                    <strong id="progressText">已完成 0 / 0</strong>
+                    <div class="progress-track" aria-hidden="true"><div class="progress-fill" id="progressFill"></div></div>
+                    <button class="reset-button" id="resetChecklist" type="button">清空勾选</button>
+                </div>
+
+                <div class="check-group">
+                    <h3>15.1 人数与布局</h3>
+                    <label class="check-item"><input type="checkbox"><span>选择 1 人，只显示 <code>Player0</code>，人物站在画面中间能够准备并进入战斗。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>选择 2 人，只显示 <code>Player0</code>、<code>Player1</code>，两人区域和顺序正确。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>选择 3 人，只显示前三个位置，骨骼和头像不串位。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>选择 4 人，四人区域顺序与界面顺序一致。</span></label>
+                </div>
+
+                <div class="check-group">
+                    <h3>15.2 人脸与头像</h3>
+                    <label class="check-item"><input type="checkbox"><span>玩家进入后显示“正在识别人脸”。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>自动识别成功后显示正确玩家头像。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>自动识别超过 5 秒后显示 <code>SystemPlayer</code>，并允许继续举手。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>多名玩家可以同时执行自动识别，结果分别回到正确座位。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>人工选择一次只处理一个玩家。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>人工选择成功、失败和取消均回到正确准备界面状态。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>玩家离开后，旧头像异步结果不会覆盖 <code>NoPlayer</code>。</span></label>
+                </div>
+
+                <div class="check-group">
+                    <h3>15.3 角色与准备</h3>
+                    <label class="check-item"><input type="checkbox"><span>多个玩家进入时初始角色不同。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>两名玩家可以切换到同一个角色并正常开战。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>快速左右挥手可以切换角色。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>慢速收手不会误触发反向切换。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>手举到胸口不会准备，手腕超过头部后才开始累计 <code>Fill</code>。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>少一名玩家未准备时不能开始战斗。</span></label>
+                </div>
+
+                <div class="check-group">
+                    <h3>15.4 战斗绑定</h3>
+                    <label class="check-item"><input type="checkbox"><span>准备完成后进入战斗，控制座位与准备座位一致。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>玩家左右移动或跨过准备区域后，仍控制原角色。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>玩家短暂漏检时不会立即被其他人抢走角色。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>玩家彻底离开后，新玩家可以接管空座位。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>1 人局进入战斗后，不需要站到画面右侧才能控制。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>战斗 <code>headView</code> 显示正确玩家并跟随新接管者更新。</span></label>
+                </div>
+
+                <div class="check-group">
+                    <h3>15.5 结算与返回</h3>
+                    <label class="check-item"><input type="checkbox"><span>胜利后等待 1 秒再显示结算界面。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>胜利继续进入下一关的准备界面。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>最后一关胜利后继续会重复最后一关。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>失败重新挑战会重复当前关。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>无尽继续会重复当前无尽入口。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>举手触发结果与点击继续按钮一致。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>点击 <code>btn_return</code> 返回大厅主界面。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>结算界面按遥控返回也返回大厅主界面。</span></label>
+                    <label class="check-item"><input type="checkbox"><span>普通战斗按遥控返回仍打开暂停设置界面。</span></label>
+                </div>
+            </section>
+
+            <section class="section" id="boundary">
+                <h2>16. 当前验证边界</h2>
+                <ul>
+                    <li><code>GameDll.csproj</code> 和 <code>Assembly-CSharp.csproj</code> 用于静态编译检查。</li>
+                    <li>编辑器只能核对人数、角色按钮、窗口层级和请求数据。</li>
+                    <li>骨骼稳定性、人脸识别、原生头像选择、摄像头画面、多人换位和遥控器行为必须以真机验收结果为准。</li>
+                </ul>
+            </section>
+        </main>
+    </div>
+
+    <script>
+        (() => {
+            const storageKey = "tower-defend-flow-checklist-v1";
+            const checkboxes = Array.from(document.querySelectorAll(".check-item input"));
+            const progressText = document.getElementById("progressText");
+            const progressFill = document.getElementById("progressFill");
+            const summaryChecked = document.getElementById("summaryChecked");
+            const summaryTotal = document.getElementById("summaryTotal");
+            const resetButton = document.getElementById("resetChecklist");
+
+            const updateProgress = () => {
+                const checkedCount = checkboxes.filter((item) => item.checked).length;
+                const percentage = checkboxes.length > 0 ? checkedCount / checkboxes.length * 100 : 0;
+                progressText.textContent = `已完成 ${checkedCount} / ${checkboxes.length}`;
+                progressFill.style.width = `${percentage}%`;
+                summaryChecked.textContent = checkedCount;
+                summaryTotal.textContent = checkboxes.length;
+            };
+
+            const save = () => {
+                const state = checkboxes.map((item) => item.checked);
+                try {
+                    localStorage.setItem(storageKey, JSON.stringify(state));
+                } catch (error) {
+                    // 本地存储不可用时仍保留当前页面内的勾选和进度统计。
+                }
+                updateProgress();
+            };
+
+            try {
+                const saved = JSON.parse(localStorage.getItem(storageKey) || "[]");
+                checkboxes.forEach((item, index) => {
+                    item.checked = saved[index] === true;
+                    item.addEventListener("change", save);
+                });
+            } catch (error) {
+                checkboxes.forEach((item) => item.addEventListener("change", updateProgress));
+            }
+
+            resetButton.addEventListener("click", () => {
+                checkboxes.forEach((item) => { item.checked = false; });
+                try {
+                    localStorage.removeItem(storageKey);
+                } catch (error) {
+                    // 本地存储不可用不影响清空当前页面的勾选状态。
+                }
+                updateProgress();
+            });
+
+            updateProgress();
+        })();
+    </script>
+</body>
+</html>

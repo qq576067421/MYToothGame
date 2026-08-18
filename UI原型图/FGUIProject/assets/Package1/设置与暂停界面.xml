@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="1920,1080">
+  <controller name="c1" pages="0,,1," selected="0">
+    <remark page="0" value="暂停"/>
+    <remark page="1" value="设置"/>
+  </controller>
+  <displayList>
+    <image id="n12_ocox" name="n12" src="ocoxu" fileName="Resouce/风格1-概念图3.png" xy="0,0" size="1920,1080"/>
+    <graph id="n57_ofrk" name="n57" xy="0,0" size="1920,1080" type="rect" lineSize="0" fillColor="#33000000"/>
+    <image id="n58_ofrk" name="n58" src="ofrk12" fileName="Resouce/Pause_11.png" xy="901,441" size="117,142" group="n67_ofrk" aspect="true"/>
+    <graph id="n59_ofrk" name="n59" xy="434,783" size="192,100" group="n67_ofrk" type="rect" lineSize="0" fillColor="#ff66ffff" corner="15"/>
+    <text id="n60_ofrk" name="n60" xy="449,798" size="158,70" group="n67_ofrk" fontSize="35" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" text="继续游戏"/>
+    <graph id="n61_ofrk" name="n61" xy="720,783" size="192,100" group="n67_ofrk" type="rect" lineSize="0" fillColor="#ff66ccff" corner="15"/>
+    <text id="n62_ofrk" name="n62" xy="735,798" size="158,70" group="n67_ofrk" fontSize="35" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="重新开始"/>
+    <graph id="n63_ofrk" name="n63" xy="1007,783" size="192,100" group="n67_ofrk" type="rect" lineSize="0" fillColor="#ff66ccff" corner="15"/>
+    <text id="n64_ofrk" name="n64" xy="1022,798" size="158,70" group="n67_ofrk" fontSize="35" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="返回主页"/>
+    <graph id="n65_ofrk" name="n65" xy="1298,783" size="192,100" group="n67_ofrk" type="rect" lineSize="0" fillColor="#ff66ccff" corner="15"/>
+    <text id="n66_ofrk" name="n66" xy="1313,798" size="158,70" group="n67_ofrk" fontSize="35" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="游戏设置"/>
+    <group id="n67_ofrk" name="n67" xy="434,441" size="1056,442" advanced="true">
+      <gearDisplay controller="c1" pages="0"/>
+    </group>
+    <graph id="n68_l5ec" name="n68" xy="0,0" size="1920,1080" group="n96_l5ec" type="rect" lineSize="0" lineColor="#ff66ffff" fillColor="#cc000000"/>
+    <graph id="n69_l5ec" name="n69" xy="492,183" size="935,647" group="n96_l5ec" type="rect" lineSize="3" lineColor="#ffff9900" fillColor="#e5ffcc66" corner="15"/>
+    <text id="n70_l5ec" name="n70" xy="900,205" size="120,101" group="n96_l5ec" fontSize="55" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="设置"/>
+    <graph id="n72_l5ec" name="n72" xy="616,362" size="54,47" group="n96_l5ec" aspect="true" type="eclipse" lineSize="3" lineColor="#ffff9900" fillColor="#ffcc9933" corner="10"/>
+    <text id="n73_l5ec" name="n73" xy="670,334" size="146,101" group="n96_l5ec" fontSize="45" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="音乐："/>
+    <text id="n74_l5ec" name="n74" xy="670,420" size="144,101" group="n96_l5ec" fontSize="45" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="音效："/>
+    <graph id="n75_l5ec" name="n75" xy="616,534" size="54,47" group="n96_l5ec" aspect="true" type="eclipse" lineSize="3" lineColor="#ffff9900" fillColor="#ffcc9933" corner="10"/>
+    <text id="n76_l5ec" name="n76" xy="670,506" size="268,101" group="n96_l5ec" fontSize="45" color="#ffffff" vAlign="middle" autoSize="none" text="语音引导："/>
+    <graph id="n77_l5ec" name="n77" xy="1013,526" size="65,65" group="n96_l5ec" aspect="true" type="rect" lineSize="4" lineColor="#ffff9900" fillColor="#ffff0000"/>
+    <graph id="n78_l5ec" name="n78" xy="1079,525" size="65,65" group="n96_l5ec" aspect="true" type="rect" lineSize="4" lineColor="#ffff9900" fillColor="#ff990000"/>
+    <text id="n79_l5ec" name="n79" xy="1012,507" size="73,101" group="n96_l5ec" fontSize="45" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="开"/>
+    <text id="n80_l5ec" name="n80" xy="1077,505" size="73,101" group="n96_l5ec" fontSize="45" color="#cccccc" align="center" vAlign="middle" autoSize="none" text="关"/>
+    <graph id="n81_l5ec" name="n81" xy="615,448" size="54,47" group="n96_l5ec" aspect="true" type="eclipse" lineSize="3" lineColor="#ffff9900" fillColor="#ffcc9933" corner="10"/>
+    <text id="n87_l5ec" name="n87" xy="671,592" size="268,101" group="n96_l5ec" fontSize="45" color="#ffffff" vAlign="middle" autoSize="none" text="语言："/>
+    <graph id="n88_l5ec" name="n88" xy="1015,620" size="120,65" group="n96_l5ec" type="rect" lineSize="4" lineColor="#ffff9900" fillColor="#ffff0000"/>
+    <graph id="n89_l5ec" name="n89" xy="1133,619" size="120,65" group="n96_l5ec" type="rect" lineSize="4" lineColor="#ffff9900" fillColor="#ff990000"/>
+    <text id="n90_l5ec" name="n90" xy="1014,602" size="103,101" group="n96_l5ec" fontSize="45" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="简体"/>
+    <text id="n91_l5ec" name="n91" xy="1136,600" size="100,101" group="n96_l5ec" fontSize="45" color="#cccccc" align="center" vAlign="middle" autoSize="none" text="繁体"/>
+    <graph id="n92_l5ec" name="n92" xy="615,625" size="54,47" group="n96_l5ec" aspect="true" type="eclipse" lineSize="3" lineColor="#ffff9900" fillColor="#ffffff33" corner="10"/>
+    <graph id="n93_l5ec" name="n93" xy="1251,620" size="120,65" group="n96_l5ec" type="rect" lineSize="4" lineColor="#ffff9900" fillColor="#ff990000"/>
+    <text id="n94_l5ec" name="n94" xy="1254,601" size="100,101" group="n96_l5ec" fontSize="45" color="#cccccc" align="center" vAlign="middle" autoSize="none" text="英文"/>
+    <graph id="n97_l5ec" name="n97" xy="843,359" size="519,38" group="n96_l5ec" type="rect" lineSize="4" corner="15"/>
+    <graph id="n98_l5ec" name="n98" xy="843,449" size="519,38" group="n96_l5ec" type="rect" lineSize="4" corner="15"/>
+    <graph id="n99_l5ec" name="n99" xy="846,362" size="249,32" group="n96_l5ec" type="rect" lineSize="0" fillColor="#ff66ffcc" corner="15"/>
+    <graph id="n100_l5ec" name="n100" xy="845,452" size="321,32" group="n96_l5ec" type="rect" lineSize="0" fillColor="#ff66ffcc" corner="15"/>
+    <group id="n96_l5ec" name="n96" xy="0,0" size="1920,1080" advanced="true">
+      <gearDisplay controller="c1" pages="1"/>
+    </group>
+  </displayList>
+</component>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="1920,1080">
+  <displayList>
+    <image id="n12_ocox" name="n12" src="ocoxu" fileName="Resouce/风格1-概念图3.png" xy="0,0" size="1920,1080"/>
+    <graph id="n28_ecge" name="n28" xy="0,0" size="1920,1080" alpha="0.75" type="rect" lineSize="0" fillColor="#ff000000"/>
+    <graph id="n29_ecge" name="n29" xy="-73,96" size="266,100" group="n31_ecge" type="rect" lineSize="0" fillColor="#ffcccc99" corner="1535"/>
+    <text id="n30_ecge" name="n30" xy="-10,110" size="158,73" group="n31_ecge" fontSize="55" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="主题1"/>
+    <group id="n31_ecge" name="n31" xy="-73,96" size="266,100"/>
+    <graph id="n32_ecge" name="n32" xy="-73,680" size="266,100" group="n34_ecge" grayed="true" type="rect" lineSize="0" fillColor="#ffcccc99" corner="1535"/>
+    <text id="n33_ecge" name="n33" xy="-10,694" size="158,73" group="n34_ecge" fontSize="55" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="主题5"/>
+    <group id="n34_ecge" name="n34" xy="-73,680" size="266,100"/>
+    <graph id="n35_ecge" name="n35" xy="-73,535" size="266,100" group="n37_ecge" grayed="true" type="rect" lineSize="0" fillColor="#ffcccc99" corner="1535"/>
+    <text id="n36_ecge" name="n36" xy="-10,549" size="158,73" group="n37_ecge" fontSize="55" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="主题4"/>
+    <group id="n37_ecge" name="n37" xy="-73,535" size="266,100"/>
+    <graph id="n38_ecge" name="n38" xy="-73,387" size="266,100" group="n40_ecge" type="rect" lineSize="8" lineColor="#ffff9900" fillColor="#ffffcc99" corner="1535"/>
+    <text id="n39_ecge" name="n39" xy="-10,401" size="158,73" group="n40_ecge" fontSize="55" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="主题3"/>
+    <group id="n40_ecge" name="n40" xy="-73,387" size="266,100"/>
+    <graph id="n41_ecge" name="n41" xy="-76,240" size="266,100" group="n43_ecge" type="rect" lineSize="0" fillColor="#ffcccc99" corner="1535"/>
+    <text id="n42_ecge" name="n42" xy="-13,254" size="158,73" group="n43_ecge" fontSize="55" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="主题2"/>
+    <group id="n43_ecge" name="n43" xy="-76,240" size="266,100"/>
+    <graph id="n44_ecge" name="n44" xy="231,307" size="350,186" group="n49_ecge" aspect="true" type="rect" lineSize="0" fillColor="#ffffffcc" corner="15"/>
+    <image id="n45_ecge" name="n45" src="ecge18" fileName="Resouce/ScreenShot_2026-04-08_161307_820.png" xy="366,311" size="75,71" group="n49_ecge" aspect="true"/>
+    <image id="n46_ecge" name="n46" src="ecge18" fileName="Resouce/ScreenShot_2026-04-08_161307_820.png" xy="463,331" size="75,71" group="n49_ecge" aspect="true"/>
+    <image id="n47_ecge" name="n47" src="ecge18" fileName="Resouce/ScreenShot_2026-04-08_161307_820.png" xy="261,330" size="75,71" group="n49_ecge" aspect="true"/>
+    <text id="n48_ecge" name="n48" xy="328,423" size="145,73" group="n49_ecge" fontSize="55" color="#ffcc99" align="center" text="关卡1"/>
+    <group id="n49_ecge" name="n49" xy="231,307" size="350,189"/>
+    <graph id="n50_ecge" name="n50" xy="518,651" size="350,186" group="n55_ecge" aspect="true" type="rect" lineSize="0" fillColor="#ffffffcc" corner="15"/>
+    <image id="n51_ecge" name="n51" src="ecge18" fileName="Resouce/ScreenShot_2026-04-08_161307_820.png" xy="653,655" size="75,71" group="n55_ecge" aspect="true"/>
+    <text id="n54_ecge" name="n54" xy="615,767" size="145,73" group="n55_ecge" fontSize="55" color="#ffcc99" align="center" text="关卡2"/>
+    <group id="n55_ecge" name="n55" xy="518,651" size="350,189"/>
+    <graph id="n56_ecge" name="n56" xy="903,404" size="350,186" group="n61_ecge" aspect="true" type="rect" lineSize="0" fillColor="#ffffffcc" corner="15"/>
+    <image id="n58_ecge" name="n58" src="ecge18" fileName="Resouce/ScreenShot_2026-04-08_161307_820.png" xy="1101,425" size="75,71" group="n61_ecge" aspect="true"/>
+    <image id="n59_ecge" name="n59" src="ecge18" fileName="Resouce/ScreenShot_2026-04-08_161307_820.png" xy="981,423" size="75,71" group="n61_ecge" aspect="true"/>
+    <text id="n60_ecge" name="n60" xy="1000,520" size="145,73" group="n61_ecge" fontSize="55" color="#ffcc99" align="center" text="关卡3"/>
+    <group id="n61_ecge" name="n61" xy="903,404" size="350,189"/>
+    <graph id="n62_ecge" name="n62" xy="1288,643" size="350,186" group="n67_ecge" aspect="true" type="rect" lineSize="10" lineColor="#ffffcc00" fillColor="#ffffffcc" corner="15"/>
+    <text id="n66_ecge" name="n66" xy="1388,755" size="145,73" group="n67_ecge" fontSize="55" color="#ff9900" align="center" text="关卡4"/>
+    <group id="n67_ecge" name="n67" xy="1288,643" size="350,186"/>
+    <graph id="n68_ecge" name="n68" xy="1502,312" size="350,186" group="n73_ecge" aspect="true" grayed="true" type="rect" lineSize="0" fillColor="#ffffffcc" corner="15"/>
+    <text id="n72_ecge" name="n72" xy="1599,428" size="145,73" group="n73_ecge" fontSize="55" color="#666666" align="center" text="关卡5"/>
+    <group id="n73_ecge" name="n73" xy="1502,312" size="350,189"/>
+  </displayList>
+</component>

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<packageDescription id="3a9ki9y6">
+  <resources>
+    <component id="ew3j0" name="主界面.xml" path="/" exported="true"/>
+    <image id="luge2" name="1.jpg" path="/Resouce/"/>
+    <image id="luge7" name="640x500a0a0.png" path="/Resouce/"/>
+    <image id="luge8" name="2664_pvpline.png" path="/Resouce/"/>
+    <image id="lugeb" name="Fight_30.png" path="/Resouce/"/>
+    <image id="lugec" name="Fight_75.png" path="/Resouce/"/>
+    <image id="lugef" name="map.png" path="/Resouce/"/>
+    <image id="lugek" name="ScreenShot_2026-01-20_161452_326.png" path="/Resouce/"/>
+    <image id="lugem" name="ScreenShot_2026-01-21_151543_266.png" path="/Resouce/"/>
+    <image id="lugep" name="ScreenShot_2026-01-27_154245_994.png" path="/Resouce/"/>
+    <image id="luger" name="ScreenShot_2026-01-29_154900_779.png" path="/Resouce/"/>
+    <image id="luges" name="ScreenShot_2026-03-02_111937_211.png" path="/Resouce/"/>
+    <image id="ocoxu" name="风格1-概念图3.png" path="/Resouce/"/>
+    <component id="ocoxv" name="游戏界面.xml" path="/" exported="true"/>
+    <image id="ofrkw" name="底.png" path="/Resouce/"/>
+    <component id="ofrkx" name="结算界面.xml" path="/" exported="true"/>
+    <image id="ofrky" name="ScreenShot_2026-03-23_145939_506.png" path="/Resouce/"/>
+    <component id="ofrkz" name="天赋界面.xml" path="/" exported="true"/>
+    <image id="ofrk10" name="Home_20.png" path="/Resouce/"/>
+    <image id="ofrk12" name="Pause_11.png" path="/Resouce/"/>
+    <image id="l5ec13" name="Pause_4.png" path="/Resouce/"/>
+    <component id="l5ec14" name="设置与暂停界面.xml" path="/" exported="true"/>
+    <image id="v9bd15" name="生成皱眉欲泣的图片.png" path="/Resouce/"/>
+    <component id="ecge16" name="关卡选择.xml" path="/" exported="true"/>
+    <image id="ecge17" name="ScreenShot_2026-04-08_160301_627.png" path="/Resouce/"/>
+    <image id="ecge18" name="ScreenShot_2026-04-08_161307_820.png" path="/Resouce/"/>
+    <component id="l6h519" name="匹配界面.xml" path="/" exported="true"/>
+    <image id="l6h51a" name="ScreenShot_2026-04-14_172809_215.png" path="/Resouce/"/>
+    <image id="l6h51b" name="ScreenShot_2026-04-14_172736_207.png" path="/Resouce/"/>
+    <image id="l6h51c" name="ScreenShot_2026-04-14_172747_559.png" path="/Resouce/"/>
+    <image id="l6h51d" name="ScreenShot_2026-04-14_172758_047.png" path="/Resouce/"/>
+    <image id="l6h51e" name="ScreenShot_2026-04-14_174149_766.png" path="/Resouce/"/>
+    <image id="l6h51f" name="ScreenShot_2026-04-14_174149_766(1).png" path="/Resouce/"/>
+    <image id="i0pj1g" name="Fishing_16.png" path="/Resouce/"/>
+    <image id="i0pj1h" name="Fishing_34.png" path="/Resouce/"/>
+  </resources>
+  <publish name=""/>
+</packageDescription>

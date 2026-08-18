@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="1920,1080">
+  <controller name="c1" pages="0,,1,,2," selected="1">
+    <remark page="0" value="闯关胜利"/>
+    <remark page="1" value="失败"/>
+    <remark page="2" value="无尽结算"/>
+  </controller>
+  <displayList>
+    <image id="n12_ocox" name="n12" src="ocoxu" fileName="Resouce/风格1-概念图3.png" xy="0,0" size="1920,1080"/>
+    <graph id="n57_ofrk" name="n57" xy="0,0" size="1920,1080" alpha="0.8" type="rect" lineSize="0" fillColor="#ff000000"/>
+    <text id="n58_ofrk" name="n58" xy="627,81" size="654,195" fontSize="100" color="#cccccc" align="center" vAlign="middle" autoSize="none" strokeColor="#666666" strokeSize="2" text="闯关失败">
+      <gearDisplay controller="c1" pages=""/>
+      <gearColor controller="c1" pages="0,2" values="#ffff00,#ffcc00|#ffff00,#ff9900" default="#cccccc,#666666"/>
+      <gearText controller="c1" pages="1,2" values="闯关失败|挑战完成" default="恭喜过关"/>
+    </text>
+    <graph id="n63_ofrk" name="n63" xy="1447,784" size="353,114" type="rect" lineSize="0" fillColor="#ff66cccc" corner="15">
+      <gearXY controller="c1" pages="2" values="1020,846" default="1447,784"/>
+    </graph>
+    <graph id="n64_ofrk" name="n64" xy="1448,563" size="353,114" type="rect" lineSize="0" fillColor="#ff66ffcc" corner="15">
+      <gearDisplay controller="c1" pages=""/>
+      <gearXY controller="c1" pages="2" values="566,843" default="1448,563"/>
+    </graph>
+    <text id="n65_ofrk" name="n65" xy="1461,580" size="329,84" fontSize="45" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="再次挑战">
+      <gearDisplay controller="c1" pages=""/>
+      <gearXY controller="c1" pages="2" values="578,860" default="1461,580"/>
+      <gearText controller="c1" pages="1,2" values="再次挑战|继续挑战" default="下一关"/>
+    </text>
+    <text id="n66_ofrk" name="n66" xy="1461,802" size="329,84" fontSize="45" color="#ffffff" align="center" vAlign="middle" autoSize="none" text="返回主页">
+      <gearXY controller="c1" pages="2" values="1032,864" default="1461,802"/>
+    </text>
+    <image id="n68_ofrk" name="n68" src="luge8" fileName="Resouce/2664_pvpline.png" xy="722,51" size="75,75" group="n73_ofrk" aspect="true"/>
+    <image id="n69_ofrk" name="n69" src="luge8" fileName="Resouce/2664_pvpline.png" xy="922,20" size="75,75" group="n73_ofrk" aspect="true"/>
+    <image id="n70_ofrk" name="n70" src="luge8" fileName="Resouce/2664_pvpline.png" xy="1118,52" size="75,75" group="n73_ofrk" aspect="true"/>
+    <group id="n73_ofrk" name="n73" xy="722,20" size="470,107" advanced="true">
+      <gearDisplay controller="c1" pages="0"/>
+    </group>
+    <image id="n75_v9bd" name="n75" src="ofrky" fileName="Resouce/ScreenShot_2026-03-23_145939_506.png" xy="714,336" size="491,482" aspect="true">
+      <gearDisplay controller="c1" pages="0"/>
+    </image>
+    <graph id="n23_ocox" name="n23" xy="274,729" size="50,50" group="n76_v9bd" type="eclipse" lineSize="5" lineColor="#ffff6600" fillColor="#ffffff00" corner="15"/>
+    <text id="n26_ocox" name="n26" xy="360,719" size="212,67" group="n76_v9bd" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="+500">
+      <gearDisplay controller="c1" pages=""/>
+    </text>
+    <graph id="n59_ofrk" name="n59" xy="276,851" size="50,50" group="n76_v9bd" type="eclipse" lineSize="5" lineColor="#ffff6600" fillColor="#ffffff00" corner="15"/>
+    <text id="n60_ofrk" name="n60" xy="362,841" size="212,67" group="n76_v9bd" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="+500"/>
+    <text id="n62_ofrk" name="n62" xy="55,719" size="212,67" group="n76_v9bd" fontSize="40" color="#ffffff" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="杀怪奖励："/>
+    <text id="n72_ofrk" name="n72" xy="55,842" size="212,67" group="n76_v9bd" fontSize="40" color="#ffffff" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="通关奖励："/>
+    <text id="n74_v9bd" name="n74" xy="63,495" size="287,98" group="n76_v9bd" fontSize="70" color="#ffffff" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="关卡2："/>
+    <group id="n76_v9bd" name="n76" xy="55,495" size="519,414" advanced="true">
+      <gearDisplay controller="c1" pages="0,1"/>
+    </group>
+    <image id="n77_v9bd" name="n77" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="560,321" group="n113_v9bd"/>
+    <text id="n78_v9bd" name="n78" xy="650,341" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n79_v9bd" name="n79" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="774,318" group="n113_v9bd"/>
+    <text id="n80_v9bd" name="n80" xy="863,338" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n81_v9bd" name="n81" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="1007,316" group="n113_v9bd"/>
+    <text id="n82_v9bd" name="n82" xy="1096,336" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n83_v9bd" name="n83" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="560,424" group="n113_v9bd"/>
+    <text id="n84_v9bd" name="n84" xy="649,444" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n85_v9bd" name="n85" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="773,421" group="n113_v9bd"/>
+    <text id="n86_v9bd" name="n86" xy="862,441" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n87_v9bd" name="n87" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="1006,419" group="n113_v9bd"/>
+    <text id="n88_v9bd" name="n88" xy="1095,439" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n89_v9bd" name="n89" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="560,533" group="n113_v9bd"/>
+    <text id="n90_v9bd" name="n90" xy="649,553" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n91_v9bd" name="n91" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="773,530" group="n113_v9bd"/>
+    <text id="n92_v9bd" name="n92" xy="862,550" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n93_v9bd" name="n93" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="1006,528" group="n113_v9bd"/>
+    <text id="n94_v9bd" name="n94" xy="1095,548" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n107_v9bd" name="n107" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="1228,326" group="n113_v9bd"/>
+    <text id="n108_v9bd" name="n108" xy="1317,346" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n109_v9bd" name="n109" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="1227,429" group="n113_v9bd"/>
+    <text id="n110_v9bd" name="n110" xy="1316,449" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <image id="n111_v9bd" name="n111" src="luger" fileName="Resouce/ScreenShot_2026-01-29_154900_779.png" xy="1227,538" group="n113_v9bd"/>
+    <text id="n112_v9bd" name="n112" xy="1316,558" size="42,48" group="n113_v9bd" fontSize="35" color="#ffffff" text="x2"/>
+    <group id="n113_v9bd" name="n113" xy="560,316" size="799,303" advanced="true">
+      <gearDisplay controller="c1" pages="2"/>
+    </group>
+    <text id="n114_v9bd" name="n114" xy="961,718" size="212,67" group="n122_v9bd" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" strokeColor="#ff9900" strokeSize="2" text="9999">
+      <gearDisplay controller="c1" pages=""/>
+    </text>
+    <text id="n115_v9bd" name="n115" xy="687,719" size="327,67" group="n122_v9bd" fontSize="40" color="#ffffff" vAlign="middle" autoSize="none" strokeColor="#ff9900" strokeSize="2" text="最高排名积分：">
+      <gearDisplay controller="c1" pages=""/>
+    </text>
+    <graph id="n119_v9bd" name="n119" xy="1014,657" size="50,50" group="n122_v9bd" type="eclipse" lineSize="5" lineColor="#ffff6600" fillColor="#ffffff00" corner="15"/>
+    <text id="n120_v9bd" name="n120" xy="1020,647" size="212,67" group="n122_v9bd" fontSize="40" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="+500">
+      <gearDisplay controller="c1" pages=""/>
+    </text>
+    <text id="n121_v9bd" name="n121" xy="690,647" size="212,67" group="n122_v9bd" fontSize="40" color="#ffffff" vAlign="middle" autoSize="none" bold="true" strokeColor="#ff9900" strokeSize="2" text="杀怪奖励："/>
+    <group id="n122_v9bd" name="n122" xy="687,647" size="545,139" advanced="true">
+      <gearDisplay controller="c1" pages="2"/>
+    </group>
+    <image id="n123_v9bd" name="n123" src="v9bd15" fileName="Resouce/生成皱眉欲泣的图片.png" xy="714,337" size="491,482" aspect="true">
+      <gearDisplay controller="c1" pages="1"/>
+    </image>
+  </displayList>
+</component>

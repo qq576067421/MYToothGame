@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="1920,1080">
+  <displayList>
+    <graph id="n6_luge" name="n6" xy="216,396" size="333,132" type="rect" lineSize="0" corner="25"/>
+    <image id="n12_ocox" name="n12" src="ocoxu" fileName="Resouce/风格1-概念图3.png" xy="0,0" size="1920,1080"/>
+    <graph id="n22_ofrk" name="n22" xy="0,0" size="1920,1080" type="rect" lineSize="0" fillColor="#bf000000"/>
+    <graph id="n25_ofrk" name="n25" xy="943,834" size="33,100" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="5"/>
+    <graph id="n26_ofrk" name="n26" xy="943,650" size="33,100" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="5"/>
+    <graph id="n27_ofrk" name="n27" xy="943,478" size="33,100" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="5"/>
+    <graph id="n28_ofrk" name="n28" xy="943,289" size="33,100" grayed="true" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="5"/>
+    <graph id="n29_ofrk" name="n29" xy="943,103" size="33,100" grayed="true" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="5"/>
+    <graph id="n63_ofrk" name="n63" xy="1001,611" size="175,33" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="5"/>
+    <graph id="n81_ofrk" name="n81" xy="716,48" size="175,33" grayed="true" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="5"/>
+    <graph id="n88_v9bd" name="n88" xy="943,-65" size="33,100" grayed="true" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="5"/>
+    <graph id="n39_ofrk" name="n39" xy="885,573" size="150,100" group="n43_ofrk" type="rect" lineSize="5" lineColor="#ffff6600" fillColor="#ffff99ff" corner="15"/>
+    <image id="n40_ofrk" name="n40" src="luge8" fileName="Resouce/2664_pvpline.png" xy="937,583" size="45,45" group="n43_ofrk" aspect="true"/>
+    <text id="n86_ofrk" name="n86" xy="920,629" size="86,35" group="n43_ofrk" fontSize="25" color="#ffffff" align="center" bold="true" text="攻速+1"/>
+    <group id="n43_ofrk" name="n43" xy="885,573" size="150,100" advanced="true"/>
+    <graph id="n44_ofrk" name="n44" xy="885,384" size="150,100" group="n48_ofrk" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="15"/>
+    <image id="n45_ofrk" name="n45" src="luge8" fileName="Resouce/2664_pvpline.png" xy="927,402" size="66,66" group="n48_ofrk" aspect="true"/>
+    <graph id="n46_ofrk" name="n46" xy="885,384" size="150,100" group="n48_ofrk" type="rect" lineSize="0" lineColor="#cc000000" fillColor="#cc000000" corner="15"/>
+    <text id="n84_ofrk" name="n84" xy="942,412" size="82,42" group="n48_ofrk" fontSize="25" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" text="100"/>
+    <graph id="n85_ofrk" name="n85" xy="904,414" size="35,35" group="n48_ofrk" aspect="true" type="eclipse" lineSize="5" lineColor="#ffff9900" fillColor="#ffffff00"/>
+    <group id="n48_ofrk" name="n48" xy="885,384" size="150,100" advanced="true"/>
+    <graph id="n49_ofrk" name="n49" xy="885,193" size="150,100" group="n53_ofrk" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="15"/>
+    <image id="n50_ofrk" name="n50" src="luge8" fileName="Resouce/2664_pvpline.png" xy="927,211" size="66,66" group="n53_ofrk" aspect="true"/>
+    <graph id="n51_ofrk" name="n51" xy="885,193" size="150,100" group="n53_ofrk" type="rect" lineSize="0" lineColor="#cc000000" fillColor="#cc000000" corner="15"/>
+    <image id="n52_ofrk" name="n52" src="ofrk10" fileName="Resouce/Home_20.png" xy="938,216" size="41,53" group="n53_ofrk" aspect="true"/>
+    <group id="n53_ofrk" name="n53" xy="885,193" size="150,100" advanced="true"/>
+    <graph id="n54_ofrk" name="n54" xy="885,14" size="150,100" group="n58_ofrk" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="15"/>
+    <image id="n55_ofrk" name="n55" src="luge8" fileName="Resouce/2664_pvpline.png" xy="927,32" size="66,66" group="n58_ofrk" aspect="true"/>
+    <graph id="n56_ofrk" name="n56" xy="885,14" size="150,100" group="n58_ofrk" type="rect" lineSize="0" lineColor="#cc000000" fillColor="#cc000000" corner="15"/>
+    <image id="n57_ofrk" name="n57" src="ofrk10" fileName="Resouce/Home_20.png" xy="938,37" size="41,53" group="n58_ofrk" aspect="true"/>
+    <group id="n58_ofrk" name="n58" xy="885,14" size="150,100" advanced="true"/>
+    <graph id="n64_ofrk" name="n64" xy="1242,626" pivot="0.5,0.5" anchor="true" size="125,125" group="n68_ofrk" rotation="45" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="15"/>
+    <image id="n65_ofrk" name="n65" src="luge8" fileName="Resouce/2664_pvpline.png" xy="1197,582" size="91,91" group="n68_ofrk" aspect="true"/>
+    <graph id="n66_ofrk" name="n66" xy="1242,626" pivot="0.5,0.5" anchor="true" size="125,125" group="n68_ofrk" rotation="45" type="rect" lineSize="5" lineColor="#ccff9900" fillColor="#cc000000" corner="15"/>
+    <text id="n82_ofrk" name="n82" xy="1219,606" size="82,42" group="n68_ofrk" fontSize="25" color="#ffffff" align="center" vAlign="middle" autoSize="none" bold="true" text="300"/>
+    <graph id="n83_ofrk" name="n83" xy="1181,608" size="35,35" group="n68_ofrk" aspect="true" type="eclipse" lineSize="5" lineColor="#ffff9900" fillColor="#ffffff00"/>
+    <group id="n68_ofrk" name="n68" xy="1180,564" size="125,125" advanced="true"/>
+    <graph id="n76_ofrk" name="n76" xy="653,63" pivot="0.5,0.5" anchor="true" size="125,125" group="n80_ofrk" rotation="45" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="15"/>
+    <image id="n77_ofrk" name="n77" src="luge8" fileName="Resouce/2664_pvpline.png" xy="608,19" size="91,91" group="n80_ofrk" aspect="true"/>
+    <graph id="n78_ofrk" name="n78" xy="653,63" pivot="0.5,0.5" anchor="true" size="125,125" group="n80_ofrk" rotation="45" type="rect" lineSize="0" lineColor="#cc000000" fillColor="#cc000000" corner="15"/>
+    <image id="n79_ofrk" name="n79" src="ofrk10" fileName="Resouce/Home_20.png" xy="628,32" size="51,65" group="n80_ofrk" aspect="true"/>
+    <group id="n80_ofrk" name="n80" xy="591,1" size="125,125" advanced="true"/>
+    <graph id="n73_ofrk" name="n73" xy="25,17" size="199,56" group="n87_ofrk" type="rect" lineSize="5" lineColor="#ff33cccc" fillColor="#3f000000" corner="5"/>
+    <graph id="n74_ofrk" name="n74" xy="39,24" size="40,40" group="n87_ofrk" aspect="true" type="eclipse" lineSize="5" lineColor="#ffff9900" fillColor="#ffffff00"/>
+    <text id="n75_ofrk" name="n75" xy="94,25" size="94,42" group="n87_ofrk" fontSize="30" color="#ffffff" align="center" bold="true" text="99999"/>
+    <group id="n87_ofrk" name="n87" xy="25,17" size="199,56" advanced="true"/>
+    <graph id="n89_puod" name="n89" xy="885,925" size="150,100" group="n92_puod" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="15"/>
+    <image id="n90_puod" name="n90" src="luge8" fileName="Resouce/2664_pvpline.png" xy="937,940" size="45,45" group="n92_puod" aspect="true"/>
+    <text id="n91_puod" name="n91" xy="918,986" size="86,35" group="n92_puod" fontSize="25" color="#ffffff" align="center" bold="true" text="攻击+1"/>
+    <group id="n92_puod" name="n92" xy="885,925" size="150,100" advanced="true"/>
+    <graph id="n108_puod" name="n108" xy="885,738" size="150,100" group="n111_puod" type="rect" lineSize="5" lineColor="#ffff9900" fillColor="#ffffccff" corner="15"/>
+    <image id="n109_puod" name="n109" src="luge8" fileName="Resouce/2664_pvpline.png" xy="937,753" size="45,45" group="n111_puod" aspect="true"/>
+    <text id="n110_puod" name="n110" xy="918,799" size="86,35" group="n111_puod" fontSize="25" color="#ffffff" align="center" bold="true" text="暴击+1"/>
+    <group id="n111_puod" name="n111" xy="885,738" size="150,100" advanced="true"/>
+  </displayList>
+</component>

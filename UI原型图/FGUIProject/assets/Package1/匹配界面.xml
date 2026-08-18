@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component size="1920,1080">
+  <displayList>
+    <graph id="n27_l6h5" name="n27" xy="0,0" size="480,1080" type="rect" lineSize="4" fillColor="#7f000000"/>
+    <graph id="n28_l6h5" name="n28" xy="1440,0" size="480,1080" type="rect" lineSize="4" fillColor="#7f000000"/>
+    <graph id="n29_l6h5" name="n29" xy="480,0" size="480,1080" type="rect" lineSize="4" fillColor="#7f000000"/>
+    <graph id="n30_l6h5" name="n30" xy="960,0" size="480,1080" type="rect" lineSize="4" fillColor="#7f000000"/>
+    <image id="n31_l6h5" name="n31" src="l6h51b" fileName="Resouce/ScreenShot_2026-04-14_172736_207.png" xy="99,801"/>
+    <image id="n32_l6h5" name="n32" src="l6h51c" fileName="Resouce/ScreenShot_2026-04-14_172747_559.png" xy="1555,804"/>
+    <image id="n33_l6h5" name="n33" src="l6h51d" fileName="Resouce/ScreenShot_2026-04-14_172758_047.png" xy="1073,802"/>
+    <image id="n34_l6h5" name="n34" src="l6h51a" fileName="Resouce/ScreenShot_2026-04-14_172809_215.png" xy="585,807"/>
+    <image id="n36_l6h5" name="n36" src="l6h51e" fileName="Resouce/ScreenShot_2026-04-14_174149_766.png" xy="79,310" pivot="0.5,0.5" size="326,289" group="n38_l6h5" aspect="true" color="#ffff00" fillMethod="vt"/>
+    <image id="n52_i0pj" name="n52" src="i0pj1g" fileName="Resouce/Fishing_16.png" xy="9,700" group="n55_i0pj"/>
+    <image id="n53_i0pj" name="n53" src="i0pj1h" fileName="Resouce/Fishing_34.png" xy="32,710" group="n55_i0pj"/>
+    <group id="n55_i0pj" name="n55" xy="9,700" size="49,58" group="n38_l6h5"/>
+    <text id="n35_l6h5" name="n35" xy="41,613" size="409,90" group="n38_l6h5" fontSize="41" color="#ffffff" align="center" autoSize="none" text="已准备"/>
+    <image id="n37_l6h5" name="n37" src="l6h51f" fileName="Resouce/ScreenShot_2026-04-14_174149_766(1).png" xy="79,310" size="326,290" group="n38_l6h5" aspect="true" alpha="0.6" color="#00ff00" fillMethod="vt" fillOrigin="1"/>
+    <text id="n56_i0pj" name="n56" xy="51,705" size="425,90" group="n38_l6h5" fontSize="30" color="#ffffff" autoSize="none" text="所有人准备好后，按确定键开始"/>
+    <group id="n38_l6h5" name="n38" xy="9,310" size="467,485"/>
+    <image id="n39_l6h5" name="n39" src="l6h51e" fileName="Resouce/ScreenShot_2026-04-14_174149_766.png" xy="552,310" size="326,290" group="n42_l6h5" aspect="true" fillMethod="vt"/>
+    <text id="n40_l6h5" name="n40" xy="513,613" size="409,90" group="n42_l6h5" fontSize="41" color="#ffffff" align="center" autoSize="none" text="准备中"/>
+    <image id="n41_l6h5" name="n41" src="l6h51f" fileName="Resouce/ScreenShot_2026-04-14_174149_766(1).png" xy="551,310" size="326,290" group="n42_l6h5" aspect="true" alpha="0.6" color="#00ff00" fillMethod="vt" fillOrigin="1" fillAmount="41"/>
+    <group id="n42_l6h5" name="n42" xy="513,310" size="409,393"/>
+    <image id="n43_l6h5" name="n43" src="l6h51e" fileName="Resouce/ScreenShot_2026-04-14_174149_766.png" xy="1036,310" size="326,290" group="n46_l6h5" aspect="true" fillMethod="vt"/>
+    <text id="n44_l6h5" name="n44" xy="965,613" size="467,90" group="n46_l6h5" fontSize="35" color="#ffffff" align="center" autoSize="none" text="选择角色，并举双手准备"/>
+    <image id="n45_l6h5" name="n45" src="l6h51f" fileName="Resouce/ScreenShot_2026-04-14_174149_766(1).png" xy="1035,310" size="326,290" group="n46_l6h5" aspect="true" alpha="0.6" color="#00ff00" fillMethod="vt" fillOrigin="1" fillAmount="1"/>
+    <group id="n46_l6h5" name="n46" xy="965,310" size="467,393"/>
+    <image id="n47_l6h5" name="n47" src="l6h51e" fileName="Resouce/ScreenShot_2026-04-14_174149_766.png" xy="1515,310" size="326,290" group="n50_l6h5" aspect="true" fillMethod="vt"/>
+    <text id="n48_l6h5" name="n48" xy="1476,613" size="409,90" group="n50_l6h5" fontSize="35" color="#ffffff" align="center" autoSize="none" text="选择角色，并举双手准备"/>
+    <image id="n49_l6h5" name="n49" src="l6h51f" fileName="Resouce/ScreenShot_2026-04-14_174149_766(1).png" xy="1514,310" size="326,290" group="n50_l6h5" aspect="true" alpha="0.6" color="#00ff00" fillMethod="vt" fillOrigin="1" fillAmount="1"/>
+    <group id="n50_l6h5" name="n50" xy="1476,310" size="409,393"/>
+  </displayList>
+</component>
