@@ -1,0 +1,19 @@
+<linker>
+  <assembly fullname="UnityEngine" preserve="all"/>
+  <assembly fullname="I18N" preserve="all"/>
+  <assembly fullname="I18N.CJK" preserve="all"/>
+  <assembly fullname="I18N.MidEast" preserve="all"/>
+  <assembly fullname="I18N.Other" preserve="all"/>
+  <assembly fullname="I18N.Rare" preserve="all"/>
+  <assembly fullname="I18N.West" preserve="all"/>
+  <assembly fullname="UnityEngine.CoreModule" preserve="all"/>
+  <assembly fullname="UnityEngine.UIModule" preserve="all"/>
+  <assembly fullname="UnityEngine.UnityWebRequestModule" preserve="all"/>
+  <assembly fullname="UnityEngine.AnimationModule" preserve="all"/>
+  <assembly fullname="Assembly-CSharp" preserve="all"/>
+  <assembly fullname="BehaviorDesigner" preserve="all"/>
+  <assembly fullname="FixedMath" preserve="all"/>
+  <assembly fullname="System.Core">
+    <type fullname="System.Linq.Expressions.Interpreter.LightLambda" preserve="all" />
+  </assembly>
+</linker>

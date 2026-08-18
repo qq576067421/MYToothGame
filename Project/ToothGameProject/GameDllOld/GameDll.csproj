@@ -1,0 +1,263 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="12.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{77FB753B-F101-4BAC-BC0F-1209BDBCA18D}</ProjectGuid>
+    <OutputType>Library</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>GameDll</RootNamespace>
+    <AssemblyName>GameDll</AssemblyName>
+    <TargetFrameworkVersion>v4.8</TargetFrameworkVersion>
+    <LangVersion>latest</LangVersion>
+    <FileAlignment>512</FileAlignment>
+    <ProductVersion>8.0.30703</ProductVersion>
+    <SchemaVersion>2.0</SchemaVersion>
+    <TargetFrameworkProfile>
+    </TargetFrameworkProfile>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>bin\Debug\</OutputPath>
+    <DefineConstants>TRACE;DEBUG;HF;BigVersion</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <NoWarn>CS0219</NoWarn>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+    <Prefer32Bit>false</Prefer32Bit>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>..\Library\ScriptAssemblies\Assembly-CSharp.dll</HintPath>
+    </Reference>
+    <Reference Include="Assembly-CSharp-firstpass">
+      <HintPath>..\Library\ScriptAssemblies\Assembly-CSharp-firstpass.dll</HintPath>
+    </Reference>
+    <Reference Include="DOTween, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
+      <SpecificVersion>False</SpecificVersion>
+      <HintPath>..\Assets\Plugins\Demigiant\DOTween\DOTween.dll</HintPath>
+    </Reference>
+    <Reference Include="ParticleImage">
+      <HintPath>..\UnityEngineDll\ParticleImage.dll</HintPath>
+    </Reference>
+    <Reference Include="System" />
+    <Reference Include="System.Data" />
+    <Reference Include="UnityEngine">
+      <HintPath>..\UnityEngineDll\UnityEngine.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.CoreModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UI">
+      <HintPath>..\Library\ScriptAssemblies\UnityEngine.UI.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.UIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.IMGUIModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AnimationModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.AnimationModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.ParticleSystemModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.VideoModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.VideoModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.InputModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.InputLegacyModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.TextRenderingModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextCoreFontEngineModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.TextCoreFontEngineModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.TextCoreTextEngineModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.TextCoreTextEngineModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.PhysicsModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.PhysicsModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.AssetBundleModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.AudioModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.AudioModule.dll</HintPath>
+    </Reference>
+    <Reference Include="UnityEngine.UnityWebRequestModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.UnityWebRequestModule.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.TextMeshPro">
+      <HintPath>..\UnityEngineDll\Unity.TextMeshPro.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.InputSystem">
+      <HintPath>..\UnityEngineDll\Unity.InputSystem.dll</HintPath>
+    </Reference>
+    <Reference Include="Unity.InputSystem.ForUI">
+      <HintPath>..\UnityEngineDll\Unity.InputSystem.ForUI.dll</HintPath>
+    </Reference>
+    <Reference Include="BoneParserLib">
+      <HintPath>..\UnityEngineDll\BoneParserLib.dll</HintPath>
+    </Reference>
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Src\Base\Manager\DispatcherHF.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\AtlasPath.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\RedDotManager.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\RedDotPath.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\RenderTextureManager.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\UIManager.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\UIPrefabDirs.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\UIShowGameObject.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\v_base_wnd.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\WindowBase.cs" />
+    <Compile Include="Src\Base\Manager\UISystem\WindowCreator.cs" />
+    <Compile Include="Src\Base\Util\DelegateWrapper.cs" />
+    <Compile Include="Src\Base\Util\JsonIgnoreAttribute.cs" />
+    <Compile Include="Src\Base\Util\JsonIncludeAttribute.cs" />
+    <Compile Include="Src\GameLogic\CGameProcedure.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\account_level_up_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\bottom_table_title_ctrl.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\btn_common_ads_ctrl.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\buff_look_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\click_mask_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\dialog_titlebar.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\dialog_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\fullscreen_return_title_ctrl.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\function_open_wnd.cs" />
+    <Compile Include="Src\GameLogic\Lobby\tower_defend_player_count_wnd.cs" />
+    <Compile Include="Src\GameLogic\Login\year_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\get_award_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\gm_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\help_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\loading_ads_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\loading_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\screen_affter_effect_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\start_video_wnd.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\table_title_ctrl.cs" />
+    <Compile Include="Src\GameLogic\CommonUI\tip_wnd.cs" />
+    <Compile Include="Src\GameLogic\Lobby\CGamePro_Lobby.cs" />
+    <Compile Include="Src\GameLogic\Lobby\lobby_main_wnd.cs" />
+    <Compile Include="Src\GameLogic\Lobby\tower_defend_chapter_wnd.cs" />
+    <Compile Include="Src\GameLogic\Lobby\tower_defend_giftedness_wnd.cs" />
+    <Compile Include="Src\GameLogic\Lobby\tower_defend_lvchoose_wnd.cs" />
+    <Compile Include="Src\GameLogic\Lobby\tower_defend_prepare_wnd.cs" />
+    <Compile Include="Src\GameLogic\Lobby\tower_defend_setting_wnd.cs" />
+    <Compile Include="Src\GameLogic\Login\CGamePro_Login.cs" />
+    <Compile Include="Src\GameLogic\Login\login_wnd.cs" />
+    <Compile Include="Src\GameLogic\Mono2GameDll.cs" />
+    <Compile Include="Src\GameLogic\Scene\CGamePro_Scene.cs" />
+    <Compile Include="Src\GameLogic\Scene\tower_defend_battle_hud_wnd.cs" />
+    <Compile Include="Src\GameLogic\Scene\tower_defend_chapter_result_wnd.cs" />
+    <Compile Include="Src\GameLogic\Scene\tower_defend_endless_result_wnd.cs" />
+    <Compile Include="Src\GameLogic\Scene\tower_defend_pause_wnd.cs" />
+    <Compile Include="Src\GameLogic\Scene\tower_defend_wave_notice_wnd.cs" />
+    <Compile Include="Src\GameLogic\Start\CGamePro_StartApplication.cs" />
+    <Compile Include="Src\GameLogic\System\Guide\guide_step_id.cs" />
+    <Compile Include="Src\GameLogic\System\Guide\guide_wnd.cs" />
+    <Compile Include="Src\GameLogic\System\Guide\GuideManager.cs" />
+    <Compile Include="Src\GameLogic\System\LobbyPlayer.cs" />
+    <Compile Include="Src\GameLogic\System\PlayerInput.cs" />
+    <Compile Include="Src\GameLogic\System\SystemBaseManager.cs" />
+    <Compile Include="Src\HotFixLoop.cs" />
+    <Compile Include="Src\UIGen\v_account_level_up_wnd.cs" />
+    <Compile Include="Src\UIGen\v_bottom_bar.cs" />
+    <Compile Include="Src\UIGen\v_bottom_tap_panel.cs" />
+    <Compile Include="Src\UIGen\v_buff_look_wnd.cs" />
+    <Compile Include="Src\UIGen\v_dialog_titlebar.cs" />
+    <Compile Include="Src\UIGen\v_dialog_wnd.cs" />
+    <Compile Include="Src\UIGen\v_fullscreen_return_title.cs" />
+    <Compile Include="Src\UIGen\v_function_open_wnd.cs" />
+    <Compile Include="Src\UIGen\v_get_award_wnd.cs" />
+    <Compile Include="Src\UIGen\v_gm_wnd.cs" />
+    <Compile Include="Src\UIGen\v_guide_wnd.cs" />
+    <Compile Include="Src\UIGen\v_help_wnd.cs" />
+    <Compile Include="Src\UIGen\v_loading_ads_wnd.cs" />
+    <Compile Include="Src\UIGen\v_loading_wnd.cs" />
+    <Compile Include="Src\UIGen\v_lobby_main_wnd.cs" />
+    <Compile Include="Src\UIGen\v_login_wnd.cs" />
+    <Compile Include="Src\UIGen\v_screen_affter_effect_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tap_panel.cs" />
+    <Compile Include="Src\UIGen\v_tip_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_battle_hud_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_chapter_result_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_chapter_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_endless_result_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_giftedness_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_lvchoose_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_pause_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_prepare_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_setting_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_wave_notice_wnd.cs" />
+    <Compile Include="Src\UIGen\v_year_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_player_count_wnd.cs" />
+    <Compile Include="Src\Data\Bean\t_actionBean.cs" />
+    <Compile Include="Src\Data\Bean\t_buff.cs" />
+    <Compile Include="Src\Data\Bean\t_buffDesc.cs" />
+    <Compile Include="Src\Data\Bean\t_buffParam.cs" />
+    <Compile Include="Src\Data\Bean\t_bullet.cs" />
+    <Compile Include="Src\Data\Bean\t_chapterStageBean.cs" />
+    <Compile Include="Src\Data\Bean\t_effectBean.cs" />
+    <Compile Include="Src\Data\Bean\t_endlessStageBean.cs" />
+    <Compile Include="Src\Data\Bean\t_globalBean.cs" />
+    <Compile Include="Src\Data\Bean\t_guideBean.cs" />
+    <Compile Include="Src\Data\Bean\t_heroBean.cs" />
+    <Compile Include="Src\Data\Bean\t_languageCNBean.cs" />
+    <Compile Include="Src\Data\Bean\t_languageCNFTBean.cs" />
+    <Compile Include="Src\Data\Bean\t_languageENBean.cs" />
+    <Compile Include="Src\Data\Bean\t_languageJPBean.cs" />
+    <Compile Include="Src\Data\Bean\t_languageKRBean.cs" />
+    <Compile Include="Src\Data\Bean\t_languageVNBean.cs" />
+    <Compile Include="Src\Data\Bean\t_levelBean.cs" />
+    <Compile Include="Src\Data\Bean\t_modelBean.cs" />
+    <Compile Include="Src\Data\Bean\t_monsterBean.cs" />
+    <Compile Include="Src\Data\Bean\t_skillBean.cs" />
+    <Compile Include="Src\Data\Bean\t_skillDescBean.cs" />
+    <Compile Include="Src\Data\Bean\t_soundBean.cs" />
+    <Compile Include="Src\Data\Bean\t_tableBean.cs" />
+    <Compile Include="Src\Data\Bean\t_tdRoleGrowBean.cs" />
+    <Compile Include="Src\Data\Bean\t_tdStageGuardRoleBean.cs" />
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+  <PropertyGroup>
+    <PreBuildEvent>
+    </PreBuildEvent>
+  </PropertyGroup>
+  <Target Name="CopyGameDllToAssets" AfterTargets="Build">
+    <PropertyGroup>
+      <GameDllAssetsDir>$(ProjectDir)..\Assets\GameDll\</GameDllAssetsDir>
+      <Pdb2MdbExe>$(ProjectDir)..\pdb2mdb.exe</Pdb2MdbExe>
+      <GameDllMdbPath>$(TargetPath).mdb</GameDllMdbPath>
+    </PropertyGroup>
+    <MakeDir Directories="$(GameDllAssetsDir)" />
+    <Exec Command="&quot;$(Pdb2MdbExe)&quot; &quot;$(TargetPath)&quot;" Condition="Exists('$(Pdb2MdbExe)') And Exists('$(TargetDir)$(TargetName).pdb')" />
+    <Warning Text="pdb2mdb.exe不存在，跳过mdb生成：$(Pdb2MdbExe)" Condition="!Exists('$(Pdb2MdbExe)')" />
+    <Warning Text="$(TargetName).pdb不存在，跳过mdb生成：$(TargetDir)$(TargetName).pdb" Condition="Exists('$(Pdb2MdbExe)') And !Exists('$(TargetDir)$(TargetName).pdb')" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(GameDllAssetsDir)$(TargetFileName).bytes" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(GameDllMdbPath)" DestinationFiles="$(GameDllAssetsDir)$(TargetName).mdb.bytes" SkipUnchangedFiles="true" Condition="Exists('$(GameDllMdbPath)')" />
+  </Target>
+  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
+       Other similar extension points exist, see Microsoft.Common.targets.
+  <Target Name="BeforeBuild">
+  </Target>
+  <Target Name="AfterBuild">
+  </Target>
+  -->
+</Project>
