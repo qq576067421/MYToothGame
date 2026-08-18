@@ -1,0 +1,710 @@
+﻿using System;
+using System.Collections.Generic;
+
+namespace GameDll
+{
+    public static class BoneTrackedLayout
+    {
+        public const int m_InvalidPersonId = -1;
+        public const int m_BodyJointCount = 18;
+        public const int m_HandJointCount = 21;
+        public const int m_FaceJointCount = 5;
+    }
+
+    public enum BoneBodyJointType
+    {
+        鼻尖 = 0,
+        左眼 = 1,
+        右眼 = 2,
+        左耳 = 3,
+        右耳 = 4,
+        左肩 = 5,
+        右肩 = 6,
+        左肘 = 7,
+        右肘 = 8,
+        左手腕 = 9,
+        右手腕 = 10,
+        左髋 = 11,
+        右髋 = 12,
+        左膝 = 13,
+        右膝 = 14,
+        左脚踝 = 15,
+        右脚踝 = 16,
+        胸口 = 17,
+        数量 = 18,
+    }
+
+    public enum BonePoseHintFlags
+    {
+        无 = 0,
+        举左手 = 1 << 0,
+        举右手 = 1 << 1,
+        双手交叉胸前 = 1 << 2,
+        双手叉腰 = 1 << 3,
+        蹲下 = 1 << 4,
+    }
+
+    public enum BoneGestureType
+    {
+        未知 = 0,
+        姿势开始 = 1000,
+        举左手_姿势 = 1001,
+        举右手_姿势 = 1002,
+        举双手_姿势 = 1003,
+        双手交叉胸前_姿势 = 1004,
+        双手叉腰_姿势 = 1005,
+        蹲下_姿势 = 1006,
+        姿势结束 = 1999,
+        流程开始 = 2000,
+        左右交替挥击_流程 = 2001,
+        双手过头蓄力_流程 = 2002,
+        双手下压释放_流程 = 2003,
+        双手过头下压释放_流程 = 2004,
+        双手交叉抱胸快速展开_流程 = 2005,
+        单手举过头下拉_流程 = 2006,
+        双手叉腰后上举_流程 = 2007,
+        蹲下起身举手_流程 = 2008,
+        双手胸前合拢后上推_流程 = 2009,
+        双手左右展开保持_流程 = 2010,
+        左右交替大幅挥击_流程 = 2011,
+        流程结束 = 2999,
+    }
+
+    public enum BoneGesturePhase
+    {
+        开始 = 1,
+        持续 = 2,
+        结束 = 3,
+        触发 = 4,
+    }
+
+    public enum BoneGesturePhaseMask
+    {
+        无 = 0,
+        开始 = 1 << 0,
+        持续 = 1 << 1,
+        结束 = 1 << 2,
+        触发 = 1 << 3,
+    }
+
+    public enum BoneGestureCategory
+    {
+        未知 = 0,
+        姿势 = 1,
+        流程 = 2,
+    }
+
+    public enum BoneActionConsumerType
+    {
+        未知 = 0,
+        动作槽位 = 1,
+    }
+
+    public enum BoneActionRuntimeFlags
+    {
+        无 = 0,
+        可识别 = 1 << 0,
+        可消费 = 1 << 1,
+    }
+
+    public enum BoneActionConsumeResultType
+    {
+        未知 = 0,
+        接受 = 1,
+        拒绝可重试 = 2,
+        拒绝阻断 = 3,
+        忽略 = 4,
+    }
+
+    public enum BoneAimTrackingState
+    {
+        未跟踪 = 0,
+        正常跟踪 = 1,
+        短暂丢失 = 2,
+        平滑回正 = 3,
+    }
+
+    public struct BoneVector2
+    {
+        public float m_X;
+        public float m_Y;
+
+        public static readonly BoneVector2 m_Zero = new BoneVector2(0f, 0f);
+
+        public BoneVector2(float x, float y)
+        {
+            m_X = x;
+            m_Y = y;
+        }
+
+        public float ReadLengthSquared()
+        {
+            return m_X * m_X + m_Y * m_Y;
+        }
+
+        public static BoneVector2 operator +(BoneVector2 left, BoneVector2 right)
+        {
+            return new BoneVector2(left.m_X + right.m_X, left.m_Y + right.m_Y);
+        }
+
+        public static BoneVector2 operator -(BoneVector2 left, BoneVector2 right)
+        {
+            return new BoneVector2(left.m_X - right.m_X, left.m_Y - right.m_Y);
+        }
+
+        public static BoneVector2 operator *(BoneVector2 value, float scale)
+        {
+            return new BoneVector2(value.m_X * scale, value.m_Y * scale);
+        }
+    }
+
+    public struct BoneVector3
+    {
+        public float m_X;
+        public float m_Y;
+        public float m_Z;
+
+        public static readonly BoneVector3 m_Zero = new BoneVector3(0f, 0f, 0f);
+        public static readonly BoneVector3 m_Forward = new BoneVector3(0f, 0f, 1f);
+
+        public BoneVector3(float x, float y, float z)
+        {
+            m_X = x;
+            m_Y = y;
+            m_Z = z;
+        }
+
+        public float ReadLengthSquared()
+        {
+            return m_X * m_X + m_Y * m_Y + m_Z * m_Z;
+        }
+    }
+
+    internal static class BoneMath
+    {
+        public static float Max(float left, float right)
+        {
+            return Math.Max(left, right);
+        }
+    }
+
+    public static class BoneGestureRules
+    {
+        public static bool TryResolveActionBinding(
+            int gestureId,
+            int gesturePhaseValue,
+            out BoneGestureType gestureType,
+            out BoneGesturePhaseMask phaseMask,
+            out bool requiresConsumeResult,
+            out string error)
+        {
+            gestureType = BoneGestureType.未知;
+            phaseMask = BoneGesturePhaseMask.无;
+            requiresConsumeResult = false;
+            error = string.Empty;
+
+            if (!TryResolveGesturePhaseMask(gesturePhaseValue, out phaseMask))
+            {
+                error = "手势阶段无效。";
+                return false;
+            }
+
+            if (!TryResolveGestureType(gestureId, out gestureType))
+            {
+                error = "手势编号无效。";
+                return false;
+            }
+
+            if (!ReadSupportsGesturePhase(gestureType, phaseMask))
+            {
+                error = "手势编号和手势阶段不匹配。";
+                return false;
+            }
+
+            requiresConsumeResult = ReadRequiresConsumeResult(gestureType, phaseMask);
+            return true;
+        }
+
+        public static bool TryResolveGestureType(int gestureId, out BoneGestureType gestureType)
+        {
+            gestureType = (BoneGestureType)gestureId;
+            if (gestureType == BoneGestureType.未知)
+            {
+                return false;
+            }
+
+            if (ReadGestureCategory(gestureType) == BoneGestureCategory.未知)
+            {
+                gestureType = BoneGestureType.未知;
+                return false;
+            }
+
+            if (!Enum.IsDefined(typeof(BoneGestureType), gestureType))
+            {
+                gestureType = BoneGestureType.未知;
+                return false;
+            }
+
+            if (ReadSupportedPhaseMask(gestureType) == BoneGesturePhaseMask.无)
+            {
+                gestureType = BoneGestureType.未知;
+                return false;
+            }
+
+            return true;
+        }
+
+        public static bool TryResolveGesturePhaseMask(int gesturePhaseValue, out BoneGesturePhaseMask phaseMask)
+        {
+            if (!Enum.IsDefined(typeof(BoneGesturePhase), gesturePhaseValue))
+            {
+                phaseMask = BoneGesturePhaseMask.无;
+                return false;
+            }
+
+            phaseMask = (BoneGesturePhaseMask)(1 << (gesturePhaseValue - 1));
+            return true;
+        }
+
+        public static BoneGestureCategory ReadGestureCategory(BoneGestureType gestureType)
+        {
+            int gestureId = (int)gestureType;
+            if (gestureId > (int)BoneGestureType.姿势开始 && gestureId < (int)BoneGestureType.姿势结束)
+            {
+                return BoneGestureCategory.姿势;
+            }
+
+            if (gestureId > (int)BoneGestureType.流程开始 && gestureId < (int)BoneGestureType.流程结束)
+            {
+                return BoneGestureCategory.流程;
+            }
+
+            return BoneGestureCategory.未知;
+        }
+
+        public static bool ReadSupportsGesturePhase(BoneGestureType gestureType, BoneGesturePhaseMask phaseMask)
+        {
+            BoneGesturePhaseMask supportedPhaseMask = ReadSupportedPhaseMask(gestureType);
+            if (supportedPhaseMask == BoneGesturePhaseMask.无)
+            {
+                return false;
+            }
+
+            return (supportedPhaseMask & phaseMask) == phaseMask;
+        }
+
+        public static bool ReadRequiresConsumeResult(BoneGestureType gestureType, BoneGesturePhaseMask phaseMask)
+        {
+            return BoneGestureCatalog.TryReadDefinition(gestureType, out BoneGestureDefinition definition) &&
+                definition.RequiresConsumeResult(phaseMask);
+        }
+
+        public static bool ReadIsProcessGesture(BoneGestureType gestureType)
+        {
+            return ReadGestureCategory(gestureType) == BoneGestureCategory.流程;
+        }
+
+        private static BoneGesturePhaseMask ReadSupportedPhaseMask(BoneGestureType gestureType)
+        {
+            return BoneGestureCatalog.TryReadDefinition(gestureType, out BoneGestureDefinition definition)
+                ? definition.m_SupportedPhases
+                : BoneGesturePhaseMask.无;
+        }
+    }
+
+    internal sealed class BoneGestureDefinition
+    {
+        public readonly BoneGestureType m_GestureType;
+        public readonly BoneGestureCategory m_Category;
+        public readonly BoneGesturePhaseMask m_SupportedPhases;
+        public readonly BoneGesturePhaseMask m_RequiresConsumeResultPhases;
+
+        public BoneGestureDefinition(
+            BoneGestureType gestureType,
+            BoneGestureCategory category,
+            BoneGesturePhaseMask supportedPhases,
+            BoneGesturePhaseMask requiresConsumeResultPhases)
+        {
+            m_GestureType = gestureType;
+            m_Category = category;
+            m_SupportedPhases = supportedPhases;
+            m_RequiresConsumeResultPhases = requiresConsumeResultPhases;
+        }
+
+        public bool RequiresConsumeResult(BoneGesturePhaseMask phaseMask)
+        {
+            return (m_RequiresConsumeResultPhases & phaseMask) != 0;
+        }
+    }
+
+    internal static class BoneGestureCatalog
+    {
+        private static readonly Dictionary<BoneGestureType, BoneGestureDefinition> m_Definitions =
+            BuildDefinitions();
+
+        public static bool TryReadDefinition(BoneGestureType gestureType, out BoneGestureDefinition definition)
+        {
+            return m_Definitions.TryGetValue(gestureType, out definition);
+        }
+
+        private static Dictionary<BoneGestureType, BoneGestureDefinition> BuildDefinitions()
+        {
+            Dictionary<BoneGestureType, BoneGestureDefinition> definitions =
+                new Dictionary<BoneGestureType, BoneGestureDefinition>();
+            BoneGesturePhaseMask posePhases =
+                BoneGesturePhaseMask.开始 | BoneGesturePhaseMask.持续 | BoneGesturePhaseMask.结束;
+            BoneGesturePhaseMask allFlowPhases =
+                BoneGesturePhaseMask.开始 | BoneGesturePhaseMask.持续 | BoneGesturePhaseMask.结束 | BoneGesturePhaseMask.触发;
+
+            AddDefinition(definitions, BoneGestureType.举左手_姿势, BoneGestureCategory.姿势, posePhases, BoneGesturePhaseMask.无);
+            AddDefinition(definitions, BoneGestureType.举右手_姿势, BoneGestureCategory.姿势, posePhases, BoneGesturePhaseMask.无);
+            AddDefinition(definitions, BoneGestureType.举双手_姿势, BoneGestureCategory.姿势, posePhases, BoneGesturePhaseMask.无);
+            AddDefinition(definitions, BoneGestureType.双手交叉胸前_姿势, BoneGestureCategory.姿势, posePhases, BoneGesturePhaseMask.无);
+            AddDefinition(definitions, BoneGestureType.双手叉腰_姿势, BoneGestureCategory.姿势, posePhases, BoneGesturePhaseMask.无);
+            AddDefinition(definitions, BoneGestureType.蹲下_姿势, BoneGestureCategory.姿势, posePhases, BoneGesturePhaseMask.无);
+            AddDefinition(definitions, BoneGestureType.左右交替挥击_流程, BoneGestureCategory.流程, BoneGesturePhaseMask.触发, BoneGesturePhaseMask.触发);
+            AddDefinition(definitions, BoneGestureType.双手过头下压释放_流程, BoneGestureCategory.流程, allFlowPhases, BoneGesturePhaseMask.触发);
+            AddDefinition(definitions, BoneGestureType.双手交叉抱胸快速展开_流程, BoneGestureCategory.流程, BoneGesturePhaseMask.触发, BoneGesturePhaseMask.触发);
+            AddDefinition(definitions, BoneGestureType.单手举过头下拉_流程, BoneGestureCategory.流程, BoneGesturePhaseMask.触发, BoneGesturePhaseMask.触发);
+            AddDefinition(definitions, BoneGestureType.双手叉腰后上举_流程, BoneGestureCategory.流程, BoneGesturePhaseMask.触发, BoneGesturePhaseMask.触发);
+            AddDefinition(definitions, BoneGestureType.蹲下起身举手_流程, BoneGestureCategory.流程, BoneGesturePhaseMask.触发, BoneGesturePhaseMask.触发);
+            AddDefinition(definitions, BoneGestureType.双手胸前合拢后上推_流程, BoneGestureCategory.流程, BoneGesturePhaseMask.触发, BoneGesturePhaseMask.触发);
+            AddDefinition(definitions, BoneGestureType.双手左右展开保持_流程, BoneGestureCategory.流程, BoneGesturePhaseMask.触发, BoneGesturePhaseMask.触发);
+            AddDefinition(definitions, BoneGestureType.左右交替大幅挥击_流程, BoneGestureCategory.流程, BoneGesturePhaseMask.触发, BoneGesturePhaseMask.触发);
+            return definitions;
+        }
+
+        private static void AddDefinition(
+            Dictionary<BoneGestureType, BoneGestureDefinition> definitions,
+            BoneGestureType gestureType,
+            BoneGestureCategory category,
+            BoneGesturePhaseMask supportedPhases,
+            BoneGesturePhaseMask requiresConsumeResultPhases)
+        {
+            definitions[gestureType] = new BoneGestureDefinition(
+                gestureType,
+                category,
+                supportedPhases,
+                requiresConsumeResultPhases);
+        }
+    }
+
+    public sealed class BoneTrackedJoint
+    {
+        public bool m_IsTracked;
+        public float m_X;
+        public float m_Y;
+        public float m_Z;
+        public float m_Score;
+
+        public void Reset()
+        {
+            m_IsTracked = false;
+            m_X = 0f;
+            m_Y = 0f;
+            m_Z = 0f;
+            m_Score = 0f;
+        }
+
+        public void Set(float x, float y, float z, float score)
+        {
+            m_IsTracked = true;
+            m_X = x;
+            m_Y = y;
+            m_Z = z;
+            m_Score = score;
+        }
+    }
+
+    public sealed class BoneTrackedRect
+    {
+        public bool m_IsValid;
+        public float m_Left;
+        public float m_Top;
+        public float m_Right;
+        public float m_Bottom;
+
+        public void Reset()
+        {
+            m_IsValid = false;
+            m_Left = 0f;
+            m_Top = 0f;
+            m_Right = 0f;
+            m_Bottom = 0f;
+        }
+
+        public void Set(float left, float top, float right, float bottom)
+        {
+            m_IsValid = right > left && bottom > top;
+            m_Left = left;
+            m_Top = top;
+            m_Right = right;
+            m_Bottom = bottom;
+        }
+
+        public float ReadHeight()
+        {
+            return BoneMath.Max(0f, m_Bottom - m_Top);
+        }
+
+        public float ReadWidth()
+        {
+            return BoneMath.Max(0f, m_Right - m_Left);
+        }
+    }
+
+    public sealed class BoneTrackedPart
+    {
+        public readonly BoneTrackedRect m_Rect;
+        public readonly BoneTrackedJoint[] m_Joints;
+        public float m_Score;
+        public int m_Type;
+
+        public BoneTrackedPart(int jointCount)
+        {
+            m_Rect = new BoneTrackedRect();
+            m_Joints = new BoneTrackedJoint[jointCount];
+            for (int i = 0; i < jointCount; i++)
+            {
+                m_Joints[i] = new BoneTrackedJoint();
+            }
+        }
+
+        public void Reset()
+        {
+            m_Rect.Reset();
+            m_Score = 0f;
+            m_Type = 0;
+            for (int i = 0; i < m_Joints.Length; i++)
+            {
+                m_Joints[i].Reset();
+            }
+        }
+    }
+
+    public sealed class BoneTrackedPerson
+    {
+        public int m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
+        public readonly BoneTrackedPart m_Body;
+        public readonly BoneTrackedPart m_LeftHand;
+        public readonly BoneTrackedPart m_RightHand;
+        public readonly BoneTrackedPart m_Face;
+
+        public BoneTrackedPerson()
+        {
+            m_Body = new BoneTrackedPart(BoneTrackedLayout.m_BodyJointCount);
+            m_LeftHand = new BoneTrackedPart(BoneTrackedLayout.m_HandJointCount);
+            m_RightHand = new BoneTrackedPart(BoneTrackedLayout.m_HandJointCount);
+            m_Face = new BoneTrackedPart(BoneTrackedLayout.m_FaceJointCount);
+        }
+
+        public void Reset()
+        {
+            m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
+            m_Body.Reset();
+            m_LeftHand.Reset();
+            m_RightHand.Reset();
+            m_Face.Reset();
+        }
+    }
+
+    public sealed class BoneTrackedFrame
+    {
+        public bool m_HasFrameData;
+        public int m_FrameSerial;
+        public bool m_IsSimulated;
+        public long m_FrameTimeMs;
+        public int m_ImageWidth;
+        public int m_ImageHeight;
+        public readonly List<BoneTrackedPerson> m_Persons = new List<BoneTrackedPerson>();
+
+        public void Reset()
+        {
+            m_HasFrameData = false;
+            m_FrameSerial = 0;
+            m_IsSimulated = false;
+            m_FrameTimeMs = 0L;
+            m_ImageWidth = 0;
+            m_ImageHeight = 0;
+            m_Persons.Clear();
+        }
+    }
+
+    public sealed class BoneParserSeatDefinition
+    {
+        public int m_SlotIndex;
+        public int m_BindingId;
+        public bool m_IsProcessGestureEnabled = true;
+        public readonly List<BoneActionBinding> m_ActionBindings = new List<BoneActionBinding>();
+    }
+
+    public sealed class BoneActionBinding
+    {
+        public int m_ActionId;
+        public BoneGestureType m_GestureType = BoneGestureType.未知;
+        public BoneGesturePhaseMask m_PhaseMask = BoneGesturePhaseMask.无;
+        public BoneActionConsumerType m_ConsumerType = BoneActionConsumerType.未知;
+        public int m_ConsumerValue;
+        public BoneActionRuntimeFlags m_RuntimeFlags = BoneActionRuntimeFlags.可识别 | BoneActionRuntimeFlags.可消费;
+        public bool m_RequiresConsumeResult;
+    }
+
+    public sealed class BoneGestureEvent
+    {
+        public BoneGestureType m_GestureType = BoneGestureType.未知;
+        public BoneGesturePhase m_Phase = BoneGesturePhase.触发;
+        public int m_SlotIndex;
+        public int m_BindingId;
+        public int m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
+        public int m_FrameSerial;
+    }
+
+    public sealed class BoneActionEvent
+    {
+        public int m_ActionEventId;
+        public int m_ActionId;
+        public BoneGestureType m_GestureType = BoneGestureType.未知;
+        public BoneGesturePhase m_Phase = BoneGesturePhase.触发;
+        public int m_SlotIndex;
+        public int m_BindingId;
+        public int m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
+        public int m_FrameSerial;
+        public BoneActionConsumerType m_ConsumerType = BoneActionConsumerType.未知;
+        public int m_ConsumerValue;
+        public BoneActionRuntimeFlags m_RuntimeFlags = BoneActionRuntimeFlags.无;
+        public bool m_RequiresConsumeResult;
+        public BoneVector3 m_FaceForward = BoneVector3.m_Forward;
+        public BoneVector3 m_MoveDirection = BoneVector3.m_Zero;
+    }
+
+    public sealed class BoneActionConsumeResult
+    {
+        public int m_ActionEventId;
+        public BoneActionConsumeResultType m_ResultType = BoneActionConsumeResultType.未知;
+    }
+
+    public sealed class BoneParserPlayerResult
+    {
+        public int m_SlotIndex;
+        public int m_BindingId;
+        public bool m_IsTracked;
+        public bool m_IsAimAvailable;
+        public BoneAimTrackingState m_AimTrackingState = BoneAimTrackingState.未跟踪;
+        public float m_AimConfidence;
+        public int m_MissingFrameCount;
+        public int m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
+        public BoneVector3 m_FaceForward = BoneVector3.m_Forward;
+        public float m_TurnSpeed;
+        public float m_TurnStrength;
+        public float m_TurnAngleDegrees;
+        public BonePoseHintFlags m_ActivePoseHints = BonePoseHintFlags.无;
+        public readonly List<BoneGestureEvent> m_GestureEvents = new List<BoneGestureEvent>();
+        public readonly List<BoneActionEvent> m_ActionEvents = new List<BoneActionEvent>();
+
+        public void Reset(int slotIndex, int bindingId)
+        {
+            m_SlotIndex = slotIndex;
+            m_BindingId = bindingId;
+            m_IsTracked = false;
+            m_IsAimAvailable = false;
+            m_AimTrackingState = BoneAimTrackingState.未跟踪;
+            m_AimConfidence = 0f;
+            m_MissingFrameCount = 0;
+            m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
+            m_FaceForward = BoneVector3.m_Forward;
+            m_TurnSpeed = 0f;
+            m_TurnStrength = 0f;
+            m_TurnAngleDegrees = 0f;
+            m_ActivePoseHints = BonePoseHintFlags.无;
+            m_GestureEvents.Clear();
+            m_ActionEvents.Clear();
+        }
+    }
+
+    public sealed class BoneParserFrameResult
+    {
+        public int m_FrameSerial;
+        public readonly List<BoneParserPlayerResult> m_PlayerResults = new List<BoneParserPlayerResult>();
+    }
+
+    public sealed class BoneParserConfig
+    {
+        public float m_MinBodyScore = 0.20f;
+        public float m_MinJointScore = 0.20f;
+        public int m_MaxMissingFrameCount = 18;
+        public float m_RotationSmoothFactor = 6f;
+        public float m_KeypointConfidenceThreshold = 0.30f;
+        public float m_ShoulderWidthEpsilon = 0.0001f;
+        public float m_MaxShoulderWidthUpdateConfidence = 0.70f;
+        public float m_MaxTurnAngleDegrees = 35f;
+        public bool m_InvertTurnDirection;
+        public float m_RotationAmplifyFactor = 1.0f;
+        public float m_AimCenterEnterRatio = 0.12f;
+        public float m_AimCenterExitRatio = 0.07f;
+        public float m_AimResponseCurveExponent = 1.35f;
+        public int m_AimPredictMissingFrames = 6;
+        public int m_AimHoldMissingFrames = 18;
+        public int m_AimReconnectStableFrames = 3;
+        public float m_AimPredictVelocityDamping = 0.88f;
+        public float m_AimReconnectBlendFactor = 10f;
+        public float m_AimReturnToForwardSeconds = 0.35f;
+        public float m_GestureKeypointMinConfidence = 0.40f;
+        public float m_AlternatingSwingSpeedRatioPerSecond = 1.20f;
+        public float m_AlternatingSwingMinVerticalDistanceRatio = 0.20f;
+        public float m_AlternatingSwingDirectionNoiseRatio = 0.015f;
+        public int m_AlternatingSwingMinDirectionalFrames = 2;
+        public float m_AlternatingSwingCooldownSeconds = 0.45f;
+        public int m_AlternatingSwingWindowFrames = 24;
+        public float m_LargeAlternatingSwingMinTorsoDistanceRatio = 0.50f;
+        public int m_OverheadPressReadyFrames = 5;
+        public float m_OverheadPressHeadMarginRatio = 0.12f;
+        public float m_OverheadPressReleaseSpeedRatio = 2.80f;
+        public float m_OverheadPressMinReleaseDistanceRatio = 0.35f;
+        public float m_OverheadPressReleaseEndBelowHeadRatio = 0.15f;
+        public int m_OverheadPressReleaseWindowFrames = 8;
+        public float m_OverheadPressCooldownSeconds = 0.70f;
+        public int m_CrossChestExpandReadyFrames = 3;
+        public float m_CrossChestExpandSpeedRatioPerSecond = 2.20f;
+        public float m_CrossChestExpandMinDistanceRatio = 0.30f;
+        public int m_CrossChestExpandReleaseWindowFrames = 10;
+        public float m_CrossChestExpandCooldownSeconds = 0.50f;
+        public int m_SingleHandPullDownReadyFrames = 3;
+        public float m_SingleHandPullDownReleaseSpeedRatioPerSecond = 2.20f;
+        public float m_SingleHandPullDownMinDistanceRatio = 0.35f;
+        public float m_SingleHandPullDownEndBelowShoulderRatio = 0.05f;
+        public int m_SingleHandPullDownReleaseWindowFrames = 10;
+        public float m_SingleHandPullDownCooldownSeconds = 0.50f;
+        public int m_HandsOnHipRaiseReadyFrames = 3;
+        public float m_HandsOnHipRaiseMinDistanceRatio = 0.45f;
+        public float m_HandsOnHipRaiseEndAboveShoulderRatio = 0.12f;
+        public int m_HandsOnHipRaiseReleaseWindowFrames = 12;
+        public float m_HandsOnHipRaiseCooldownSeconds = 0.50f;
+        public int m_CrouchStandRaiseReadyFrames = 3;
+        public float m_CrouchStandRaiseHandAboveShoulderRatio = 0.12f;
+        public int m_CrouchStandRaiseReleaseWindowFrames = 16;
+        public float m_CrouchStandRaiseCooldownSeconds = 0.60f;
+        public int m_ChestClosePushReadyFrames = 3;
+        public float m_ChestClosePushCloseDistanceRatio = 0.55f;
+        public float m_ChestClosePushVerticalRatio = 0.65f;
+        public float m_ChestClosePushMinDistanceRatio = 0.28f;
+        public float m_ChestClosePushEndAboveShoulderRatio = 0.10f;
+        public float m_ChestClosePushSpeedRatioPerSecond = 1.80f;
+        public int m_ChestClosePushReleaseWindowFrames = 12;
+        public float m_ChestClosePushCooldownSeconds = 0.50f;
+        public int m_HandsExpandReadyFrames = 3;
+        public float m_HandsExpandCloseDistanceRatio = 0.70f;
+        public float m_HandsExpandCloseVerticalRatio = 0.70f;
+        public float m_HandsExpandBeyondShoulderRatio = 0.20f;
+        public float m_HandsExpandVerticalToleranceRatio = 0.85f;
+        public int m_HandsExpandHoldFrames = 3;
+        public int m_HandsExpandReleaseWindowFrames = 18;
+        public float m_HandsExpandCooldownSeconds = 0.60f;
+        public float m_PoseRaiseMarginRatio = 0.05f;
+        public float m_PoseCrossChestCenterRatio = 0.70f;
+        public float m_PoseCrossChestVerticalRatio = 0.65f;
+        public float m_PoseHipAttachRatio = 0.70f;
+        public float m_PoseHipVerticalRatio = 0.60f;
+        public float m_PoseCrouchTorsoRatio = 0.24f;
+        public int m_PoseStableFrames = 3;
+    }
+}
