@@ -278,16 +278,26 @@ namespace GameDll
             bool resetSavedVolumes = PlayerPrefs.GetInt(m_VolumeSettingsVersionKey, 0) != m_CurrentVolumeSettingsVersion;
             for (int i = 0; i < m_BusVolumes.Length; i++)
             {
-                if (!resetSavedVolumes && PlayerPrefs.HasKey(m_BusVolumeKeys[i]))
+                var bus = (AudioBus)i;
+                //线性值
+                float vol = 1;
+                //如果没有设置过，就应该使用混音器默认的
+                if (resetSavedVolumes || !PlayerPrefs.HasKey(m_BusVolumeKeys[i]))
                 {
-                    m_BusVolumes[i] = Mathf.Clamp01(PlayerPrefs.GetFloat(m_BusVolumeKeys[i]));
+                    //使用混音器自己的值
+                    if (m_Mixer != null)
+                    {
+                        m_Mixer.GetFloat(m_BusVolumeParameters[i], out vol);
+                        vol = DecibelToLinear(vol);
+                        PlayerPrefs.SetFloat(m_BusVolumeKeys[i], vol);
+                    }
                 }
                 else
                 {
-                    m_BusVolumes[i] = 1f;
-                    PlayerPrefs.SetFloat(m_BusVolumeKeys[i], m_BusVolumes[i]);
+                    vol = Mathf.Clamp01(PlayerPrefs.GetFloat(m_BusVolumeKeys[i]));
                 }
-                ApplyBusVolume((AudioBus)i);
+                m_BusVolumes[i] = vol;
+                ApplyBusVolume(bus);
             }
             if (resetSavedVolumes)
             {
@@ -349,6 +359,9 @@ namespace GameDll
         {
             return value <= 0f ? m_SilentDecibel : 20f * Mathf.Log10(Mathf.Clamp01(value));
         }
-
+        private float DecibelToLinear(float value)
+        {
+            return value <= m_SilentDecibel ? 0f : Mathf.Pow(10f, value / 20f);
+        }
     }
 }

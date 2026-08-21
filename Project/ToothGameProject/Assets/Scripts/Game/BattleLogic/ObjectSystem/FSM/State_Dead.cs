@@ -100,9 +100,12 @@ namespace GameDll
                                             return;
                                         }
                                         //特殊处理，并且知道这个节点有主粒子
-                                        var ps = effObj.GetComponent<ParticleSystem>();
-                                        var shape = ps.shape;
-                                        shape.skinnedMeshRenderer = mesh;
+                                        var ps = effObj.GetComponentsInChildren<ParticleSystem>();
+                                        foreach(var p in ps)
+                                        {
+                                            var shape = p.shape;
+                                            shape.skinnedMeshRenderer = mesh;
+                                        }
                                     });
                                 }
                             }

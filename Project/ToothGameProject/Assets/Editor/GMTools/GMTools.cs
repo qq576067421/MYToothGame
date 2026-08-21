@@ -77,22 +77,6 @@ public class GMTools : EditorWindow
         }
     }
 
-    private sealed class BoneTurnTuningIntBinding
-    {
-        public readonly string FieldName;
-        public readonly string DefaultFieldName;
-        public readonly Func<int> Getter;
-        public readonly Action<int> Setter;
-
-        public BoneTurnTuningIntBinding(string fieldName, string defaultFieldName, Func<int> getter, Action<int> setter)
-        {
-            FieldName = fieldName;
-            DefaultFieldName = defaultFieldName;
-            Getter = getter;
-            Setter = setter;
-        }
-    }
-
     private sealed class BoneTurnTuningBoolBinding
     {
         public readonly string FieldName;
@@ -531,9 +515,8 @@ public class GMTools : EditorWindow
     {
         new BoneTurnTuningFloatBinding(nameof(BoneTurnTuning.m_MaxAngle), nameof(BoneTurnTuning.m_DefaultMaxAngle), () => BoneTurnTuning.m_MaxAngle, value => BoneTurnTuning.m_MaxAngle = value),
         new BoneTurnTuningFloatBinding(nameof(BoneTurnTuning.m_RotationAmplifyFactor), nameof(BoneTurnTuning.m_DefaultRotationAmplifyFactor), () => BoneTurnTuning.m_RotationAmplifyFactor, value => BoneTurnTuning.m_RotationAmplifyFactor = value),
+        new BoneTurnTuningFloatBinding(nameof(BoneTurnTuning.m_ShoulderTurnJitterDeadZone), nameof(BoneTurnTuning.m_DefaultShoulderTurnJitterDeadZone), () => BoneTurnTuning.m_ShoulderTurnJitterDeadZone, value => BoneTurnTuning.m_ShoulderTurnJitterDeadZone = value),
     };
-
-    private static readonly BoneTurnTuningIntBinding[] s_BoneTurnTuningIntBindings = { };
 
     private static readonly BoneTurnTuningBoolBinding[] s_BoneTurnTuningBoolBindings =
     {
@@ -543,11 +526,6 @@ public class GMTools : EditorWindow
     private static IEnumerable<BoneTurnTuningFloatBinding> EnumerateBoneTurnTuningFloatBindings()
     {
         foreach (var binding in s_BoneTurnTuningFloatBindings) yield return binding;
-    }
-
-    private static IEnumerable<BoneTurnTuningIntBinding> EnumerateBoneTurnTuningIntBindings()
-    {
-        foreach (var binding in s_BoneTurnTuningIntBindings) yield return binding;
     }
 
     private static IEnumerable<BoneTurnTuningBoolBinding> EnumerateBoneTurnTuningBoolBindings()
@@ -568,11 +546,6 @@ public class GMTools : EditorWindow
     private static string BuildBoneTurnTuningFloatSessionKey(string fieldName)
     {
         return BoneTurnTuningSessionKeyPrefix + "Float." + fieldName;
-    }
-
-    private static string BuildBoneTurnTuningIntSessionKey(string fieldName)
-    {
-        return BoneTurnTuningSessionKeyPrefix + "Int." + fieldName;
     }
 
     private static string BuildBoneTurnTuningBoolSessionKey(string fieldName)
@@ -607,11 +580,6 @@ public class GMTools : EditorWindow
         foreach (var binding in EnumerateBoneTurnTuningFloatBindings())
         {
             SessionState.SetFloat(BuildBoneTurnTuningFloatSessionKey(binding.FieldName), binding.Getter());
-        }
-
-        foreach (var binding in EnumerateBoneTurnTuningIntBindings())
-        {
-            SessionState.SetInt(BuildBoneTurnTuningIntSessionKey(binding.FieldName), binding.Getter());
         }
 
         foreach (var binding in EnumerateBoneTurnTuningBoolBindings())
@@ -661,13 +629,6 @@ public class GMTools : EditorWindow
         {
             binding.Setter(SessionState.GetFloat(
                 BuildBoneTurnTuningFloatSessionKey(binding.FieldName),
-                binding.Getter()));
-        }
-
-        foreach (var binding in EnumerateBoneTurnTuningIntBindings())
-        {
-            binding.Setter(SessionState.GetInt(
-                BuildBoneTurnTuningIntSessionKey(binding.FieldName),
                 binding.Getter()));
         }
 
@@ -890,7 +851,6 @@ public class GMTools : EditorWindow
         string updatedContent = fileContent;
         bool replaceSuccess = true;
         replaceSuccess &= TryReplaceConstFloats(ref updatedContent, s_BoneTurnTuningFloatBindings);
-        replaceSuccess &= TryReplaceConstInts(ref updatedContent, s_BoneTurnTuningIntBindings);
         replaceSuccess &= TryReplaceConstBools(ref updatedContent, s_BoneTurnTuningBoolBindings);
 
         if (!replaceSuccess)
@@ -940,7 +900,7 @@ public class GMTools : EditorWindow
 
     private static bool TryApplyBoneTurnTuningDefaultsFromCode()
     {
-        if (!TryReadBoneTurnTuningDefaultsFromCode(out var floatDefaults, out var intDefaults, out var boolDefaults))
+        if (!TryReadBoneTurnTuningDefaultsFromCode(out var floatDefaults, out var boolDefaults))
         {
             return false;
         }
@@ -948,16 +908,6 @@ public class GMTools : EditorWindow
         foreach (var binding in EnumerateBoneTurnTuningFloatBindings())
         {
             if (!floatDefaults.TryGetValue(binding.DefaultFieldName, out var value))
-            {
-                return false;
-            }
-
-            binding.Setter(value);
-        }
-
-        foreach (var binding in EnumerateBoneTurnTuningIntBindings())
-        {
-            if (!intDefaults.TryGetValue(binding.DefaultFieldName, out var value))
             {
                 return false;
             }
@@ -981,11 +931,9 @@ public class GMTools : EditorWindow
 
     private static bool TryReadBoneTurnTuningDefaultsFromCode(
         out Dictionary<string, float> floatDefaults,
-        out Dictionary<string, int> intDefaults,
         out Dictionary<string, bool> boolDefaults)
     {
         floatDefaults = new Dictionary<string, float>();
-        intDefaults = new Dictionary<string, int>();
         boolDefaults = new Dictionary<string, bool>();
         if (!TryReadBoneTurnTuningFileContent(out var fileContent))
         {
@@ -1000,16 +948,6 @@ public class GMTools : EditorWindow
             }
 
             floatDefaults[binding.DefaultFieldName] = value;
-        }
-
-        foreach (var binding in EnumerateBoneTurnTuningIntBindings())
-        {
-            if (!TryReadConstInt(fileContent, binding.DefaultFieldName, out var value))
-            {
-                return false;
-            }
-
-            intDefaults[binding.DefaultFieldName] = value;
         }
 
         foreach (var binding in EnumerateBoneTurnTuningBoolBindings())
@@ -1073,22 +1011,6 @@ public class GMTools : EditorWindow
         }
 
         return float.TryParse(match.Groups[1].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out value);
-    }
-
-    private static bool TryReadConstInt(string fileContent, string fieldName, out int value)
-    {
-        string pattern = string.Format(
-            CultureInfo.InvariantCulture,
-            @"public const int {0} = ([-+]?\d+);",
-            fieldName);
-        Match match = Regex.Match(fileContent, pattern, RegexOptions.Multiline);
-        if (!match.Success)
-        {
-            value = 0;
-            return false;
-        }
-
-        return int.TryParse(match.Groups[1].Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out value);
     }
 
     private static bool TryReadConstBool(string fileContent, string fieldName, out bool value)
@@ -1173,7 +1095,7 @@ public class GMTools : EditorWindow
 
     private static bool HasUnbackfilledBoneTurnTuningChanges()
     {
-        if (!TryReadBoneTurnTuningDefaultsFromCode(out var floatDefaults, out var intDefaults, out var boolDefaults))
+        if (!TryReadBoneTurnTuningDefaultsFromCode(out var floatDefaults, out var boolDefaults))
         {
             return SessionState.GetBool(BoneTurnTuningSessionMarkerKey, false);
         }
@@ -1182,15 +1104,6 @@ public class GMTools : EditorWindow
         {
             if (!floatDefaults.TryGetValue(binding.DefaultFieldName, out var defaultValue) ||
                 !Mathf.Approximately(binding.Getter(), defaultValue))
-            {
-                return true;
-            }
-        }
-
-        foreach (var binding in EnumerateBoneTurnTuningIntBindings())
-        {
-            if (!intDefaults.TryGetValue(binding.DefaultFieldName, out var defaultValue) ||
-                binding.Getter() != defaultValue)
             {
                 return true;
             }
@@ -1275,35 +1188,6 @@ public class GMTools : EditorWindow
         }
 
         return replaceSuccess;
-    }
-
-    private static bool TryReplaceConstInts(ref string fileContent, BoneTurnTuningIntBinding[] bindings)
-    {
-        bool replaceSuccess = true;
-        for (int i = 0; i < bindings.Length; i++)
-        {
-            replaceSuccess &= TryReplaceConstInt(ref fileContent, bindings[i].DefaultFieldName, bindings[i].Getter());
-        }
-
-        return replaceSuccess;
-    }
-
-    private static bool TryReplaceConstInt(ref string fileContent, string fieldName, int value)
-    {
-        string pattern = string.Format(
-            CultureInfo.InvariantCulture,
-            @"(public const int {0} = )[-+]?\d+;",
-            fieldName);
-        Regex regex = new Regex(pattern, RegexOptions.Multiline);
-        Match match = regex.Match(fileContent);
-        if (!match.Success)
-        {
-            return false;
-        }
-
-        string replacement = match.Groups[1].Value + value.ToString(CultureInfo.InvariantCulture) + ";";
-        fileContent = regex.Replace(fileContent, replacement, 1);
-        return true;
     }
 
     private static bool TryReplaceConstBools(ref string fileContent, BoneTurnTuningBoolBinding[] bindings)
@@ -1688,17 +1572,15 @@ public class GMTools : EditorWindow
     {
         GUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.LabelField("骨骼转向调参", EditorStyles.boldLabel);
-        EditorGUILayout.LabelField("影响主工程消费端的双肩鼻子旋转法与转向输出。回填会修改 BoneTurnTuning.cs 中的默认值。");
 
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.Space(2f);
-        EditorGUILayout.LabelField("公共参数", EditorStyles.boldLabel);
         BoneTurnTuning.m_MaxAngle = EditorGUILayout.FloatField("最大转角：", BoneTurnTuning.m_MaxAngle);
         BoneTurnTuning.m_InvertDirection = EditorGUILayout.Toggle("左右方向反转：", BoneTurnTuning.m_InvertDirection);
-        EditorGUILayout.Space(2f);
-        EditorGUILayout.LabelField("双肩鼻子旋转法参数", EditorStyles.boldLabel);
         BoneTurnTuning.m_RotationAmplifyFactor = EditorGUILayout.FloatField("旋转放大量：", BoneTurnTuning.m_RotationAmplifyFactor);
-        EditorGUILayout.HelpBox("1 表示保持当前识别量级，大于 1 会放大角色转向角度。", MessageType.Info);
+        BoneTurnTuning.m_ShoulderTurnJitterDeadZone = EditorGUILayout.Slider("肩部抖动死区：", BoneTurnTuning.m_ShoulderTurnJitterDeadZone, 0f, 1f);
+        EditorGUILayout.HelpBox("转向按鼻尖与双肩中线偏移计算。放大 1 表示保持当前量级。", MessageType.Info);
+
         if (EditorGUI.EndChangeCheck())
         {
             MarkBoneTurnTuningValuesChanged();

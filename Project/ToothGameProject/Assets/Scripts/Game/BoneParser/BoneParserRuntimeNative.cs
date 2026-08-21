@@ -7,7 +7,7 @@ namespace GameDll
 {
     internal sealed class BoneParserRuntimeNative : IBoneParserRuntime
     {
-        private const int m_ExpectedAbiVersion = 4;
+        private const int m_ExpectedAbiVersion = 9;
         private const int m_BodyJointCount = 18;
         private const int m_MinNativeArrayCapacity = 1;
         private const int m_MaxNativeEventsPerSeat = 64;
@@ -215,10 +215,16 @@ namespace GameDll
             m_HasTriedCreateNative = true;
             try
             {
-                if (BoneParserCLib_GetAbiVersion() != m_ExpectedAbiVersion)
+                int actualAbiVersion = BoneParserCLib_GetAbiVersion();
+                if (actualAbiVersion != m_ExpectedAbiVersion)
                 {
                     m_NativeHandle = IntPtr.Zero;
-                    LogFallbackOnce("[塔防骨骼输入] BoneParserCLib ABI 版本不匹配。");
+                    LogFallbackOnce(
+                        "[塔防骨骼输入] BoneParserCLib ABI 版本不匹配，expected="
+                        + m_ExpectedAbiVersion
+                        + " actual="
+                        + actualAbiVersion
+                        + "。");
                     return;
                 }
 
@@ -365,6 +371,7 @@ namespace GameDll
             m_NativeConfig.m_AimCenterEnterRatio = m_Config.m_AimCenterEnterRatio;
             m_NativeConfig.m_AimCenterExitRatio = m_Config.m_AimCenterExitRatio;
             m_NativeConfig.m_AimResponseCurveExponent = m_Config.m_AimResponseCurveExponent;
+            m_NativeConfig.m_ShoulderTurnJitterDeadZone = m_Config.m_ShoulderTurnJitterDeadZone;
             m_NativeConfig.m_AimPredictMissingFrames = m_Config.m_AimPredictMissingFrames;
             m_NativeConfig.m_AimHoldMissingFrames = m_Config.m_AimHoldMissingFrames;
             m_NativeConfig.m_AimReconnectStableFrames = m_Config.m_AimReconnectStableFrames;
@@ -378,6 +385,11 @@ namespace GameDll
             m_NativeConfig.m_AlternatingSwingMinDirectionalFrames = m_Config.m_AlternatingSwingMinDirectionalFrames;
             m_NativeConfig.m_AlternatingSwingCooldownSeconds = m_Config.m_AlternatingSwingCooldownSeconds;
             m_NativeConfig.m_AlternatingSwingWindowFrames = m_Config.m_AlternatingSwingWindowFrames;
+            m_NativeConfig.m_LargeAlternatingSwingSpeedRatioPerSecond = m_Config.m_LargeAlternatingSwingSpeedRatioPerSecond;
+            m_NativeConfig.m_LargeAlternatingSwingDirectionNoiseRatio = m_Config.m_LargeAlternatingSwingDirectionNoiseRatio;
+            m_NativeConfig.m_LargeAlternatingSwingMinDirectionalFrames = m_Config.m_LargeAlternatingSwingMinDirectionalFrames;
+            m_NativeConfig.m_LargeAlternatingSwingCooldownSeconds = m_Config.m_LargeAlternatingSwingCooldownSeconds;
+            m_NativeConfig.m_LargeAlternatingSwingWindowFrames = m_Config.m_LargeAlternatingSwingWindowFrames;
             m_NativeConfig.m_LargeAlternatingSwingMinTorsoDistanceRatio = m_Config.m_LargeAlternatingSwingMinTorsoDistanceRatio;
             m_NativeConfig.m_OverheadPressReadyFrames = m_Config.m_OverheadPressReadyFrames;
             m_NativeConfig.m_OverheadPressHeadMarginRatio = m_Config.m_OverheadPressHeadMarginRatio;
@@ -775,6 +787,7 @@ namespace GameDll
             public float m_AimCenterEnterRatio;
             public float m_AimCenterExitRatio;
             public float m_AimResponseCurveExponent;
+            public float m_ShoulderTurnJitterDeadZone;
             public int m_AimPredictMissingFrames;
             public int m_AimHoldMissingFrames;
             public int m_AimReconnectStableFrames;
@@ -788,6 +801,11 @@ namespace GameDll
             public int m_AlternatingSwingMinDirectionalFrames;
             public float m_AlternatingSwingCooldownSeconds;
             public int m_AlternatingSwingWindowFrames;
+            public float m_LargeAlternatingSwingSpeedRatioPerSecond;
+            public float m_LargeAlternatingSwingDirectionNoiseRatio;
+            public int m_LargeAlternatingSwingMinDirectionalFrames;
+            public float m_LargeAlternatingSwingCooldownSeconds;
+            public int m_LargeAlternatingSwingWindowFrames;
             public float m_LargeAlternatingSwingMinTorsoDistanceRatio;
             public int m_OverheadPressReadyFrames;
             public float m_OverheadPressHeadMarginRatio;

@@ -35,8 +35,16 @@ MonoBehaviour:
     referenceMode: 2
     serializationDepthLimit: 64
     assemblyNames:
-    - Assembly-CSharp-firstpass
+    - AmazingAssets.CurvedWorld
     - Assembly-CSharp
+    - Assembly-CSharp-firstpass
+    - Febucci.Attributes.Runtime
+    - Febucci.TextAnimator.Demo.Runtime
+    - Febucci.TextAnimator.Runtime
+    - Febucci.TextAnimator.TMP.Runtime
+    - ParticleImage
+    - Purchasing.Common
+    - RayFireAssembly
     showAdvancedSettings: 0
   addMgrToSceneAutomatically: 0
   autoUpdateReferences: 1

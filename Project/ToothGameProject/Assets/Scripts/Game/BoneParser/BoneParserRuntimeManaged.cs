@@ -64,6 +64,7 @@ namespace GameDll
             m_ExternalConfig.m_AimCenterEnterRatio = m_Config.m_AimCenterEnterRatio;
             m_ExternalConfig.m_AimCenterExitRatio = m_Config.m_AimCenterExitRatio;
             m_ExternalConfig.m_AimResponseCurveExponent = m_Config.m_AimResponseCurveExponent;
+            m_ExternalConfig.m_ShoulderTurnJitterDeadZone = m_Config.m_ShoulderTurnJitterDeadZone;
             m_ExternalConfig.m_AimPredictMissingFrames = m_Config.m_AimPredictMissingFrames;
             m_ExternalConfig.m_AimHoldMissingFrames = m_Config.m_AimHoldMissingFrames;
             m_ExternalConfig.m_AimReconnectStableFrames = m_Config.m_AimReconnectStableFrames;
@@ -77,6 +78,11 @@ namespace GameDll
             m_ExternalConfig.m_AlternatingSwingMinDirectionalFrames = m_Config.m_AlternatingSwingMinDirectionalFrames;
             m_ExternalConfig.m_AlternatingSwingCooldownSeconds = m_Config.m_AlternatingSwingCooldownSeconds;
             m_ExternalConfig.m_AlternatingSwingWindowFrames = m_Config.m_AlternatingSwingWindowFrames;
+            m_ExternalConfig.m_LargeAlternatingSwingSpeedRatioPerSecond = m_Config.m_LargeAlternatingSwingSpeedRatioPerSecond;
+            m_ExternalConfig.m_LargeAlternatingSwingDirectionNoiseRatio = m_Config.m_LargeAlternatingSwingDirectionNoiseRatio;
+            m_ExternalConfig.m_LargeAlternatingSwingMinDirectionalFrames = m_Config.m_LargeAlternatingSwingMinDirectionalFrames;
+            m_ExternalConfig.m_LargeAlternatingSwingCooldownSeconds = m_Config.m_LargeAlternatingSwingCooldownSeconds;
+            m_ExternalConfig.m_LargeAlternatingSwingWindowFrames = m_Config.m_LargeAlternatingSwingWindowFrames;
             m_ExternalConfig.m_LargeAlternatingSwingMinTorsoDistanceRatio = m_Config.m_LargeAlternatingSwingMinTorsoDistanceRatio;
             m_ExternalConfig.m_OverheadPressReadyFrames = m_Config.m_OverheadPressReadyFrames;
             m_ExternalConfig.m_OverheadPressHeadMarginRatio = m_Config.m_OverheadPressHeadMarginRatio;

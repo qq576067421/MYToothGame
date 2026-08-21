@@ -133,8 +133,10 @@ namespace GameDll
         private void ApplyRuntimeConfig()
         {
             m_Config.m_MaxTurnAngleDegrees = BoneTurnTuning.ReadClampedMaxAngle();
-            m_Config.m_InvertTurnDirection = BoneTurnTuning.m_InvertDirection;
+            m_Config.m_InvertTurnDirection = BoneTurnTuning.ReadClampedInvertDirection();
             m_Config.m_RotationAmplifyFactor = BoneTurnTuning.ReadClampedRotationAmplifyFactor();
+            m_Config.m_ShoulderTurnJitterDeadZone = BoneTurnTuning.ReadClampedShoulderTurnJitterDeadZone();
+            BoneGestureTuning.ApplyTo(m_Config);
         }
 
         private bool EnsureSeatDefinitions(TowerDefendBattle battle)

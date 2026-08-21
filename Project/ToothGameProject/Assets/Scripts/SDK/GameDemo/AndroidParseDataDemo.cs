@@ -583,6 +583,7 @@ public class AndroidParseDataDemo : AndroidParseData
     // 每次重新进入正式准备界面时，必须从“未准备”开始，不能沿用上一次准备或战斗阶段的识别状态。
     public void ResetPreparePhaseState()
     {
+        ClearPrepareExternalSelectionState();
         isCheckPersonReadyIng = true;
         _canStartGame = false;
         if (_startGameCoroutine != null)
@@ -646,6 +647,46 @@ public class AndroidParseDataDemo : AndroidParseData
         }
 
         UpdatePrepareFaceRecognitionRunning();
+    }
+
+    /// <summary>
+    /// 人工头像选择会暂时切走 Unity 并重启骨骼帧通道，此期间冻结准备状态，避免短暂缺帧清空全部座位。
+    /// </summary>
+    public void BeginPrepareExternalAvatarSelection()
+    {
+        if (!isCheckPersonReadyIng || m_PrepareSeatStates == null)
+        {
+            return;
+        }
+
+        m_IsPrepareExternalSelectionSuspended = true;
+        m_IsPrepareExternalSelectionResumePending = false;
+        m_PrepareExternalSelectionStableFrames = 0;
+        m_PrepareExternalSelectionWaitFrames = 0;
+        for (int i = 0; i < m_PrepareSeatStates.Length; i++)
+        {
+            var state = m_PrepareSeatStates[i];
+            m_PrepareExternalSelectionOccupiedSeats[i] = state != null &&
+                state.m_PersonId != PersonIdNull && state.m_Step != PrepareMatchStep.Empty;
+            m_PrepareExternalSelectionCandidatePersonIds[i] = PersonIdNull;
+            m_PrepareExternalSelectionLastCandidatePersonIds[i] = PersonIdNull;
+        }
+    }
+
+    /// <summary>
+    /// 人工头像选择结束后等待骨骼数据连续稳定，再按原座位更新骨骼编号并恢复准备检测。
+    /// </summary>
+    public void EndPrepareExternalAvatarSelection()
+    {
+        if (!m_IsPrepareExternalSelectionSuspended)
+        {
+            return;
+        }
+
+        m_IsPrepareExternalSelectionSuspended = false;
+        m_IsPrepareExternalSelectionResumePending = isCheckPersonReadyIng;
+        m_PrepareExternalSelectionStableFrames = 0;
+        m_PrepareExternalSelectionWaitFrames = 0;
     }
 
     private void ApplyBattleSeatMaskFromConfirmedPlayers()
@@ -763,7 +804,16 @@ public class AndroidParseDataDemo : AndroidParseData
     [SerializeField]
     [Tooltip("人脸识别超时时间，超时后进入系统人工选择")]
     private float prepareFaceRecognizeTimeoutSeconds = 5f;
+    private const int PrepareExternalSelectionStableFrameCount = 3;
+    private const int PrepareExternalSelectionMaxWaitFrameCount = 30;
     private bool m_PrepareFaceRecognitionRunning;
+    private bool m_IsPrepareExternalSelectionSuspended;
+    private bool m_IsPrepareExternalSelectionResumePending;
+    private bool[] m_PrepareExternalSelectionOccupiedSeats;
+    private int[] m_PrepareExternalSelectionCandidatePersonIds;
+    private int[] m_PrepareExternalSelectionLastCandidatePersonIds;
+    private int m_PrepareExternalSelectionStableFrames;
+    private int m_PrepareExternalSelectionWaitFrames;
     private float[] _cachedOffsetPlayerTransformX;
 
     private float[] _cachedPlayerRotationOffset;
@@ -1079,6 +1129,10 @@ public class AndroidParseDataDemo : AndroidParseData
         personNotGamePoseFrameCount = new int[_curPlayerCount];
         _cachedExcludeArray = new int[_curPlayerCount * 2];
         _battleSeatEnabled = new bool[_curPlayerCount];
+        m_PrepareExternalSelectionOccupiedSeats = new bool[_curPlayerCount];
+        m_PrepareExternalSelectionCandidatePersonIds = new int[_curPlayerCount];
+        m_PrepareExternalSelectionLastCandidatePersonIds = new int[_curPlayerCount];
+        ClearPrepareExternalSelectionState();
 
         for (int i = 0; i < _curPlayerCount; i++)
         {
@@ -1386,10 +1440,12 @@ public class AndroidParseDataDemo : AndroidParseData
             }
         }
 
+        // 人工头像选择切回游戏后，骨骼帧通道需要短暂恢复稳定；此时保持原座位状态，
+        // 避免下方的缺失清理把旧人物编号当成离场并触发整页重新识别。
         if (isCheckPersonReadyIng)
         {
-            CheckPersonReadyIng(0, currentFramePersonIds);
-            if (isCheckPersonReadyIng)
+            if (!m_IsPrepareExternalSelectionSuspended &&
+                !m_IsPrepareExternalSelectionResumePending)
             {
                 for (int i = 0; i < _cachedOffsetPlayerTransformX.Length; i++)
                 {
@@ -1553,6 +1609,22 @@ public class AndroidParseDataDemo : AndroidParseData
         }
         // 通知每帧数据刷新
         onFrameInfoRefresh?.Invoke();
+    }
+
+    protected override void CheckPersonReadyIng(int frameIndex, int[] currentFramePersonIds)
+    {
+        if (m_IsPrepareExternalSelectionSuspended)
+        {
+            return;
+        }
+
+        if (m_IsPrepareExternalSelectionResumePending)
+        {
+            UpdatePrepareExternalSelectionResume(frameIndex, currentFramePersonIds);
+            return;
+        }
+
+        base.CheckPersonReadyIng(frameIndex, currentFramePersonIds);
     }
 
     private int ResolvePlayerIdForDrawRect(int seatIndex)
@@ -2195,6 +2267,198 @@ public class AndroidParseDataDemo : AndroidParseData
         }
 
         return bestId;
+    }
+
+    // SDK 人工选择返回后骨骼编号可能整体变化，先等待区域归属稳定，再保留原座位状态完成编号重绑。
+    private void UpdatePrepareExternalSelectionResume(int frameIndex, int[] currentFramePersonIds)
+    {
+        if (m_PrepareExternalSelectionOccupiedSeats == null ||
+            m_PrepareExternalSelectionCandidatePersonIds == null ||
+            m_PrepareExternalSelectionLastCandidatePersonIds == null)
+        {
+            ClearPrepareExternalSelectionState();
+            return;
+        }
+
+        m_PrepareExternalSelectionWaitFrames++;
+        bool allOccupiedSeatsResolved = CollectPrepareExternalSelectionCandidates(frameIndex, currentFramePersonIds);
+        bool candidatesUnchanged = true;
+        for (int i = 0; i < m_PrepareExternalSelectionOccupiedSeats.Length; i++)
+        {
+            if (!m_PrepareExternalSelectionOccupiedSeats[i])
+            {
+                continue;
+            }
+
+            if (m_PrepareExternalSelectionCandidatePersonIds[i] !=
+                m_PrepareExternalSelectionLastCandidatePersonIds[i])
+            {
+                candidatesUnchanged = false;
+            }
+
+            m_PrepareExternalSelectionLastCandidatePersonIds[i] =
+                m_PrepareExternalSelectionCandidatePersonIds[i];
+        }
+
+        if (allOccupiedSeatsResolved)
+        {
+            m_PrepareExternalSelectionStableFrames = candidatesUnchanged
+                ? m_PrepareExternalSelectionStableFrames + 1
+                : 1;
+        }
+        else
+        {
+            m_PrepareExternalSelectionStableFrames = 0;
+        }
+
+        if (m_PrepareExternalSelectionStableFrames >= PrepareExternalSelectionStableFrameCount)
+        {
+            ApplyPrepareExternalSelectionRebind(false);
+            ClearPrepareExternalSelectionState();
+            return;
+        }
+
+        if (m_PrepareExternalSelectionWaitFrames >= PrepareExternalSelectionMaxWaitFrameCount)
+        {
+            ApplyPrepareExternalSelectionRebind(true);
+            ClearPrepareExternalSelectionState();
+        }
+    }
+
+    private bool CollectPrepareExternalSelectionCandidates(int frameIndex, int[] currentFramePersonIds)
+    {
+        bool allOccupiedSeatsResolved = true;
+        int excludeCount = 0;
+        for (int i = 0; i < m_PrepareExternalSelectionOccupiedSeats.Length; i++)
+        {
+            m_PrepareExternalSelectionCandidatePersonIds[i] = PersonIdNull;
+            if (!m_PrepareExternalSelectionOccupiedSeats[i])
+            {
+                continue;
+            }
+
+            float left = personPlayerReadyRectf[i, 0];
+            float top = personPlayerReadyRectf[i, 1];
+            float right = personPlayerReadyRectf[i, 2];
+            float bottom = personPlayerReadyRectf[i, 3];
+            int personId = CheckPersonScoreInArea(
+                frameIndex, left, top, right, bottom, _tempExcludeIdArray, excludeCount);
+            if (personId != PersonIdNull &&
+                PlayerMatchView.Instance.PlayerMatchViewMode == PlayerMatchViewMode.PartitionView)
+            {
+                personId = FindClosestPersonInPartition(
+                    left, top, right, bottom, personId, _tempExcludeIdArray, excludeCount);
+            }
+
+            if (!ContainsCurrentPersonId(currentFramePersonIds, personId))
+            {
+                personId = PersonIdNull;
+            }
+
+            m_PrepareExternalSelectionCandidatePersonIds[i] = personId;
+            if (personId == PersonIdNull)
+            {
+                allOccupiedSeatsResolved = false;
+                continue;
+            }
+
+            if (excludeCount < _tempExcludeIdArray.Length)
+            {
+                _tempExcludeIdArray[excludeCount++] = personId;
+            }
+        }
+
+        return allOccupiedSeatsResolved;
+    }
+
+    private void ApplyPrepareExternalSelectionRebind(bool resetMissingSeats)
+    {
+        for (int i = 0; i < m_PrepareExternalSelectionOccupiedSeats.Length; i++)
+        {
+            if (!m_PrepareExternalSelectionOccupiedSeats[i])
+            {
+                continue;
+            }
+
+            int personId = m_PrepareExternalSelectionCandidatePersonIds[i];
+            if (personId == PersonIdNull)
+            {
+                if (resetMissingSeats)
+                {
+                    ResetPrepareSeatForRegionChange(i);
+                }
+                continue;
+            }
+
+            var state = GetPrepareSeatStateInternal(i);
+            if (state == null || state.m_Step == PrepareMatchStep.Empty)
+            {
+                continue;
+            }
+
+            bool personIdChanged = state.m_PersonId != personId;
+            state.m_PersonId = personId;
+            state.m_SdkSlotId = i;
+            if (state.m_Step == PrepareMatchStep.Ready)
+            {
+                personPlayerIds[i] = personId;
+                personPlayerLockIng[i] = PersonIdNull;
+                _detectionStates[i] = DetectionState.Ready;
+            }
+            else
+            {
+                personPlayerIds[i] = PersonIdNull;
+                personPlayerLockIng[i] = personId;
+                _detectionStates[i] = DetectionState.InArea;
+            }
+
+            personMissingFrameCount[i] = 0;
+            personWasInReadyArea[i] = true;
+            ResetPrepareRoleSelectState(i);
+            if (personIdChanged)
+            {
+                NotifyPrepareSeatStateChanged(i);
+            }
+        }
+
+        UpdatePrepareFaceRecognitionRunning();
+    }
+
+    private bool ContainsCurrentPersonId(int[] currentFramePersonIds, int personId)
+    {
+        if (personId == PersonIdNull || currentFramePersonIds == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < currentFramePersonIds.Length; i++)
+        {
+            if (currentFramePersonIds[i] == personId)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private void ClearPrepareExternalSelectionState()
+    {
+        m_IsPrepareExternalSelectionSuspended = false;
+        m_IsPrepareExternalSelectionResumePending = false;
+        m_PrepareExternalSelectionStableFrames = 0;
+        m_PrepareExternalSelectionWaitFrames = 0;
+        if (m_PrepareExternalSelectionOccupiedSeats == null)
+        {
+            return;
+        }
+
+        for (int i = 0; i < m_PrepareExternalSelectionOccupiedSeats.Length; i++)
+        {
+            m_PrepareExternalSelectionOccupiedSeats[i] = false;
+            m_PrepareExternalSelectionCandidatePersonIds[i] = PersonIdNull;
+            m_PrepareExternalSelectionLastCandidatePersonIds[i] = PersonIdNull;
+        }
     }
 
     public PrepareMatchSeatState GetPrepareSeatState(int seatIndex)

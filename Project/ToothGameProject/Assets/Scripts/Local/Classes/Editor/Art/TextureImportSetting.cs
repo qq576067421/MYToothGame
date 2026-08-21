@@ -413,7 +413,7 @@ public class ChangeTextureImportSettingsUnity3 : ScriptableObject
         Debug.Log($"转换完毕，共修改 {changedPaths.Count} 张");
     }
 
-    [MenuItem("Tools/Texture/转换选择的图片为NoMipmap_ASTC6X6")]
+    [MenuItem("Tools/Texture/转换选择的图片为NoMipmap_ASTC4X4")]
     static void AutoSelectedChangeTextureSettings()
     {
         Object[] textures = GetSelectedTextures();
@@ -448,10 +448,10 @@ public class ChangeTextureImportSettingsUnity3 : ScriptableObject
                         isDirt = true;
                         tips.overridden = true;
                     }
-                    if (tips.format != TextureImporterFormat.ASTC_6x6)
+                    if (tips.format != TextureImporterFormat.ASTC_4x4)
                     {
                         isDirt = true;
-                        tips.format = TextureImporterFormat.ASTC_6x6;
+                        tips.format = TextureImporterFormat.ASTC_4x4;
                     }
 
 
