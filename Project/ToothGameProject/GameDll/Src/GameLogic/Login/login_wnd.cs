@@ -463,9 +463,11 @@ namespace GameHot
 
             PlayMusic();
 
-            DeleteStartVideo();
+            CloseStartVideo();
 
             SetVersion();
+
+            RenderEvent.Event.OnUpdateSelectionVisuals += OnUpdateSelectionVisuals;
         }
 
         private void SetVersion()
@@ -473,11 +475,9 @@ namespace GameHot
             RenderAPI.SetText(m_Wnd.m_txtVersion, Application.version);
         }
 
-        private void DeleteStartVideo()
+        private void CloseStartVideo()
         {
-            var go = UIManager.GetLayer(WindowLayer.Hold).Find("start_video_wnd");
-            if(go!= null)
-            GameObject.Destroy(go.gameObject);
+            UIManager.CloseWindow(nameof(start_video_wnd), true);
         }
 
         private void PlayMusic()
@@ -502,8 +502,19 @@ namespace GameHot
                 m_LoginFilePreloadHandler.Cancel();
                 m_LoginFilePreloadHandler = null;
             }
-        }
 
+            RenderEvent.Event.OnUpdateSelectionVisuals -= OnUpdateSelectionVisuals;
+        }
+        private void OnUpdateSelectionVisuals()
+        {
+            var active = UIManager.GetCurrentActiveWindow();
+            if (active == null || active != this)
+            {
+                return;
+            }
+            AudioManager.GetInstance().Play2D(4);
+            Debug.Log("播放lobby_main_wnd 4 音效");
+        }
         public void OnClickStartGame()
         {
             if (m_StartGameRequested)

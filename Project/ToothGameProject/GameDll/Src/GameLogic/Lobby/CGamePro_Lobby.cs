@@ -27,7 +27,7 @@ namespace GameHot
     {
         private const int m_GlobalConfigIdBattleBaseHealth = 100306;
         private const int m_DefaultBattleBaseHealth = 100;
-        private const float m_BattleLoadingMinVisibleSeconds = 2.5f;
+        private const float m_BattleLoadingMinVisibleSeconds = 3f;
         private const string m_LanTdLoadingEnterBattle = "td_loading_enter_battle";
         private const string m_LanTdErrorBattleRequestEmpty = "td_error_battle_request_empty";
         private const string m_LanTdErrorPrepareRequestEmpty = "td_error_prepare_request_empty";

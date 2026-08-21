@@ -37,6 +37,7 @@ namespace GameHot
 
         private readonly SeatViewState[] m_SeatStates = new SeatViewState[m_MaxPlayerCount];
         private readonly LUIRawImage m_NoPlayerTemplate;
+        private readonly LUIRawImage m_NotEqualPlayerTemplate;
         private readonly LUIRawImage m_SystemPlayerTemplate;
         private AndroidParseDataDemo m_ParseDataDemo;
         private bool m_IsOpen;
@@ -48,9 +49,11 @@ namespace GameHot
             IList<LUIButton> headButtons,
             IList<LUITextMesh> headInfos,
             LUIRawImage noPlayerTemplate,
+            LUIRawImage notEqualPlayerTemplate,
             LUIRawImage systemPlayerTemplate)
         {
             m_NoPlayerTemplate = noPlayerTemplate;
+            m_NotEqualPlayerTemplate = notEqualPlayerTemplate;
             m_SystemPlayerTemplate = systemPlayerTemplate;
             for (int seatId = 0; seatId < m_SeatStates.Length; seatId++)
             {
@@ -122,13 +125,14 @@ namespace GameHot
 
             var state = m_ParseDataDemo.GetPrepareSeatState(seatId);
             if (state == null || state.m_PersonId == m_InvalidPersonId ||
-                state.m_Step == PrepareMatchStep.Empty || state.m_Step == PrepareMatchStep.WaitCenter)
+                (state.m_Step != PrepareMatchStep.WaitRaiseHand && state.m_Step != PrepareMatchStep.Ready))
             {
                 return;
             }
 
             m_ManualSelectingSeatId = seatId;
             m_ManualSelectingPersonId = state.m_PersonId;
+            m_ParseDataDemo.BeginPrepareExternalAvatarSelection();
             SetHeadInfo(seatId, m_LanFaceSelectAvatar);
             AndroidServerInfoDemo.Instance.SelectRole(m_ParseDataDemo.ReadAssignedUserIds(seatId));
         }
@@ -193,14 +197,26 @@ namespace GameHot
 
         private void OnFaceRecognizedUser(int personId, long userId, bool isManualSelection)
         {
-            if (!m_IsOpen || m_ParseDataDemo == null || userId <= 0)
+            if (!m_IsOpen || m_ParseDataDemo == null)
             {
                 return;
             }
 
             if (isManualSelection)
             {
-                ApplyManualSelection(userId);
+                if (userId > 0)
+                {
+                    ApplyManualSelection(userId);
+                }
+                else
+                {
+                    OnManualRoleSelectionFinished();
+                }
+                return;
+            }
+
+            if (userId <= 0)
+            {
                 return;
             }
 
@@ -307,18 +323,24 @@ namespace GameHot
             var seat = m_SeatStates[seatId];
             if (seat.m_PersonId != state.m_PersonId)
             {
-                ShowTemplate(seatId, m_NoPlayerTemplate);
-                seat.m_PersonId = state.m_PersonId;
-                seat.m_UserId = 0;
+                bool isRecognizedSeatRebind = seat.m_PersonId != m_InvalidPersonId &&
+                    (state.m_Step == PrepareMatchStep.WaitRaiseHand || state.m_Step == PrepareMatchStep.Ready);
+                if (isRecognizedSeatRebind)
+                {
+                    // SDK 页面返回后只更新骨骼编号，保留同一座位已经显示的头像，避免重新加载造成闪动。
+                    seat.m_PersonId = state.m_PersonId;
+                }
+                else
+                {
+                    ShowTemplate(seatId, m_NotEqualPlayerTemplate);
+                    seat.m_PersonId = state.m_PersonId;
+                    seat.m_UserId = 0;
+                }
             }
 
             if (state.m_Step == PrepareMatchStep.FaceRecognizing)
             {
-                if (seat.m_UserId != 0 || seat.m_RuntimeTexture != null)
-                {
-                    ShowTemplate(seatId, m_NoPlayerTemplate);
-                }
-
+                ShowTemplate(seatId, m_NotEqualPlayerTemplate);
                 seat.m_PersonId = state.m_PersonId;
                 seat.m_UserId = 0;
                 SetHeadInfo(seatId, m_LanFaceRecognizing);
@@ -552,11 +574,12 @@ namespace GameHot
                 ClearManualSelection();
             }
 
-            ShowTemplate(seatId, m_NoPlayerTemplate);
+            bool isWaitingForPlayer = showPrompt && IsActiveSeat(seatId);
+            ShowTemplate(seatId, isWaitingForPlayer ? m_NotEqualPlayerTemplate : m_NoPlayerTemplate);
             var seat = m_SeatStates[seatId];
             seat.m_PersonId = m_InvalidPersonId;
             seat.m_UserId = 0;
-            SetHeadInfo(seatId, showPrompt && IsActiveSeat(seatId) ? m_LanFaceEnterArea : null);
+            SetHeadInfo(seatId, isWaitingForPlayer ? m_LanFaceEnterArea : null);
         }
 
         private void ShowTemplate(int seatId, LUIRawImage template)
@@ -574,6 +597,7 @@ namespace GameHot
             {
                 seat.m_HeadImage.uvRect = template.uvRect;
                 seat.m_HeadImage.color = template.color;
+                seat.m_HeadImage.SetNativeSize();
             }
         }
 
@@ -652,8 +676,13 @@ namespace GameHot
 
         private void ClearManualSelection()
         {
+            bool wasSelecting = m_ManualSelectingSeatId >= 0;
             m_ManualSelectingSeatId = -1;
             m_ManualSelectingPersonId = m_InvalidPersonId;
+            if (wasSelecting && m_ParseDataDemo != null)
+            {
+                m_ParseDataDemo.EndPrepareExternalAvatarSelection();
+            }
         }
 
         private bool IsActiveSeat(int seatId)
@@ -1456,6 +1485,7 @@ namespace GameHot
                 headButtons,
                 headInfos,
                 m_View.m_NoPlayer,
+                m_View.m_NotEqualPlayer,
                 m_View.m_SystemPlayer);
         }
 

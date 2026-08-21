@@ -165,6 +165,9 @@ namespace GameHot
                 }
                 UDebug.Log("init Res ok");
 
+                //特殊处理，请勿随意更改位置
+                UIManager.OpenWindowEX<start_video_wnd>(null);
+
                 m_StartShaderCompile = true;
                 m_StartShaderCompileTime = Time.realtimeSinceStartup;
                 ShaderManager.CacheShader(() => 
@@ -198,7 +201,7 @@ namespace GameHot
                 });
 
             });
-            UIManager.OpenWindowEX<start_video_wnd>(null);
+
         }
         private void OnAppInitOk()
         {

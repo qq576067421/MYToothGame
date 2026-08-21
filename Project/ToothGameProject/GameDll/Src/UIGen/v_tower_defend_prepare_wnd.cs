@@ -1,6 +1,6 @@
 ﻿//功能：tower_defend_prepare_wnd的窗口配置文件
 //工具作者：lichunlin
-//生成时间：08/17/2026 16:21:57
+//生成时间：08/21/2026 10:35:17
 //描述：以下文件是自动生成的，任何手动修改都会被下次自动生成覆盖。
 
 using System;
@@ -31,6 +31,9 @@ namespace GameHot
           //tower_defend_prepare_wnd/WindowContent/SystemPlayer
           public LUIRawImage m_SystemPlayer;
 
+          //tower_defend_prepare_wnd/WindowContent/NotEqualPlayer
+          public LUIRawImage m_NotEqualPlayer;
+
           public override void InitComponent(GameObject go)
           {
                m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
@@ -38,6 +41,7 @@ namespace GameHot
                m_Player0 = m_Bridge.GetControl(1) as ComponentBridge;
                m_NoPlayer = m_Bridge.GetControl(2) as LUIRawImage;
                m_SystemPlayer = m_Bridge.GetControl(3) as LUIRawImage;
+               m_NotEqualPlayer = m_Bridge.GetControl(4) as LUIRawImage;
           }
           public class v_PlayerSlot:v_base_wnd
           {
@@ -75,10 +79,10 @@ namespace GameHot
                //Player0/headInfo
                public LUITextMesh m_headInfo;
 
-               //Player0/head/mask
-               public LUIImage m_mask;
+               //Player0/headBg/choose
+               public LUIImage m_choose_new1;
 
-               //Player0/head
+               //Player0/headBg/mask/head
                public LUIButton m_head;
 
                public override void InitComponent(GameObject go)
@@ -94,7 +98,7 @@ namespace GameHot
                     m_btnRight = m_Bridge.GetControl(7) as LUIButton;
                     m_prepare = m_Bridge.GetControl(8) as LUIImage;
                     m_headInfo = m_Bridge.GetControl(9) as LUITextMesh;
-                    m_mask = m_Bridge.GetControl(10) as LUIImage;
+                    m_choose_new1 = m_Bridge.GetControl(10) as LUIImage;
                     m_head = m_Bridge.GetControl(11) as LUIButton;
                }
           }

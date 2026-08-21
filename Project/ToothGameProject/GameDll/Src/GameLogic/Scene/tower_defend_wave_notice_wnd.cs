@@ -273,6 +273,7 @@ namespace GameHot
             {
                 AudioManager.GetInstance().Play2D(8);
                 RenderAPI.SetText(m_View.m_boss_txt, notice);
+                BossArrowActive();
                 StartWaveNoticeAni(m_View.m_bossNoticeBg, m_View.m_boss_txt);
             }
             else
@@ -305,7 +306,11 @@ namespace GameHot
                 });
             });
         }
-
+        private void BossArrowActive()
+        {
+            var arrowGroup = m_View.m_bossArrow.GetComponent<CanvasGroup>();
+            arrowGroup.DOFade(0.8f,0.35f).SetLoops(5, LoopType.Yoyo);
+        }
         private void SetNoticeVisible(bool visible)
         {
             if (m_View != null && m_View.m_txt_notice != null)
