@@ -512,6 +512,7 @@ namespace CompanyInternalTools.BoneParserLib
         public float m_AimCenterEnterRatio = 0.12f;
         public float m_AimCenterExitRatio = 0.07f;
         public float m_AimResponseCurveExponent = 1.35f;
+        public float m_ShoulderTurnJitterDeadZone = 0.0f;
         public int m_AimPredictMissingFrames = 6;
         public int m_AimHoldMissingFrames = 18;
         public int m_AimReconnectStableFrames = 3;
@@ -526,6 +527,11 @@ namespace CompanyInternalTools.BoneParserLib
         public int m_AlternatingSwingMinDirectionalFrames = 2;
         public float m_AlternatingSwingCooldownSeconds = 0.45f;
         public int m_AlternatingSwingWindowFrames = 24;
+        public float m_LargeAlternatingSwingSpeedRatioPerSecond = 1.20f;
+        public float m_LargeAlternatingSwingDirectionNoiseRatio = 0.015f;
+        public int m_LargeAlternatingSwingMinDirectionalFrames = 2;
+        public float m_LargeAlternatingSwingCooldownSeconds = 0.45f;
+        public int m_LargeAlternatingSwingWindowFrames = 24;
         public float m_LargeAlternatingSwingMinTorsoDistanceRatio = 0.50f;
         public int m_OverheadPressReadyFrames = 5;
         public float m_OverheadPressHeadMarginRatio = 0.12f;

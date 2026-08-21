@@ -22,7 +22,7 @@ typedef void* BoneParserCLibHandle;
 
 enum
 {
-    BoneParserCLibAbiVersion = 4,
+    BoneParserCLibAbiVersion = 9,
     BoneParserCLibBodyJointCount = 18
 };
 
@@ -48,6 +48,7 @@ typedef struct BoneParserCLibConfig
     float m_AimCenterEnterRatio;
     float m_AimCenterExitRatio;
     float m_AimResponseCurveExponent;
+    float m_ShoulderTurnJitterDeadZone;
     int32_t m_AimPredictMissingFrames;
     int32_t m_AimHoldMissingFrames;
     int32_t m_AimReconnectStableFrames;
@@ -61,6 +62,11 @@ typedef struct BoneParserCLibConfig
     int32_t m_AlternatingSwingMinDirectionalFrames;
     float m_AlternatingSwingCooldownSeconds;
     int32_t m_AlternatingSwingWindowFrames;
+    float m_LargeAlternatingSwingSpeedRatioPerSecond;
+    float m_LargeAlternatingSwingDirectionNoiseRatio;
+    int32_t m_LargeAlternatingSwingMinDirectionalFrames;
+    float m_LargeAlternatingSwingCooldownSeconds;
+    int32_t m_LargeAlternatingSwingWindowFrames;
     float m_LargeAlternatingSwingMinTorsoDistanceRatio;
     int32_t m_OverheadPressReadyFrames;
     float m_OverheadPressHeadMarginRatio;

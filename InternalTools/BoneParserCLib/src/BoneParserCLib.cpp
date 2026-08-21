@@ -625,8 +625,9 @@ namespace
     {
         static const BoneParserCLibConfig kDefaultConfig = {
             0.20f, 0.20f, 18, 6.0f, 0.30f, 0.0001f, 0.70f, 35.0f, 0, 1.0f,
-            0.12f, 0.07f, 1.35f, 6, 18, 3, 0.88f, 10.0f, 0.35f, 0.40f,
-            1.20f, 0.20f, 0.015f, 2, 0.45f, 24, 0.50f,
+            0.12f, 0.07f, 1.35f, 0.0f, 6, 18, 3, 0.88f, 10.0f, 0.35f, 0.40f,
+            1.20f, 0.20f, 0.015f, 2, 0.45f, 24,
+            1.20f, 0.015f, 2, 0.45f, 24, 0.50f,
             5, 0.12f, 2.80f, 0.35f, 0.15f, 8, 0.70f, 3, 2.20f, 0.30f,
             10, 0.50f, 3, 2.20f, 0.35f, 0.05f, 10, 0.50f, 3, 0.45f,
             0.12f, 12, 0.50f, 3, 0.12f, 16, 0.60f, 3, 0.55f, 0.65f,
@@ -1160,6 +1161,16 @@ namespace
         return Clamp(config.m_MaxTurnAngleDegrees, 0.0f, 45.0f);
     }
 
+    float ReadTurnDirectionMultiplier(const BoneParserCLibConfig& config)
+    {
+        return config.m_InvertTurnDirection != 0 ? -1.0f : 1.0f;
+    }
+
+    float ReadTurnAmplifyFactor(const BoneParserCLibConfig& config)
+    {
+        return Clamp(config.m_RotationAmplifyFactor, 0.0f, 5.0f);
+    }
+
     float ConvertOffsetToAngle(float normalizedOffset, float maxAngle, float rotationAmplifyFactor)
     {
         return Clamp(-normalizedOffset * rotationAmplifyFactor, -1.0f, 1.0f) * maxAngle;
@@ -1197,6 +1208,30 @@ namespace
         return std::pow(normalizedMagnitude, exponent) * Sign(targetOffset);
     }
 
+    float ApplyShoulderTurnJitterDeadZone(float value, float jitterDeadZone)
+    {
+        float normalizedDeadZone = Clamp01(jitterDeadZone);
+        if (normalizedDeadZone <= 0.0f)
+        {
+            return value;
+        }
+
+        if (normalizedDeadZone >= 1.0f)
+        {
+            return 0.0f;
+        }
+
+        float magnitude = Abs(value);
+        if (magnitude <= normalizedDeadZone)
+        {
+            return 0.0f;
+        }
+
+        float normalizedMagnitude = (magnitude - normalizedDeadZone) /
+            std::max(1.0f - normalizedDeadZone, 0.0001f);
+        return Sign(value) * Clamp01(normalizedMagnitude);
+    }
+
     float ConvertAngleToOffset(float angleDegrees, float maxAngle)
     {
         if (maxAngle <= 0.0001f)
@@ -1214,18 +1249,18 @@ namespace
         return NormalizeOrDefault({ std::sin(radians), 0.0f, std::cos(radians) }, Forward());
     }
 
-    bool TryReadMeasuredAngle(
+    bool TryReadMeasuredAngleFromNose(
         const BoneParserCLibConfig& config,
         const BoneParserCLibPerson* person,
         SeatState& seatState,
         float& angleDegrees,
         float& confidence)
     {
-        angleDegrees = 0.0f;
-        confidence = 0.0f;
         Vec2 leftShoulder;
         Vec2 rightShoulder;
         Vec2 nose;
+        angleDegrees = 0.0f;
+        confidence = 0.0f;
         if (person == nullptr ||
             !TryReadBodyJoint(person, BodyJointLeftShoulder, config.m_KeypointConfidenceThreshold, leftShoulder) ||
             !TryReadBodyJoint(person, BodyJointRightShoulder, config.m_KeypointConfidenceThreshold, rightShoulder) ||
@@ -1234,7 +1269,6 @@ namespace
             return false;
         }
 
-        float shoulderMid = (leftShoulder.m_X + rightShoulder.m_X) * 0.5f;
         float shoulderWidth = Abs(rightShoulder.m_X - leftShoulder.m_X) + config.m_ShoulderWidthEpsilon;
         Vec2 ignored;
         if (TryReadBodyJoint(person, BodyJointLeftShoulder, config.m_MaxShoulderWidthUpdateConfidence, ignored) &&
@@ -1243,8 +1277,11 @@ namespace
             seatState.m_MaxObservedShoulderWidth = std::max(seatState.m_MaxObservedShoulderWidth, shoulderWidth);
         }
 
+        float shoulderMid = (leftShoulder.m_X + rightShoulder.m_X) * 0.5f;
         float noseOffset = (nose.m_X - shoulderMid) / shoulderWidth;
-        float rawValue = Clamp(noseOffset * 2.5f, -1.0f, 1.0f);
+        float rawValue = ApplyShoulderTurnJitterDeadZone(
+            Clamp(noseOffset * 2.5f, -1.0f, 1.0f),
+            config.m_ShoulderTurnJitterDeadZone);
         float maxShoulderWidth = seatState.m_MaxObservedShoulderWidth > config.m_ShoulderWidthEpsilon
             ? seatState.m_MaxObservedShoulderWidth
             : shoulderWidth;
@@ -1255,7 +1292,7 @@ namespace
         float shoulderValue = Clamp(angleFactor * 1.5f, 0.0f, 1.0f) * Sign(noseOffset);
         float targetOffset = Lerp(rawValue, shoulderValue, 0.3f);
         targetOffset = ApplyAimResponseCurve(targetOffset, seatState.m_IsAimOutsideCenterDeadZone, config);
-        if (config.m_InvertTurnDirection != 0)
+        if (ReadTurnDirectionMultiplier(config) < 0.0f)
         {
             targetOffset = -targetOffset;
         }
@@ -1263,7 +1300,7 @@ namespace
         angleDegrees = ConvertOffsetToAngle(
             targetOffset,
             ReadClampedMaxAngle(config),
-            Clamp(config.m_RotationAmplifyFactor, 0.0f, 5.0f));
+            ReadTurnAmplifyFactor(config));
         confidence = Clamp01((leftShoulder.m_X != rightShoulder.m_X ? 1.0f : 0.0f) * person->m_BodyScore);
         return true;
     }
@@ -1428,7 +1465,7 @@ namespace
     {
         float measuredAngleDegrees = 0.0f;
         float confidence = 0.0f;
-        if (TryReadMeasuredAngle(config, person, seatState, measuredAngleDegrees, confidence))
+        if (TryReadMeasuredAngleFromNose(config, person, seatState, measuredAngleDegrees, confidence))
         {
             ApplyTrackedAngle(config, seatState, result, measuredAngleDegrees, confidence, deltaTimeSeconds);
             return;
@@ -1992,8 +2029,8 @@ namespace
         float frameDelta = wristHeight - previousWristHeight;
         handState.m_LastRelativeWristY = wristHeight;
 
-        float directionNoise = shoulderWidth * std::max(0.0f, config.m_AlternatingSwingDirectionNoiseRatio);
-        int32_t minDirectionalFrames = std::max(2, config.m_AlternatingSwingMinDirectionalFrames);
+        float directionNoise = shoulderWidth * std::max(0.0f, config.m_LargeAlternatingSwingDirectionNoiseRatio);
+        int32_t minDirectionalFrames = std::max(2, config.m_LargeAlternatingSwingMinDirectionalFrames);
         if (frameDelta <= directionNoise)
         {
             if (frameDelta < -directionNoise)
@@ -2039,7 +2076,7 @@ namespace
         bool isCompleted =
             handState.m_DirectionalFrameCount >= minDirectionalFrames &&
             verticalDistance >= torsoHeight * std::max(0.0f, config.m_LargeAlternatingSwingMinTorsoDistanceRatio) &&
-            verticalSpeed >= shoulderWidth * config.m_AlternatingSwingSpeedRatioPerSecond;
+            verticalSpeed >= shoulderWidth * config.m_LargeAlternatingSwingSpeedRatioPerSecond;
         if (isCompleted)
         {
             handState.ResetStroke(wristHeight);
@@ -2075,7 +2112,7 @@ namespace
             context.m_DeltaTimeSeconds,
             config);
         leftSwingDetected = leftMotionCompleted &&
-            context.m_FrameTimeSeconds - state.m_LastLeftAlternatingTimeSeconds >= config.m_AlternatingSwingCooldownSeconds;
+            context.m_FrameTimeSeconds - state.m_LastLeftAlternatingTimeSeconds >= config.m_LargeAlternatingSwingCooldownSeconds;
 
         bool rightMotionCompleted = EvaluateLargeAlternatingHandSwing(
             state.m_RightHand,
@@ -2085,7 +2122,7 @@ namespace
             context.m_DeltaTimeSeconds,
             config);
         rightSwingDetected = rightMotionCompleted &&
-            context.m_FrameTimeSeconds - state.m_LastRightAlternatingTimeSeconds >= config.m_AlternatingSwingCooldownSeconds;
+            context.m_FrameTimeSeconds - state.m_LastRightAlternatingTimeSeconds >= config.m_LargeAlternatingSwingCooldownSeconds;
 
         if (leftSwingDetected == rightSwingDetected)
         {
@@ -2095,7 +2132,7 @@ namespace
         int32_t currentSideMarker = leftSwingDetected ? kLeftSide : kRightSide;
         bool hasPreviousSide = state.m_LastAlternatingSideMarker != 0;
         bool isOppositeSide = hasPreviousSide && state.m_LastAlternatingSideMarker != currentSideMarker;
-        int32_t maxWindowFrames = std::max(1, config.m_AlternatingSwingWindowFrames);
+        int32_t maxWindowFrames = std::max(1, config.m_LargeAlternatingSwingWindowFrames);
         int32_t frameSerial = ReadFrameSerial(context);
         bool isInsideWindow =
             frameSerial <= 0 ||

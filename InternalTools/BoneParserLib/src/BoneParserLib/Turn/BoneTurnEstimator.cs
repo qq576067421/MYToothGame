@@ -17,7 +17,7 @@ namespace CompanyInternalTools.BoneParserLib
             BoneParserPlayerResult result,
             float deltaTimeSeconds)
         {
-            if (TryReadMeasuredAngle(person, seatState, out float measuredAngleDegrees, out float confidence))
+            if (TryReadMeasuredAngleFromNose(person, seatState, out float measuredAngleDegrees, out float confidence))
             {
                 ApplyTrackedAngle(seatState, result, measuredAngleDegrees, confidence, deltaTimeSeconds);
                 return;
@@ -49,7 +49,7 @@ namespace CompanyInternalTools.BoneParserLib
             int holdFrames = Math.Max(predictFrames, m_Config.m_AimHoldMissingFrames);
             if (seatState.m_AimMissingFrameCount <= predictFrames)
             {
-                float maxAngle = ReadClampedMaxAngle();
+                ReadCurrentTurnParams(out float maxAngle, out _, out _);
                 float predictedAngle = BoneMath.Clamp(
                     seatState.m_LastAimAngleDegrees + seatState.m_LastAimAngularSpeedDegrees * deltaTimeSeconds,
                     -maxAngle,
@@ -177,7 +177,7 @@ namespace CompanyInternalTools.BoneParserLib
             seatState.m_AimMissingFrameCount = 0;
         }
 
-        private bool TryReadMeasuredAngle(
+        private bool TryReadMeasuredAngleFromNose(
             BoneTrackedPerson person,
             BoneParserSeatState seatState,
             out float angleDegrees,
@@ -185,6 +185,7 @@ namespace CompanyInternalTools.BoneParserLib
         {
             angleDegrees = 0f;
             confidence = 0f;
+            ReadCurrentTurnParams(out float maxAngle, out bool invertDirection, out float rotationAmplifyFactor);
             if (person == null ||
                 !BoneSkeletonQuery.TryReadBodyJoint(person, BoneBodyJointType.左肩, m_Config.m_KeypointConfidenceThreshold, out BoneVector2 leftShoulder) ||
                 !BoneSkeletonQuery.TryReadBodyJoint(person, BoneBodyJointType.右肩, m_Config.m_KeypointConfidenceThreshold, out BoneVector2 rightShoulder) ||
@@ -202,7 +203,9 @@ namespace CompanyInternalTools.BoneParserLib
             }
 
             float noseOffset = (nose.m_X - shoulderMid) / shoulderWidth;
-            float rawValue = BoneMath.Clamp(noseOffset * 2.5f, -1f, 1f);
+            float rawValue = ApplyShoulderTurnJitterDeadZone(
+                BoneMath.Clamp(noseOffset * 2.5f, -1f, 1f),
+                m_Config.m_ShoulderTurnJitterDeadZone);
             float maxShoulderWidth = seatState.m_MaxObservedShoulderWidth > m_Config.m_ShoulderWidthEpsilon
                 ? seatState.m_MaxObservedShoulderWidth
                 : shoulderWidth;
@@ -213,15 +216,15 @@ namespace CompanyInternalTools.BoneParserLib
             float shoulderValue = BoneMath.Clamp(angleFactor * 1.5f, 0f, 1f) * BoneMath.Sign(noseOffset);
             float targetOffset = BoneMath.Lerp(rawValue, shoulderValue, 0.3f);
             targetOffset = ApplyAimResponseCurve(targetOffset, seatState);
-            if (m_Config.m_InvertTurnDirection)
+            if (invertDirection)
             {
                 targetOffset = -targetOffset;
             }
 
             angleDegrees = ConvertOffsetToAngle(
                 targetOffset,
-                ReadClampedMaxAngle(),
-                BoneMath.Clamp(m_Config.m_RotationAmplifyFactor, 0f, 5f));
+                maxAngle,
+                rotationAmplifyFactor);
             confidence = BoneMath.Clamp01((leftShoulder.m_X != rightShoulder.m_X ? 1f : 0f) * person.m_Body.m_Score);
             return true;
         }
@@ -276,7 +279,15 @@ namespace CompanyInternalTools.BoneParserLib
 
         private float ReadClampedMaxAngle()
         {
-            return BoneMath.Clamp(m_Config.m_MaxTurnAngleDegrees, 0f, 45f);
+            ReadCurrentTurnParams(out float maxAngle, out _, out _);
+            return maxAngle;
+        }
+
+        private void ReadCurrentTurnParams(out float maxAngle, out bool invertDirection, out float rotationAmplifyFactor)
+        {
+            maxAngle = BoneMath.Clamp(m_Config.m_MaxTurnAngleDegrees, 0f, 45f);
+            invertDirection = m_Config.m_InvertTurnDirection;
+            rotationAmplifyFactor = BoneMath.Clamp(m_Config.m_RotationAmplifyFactor, 0f, 5f);
         }
 
         private static BoneVector3 BuildFaceForward(float angleDegrees)
@@ -320,6 +331,30 @@ namespace CompanyInternalTools.BoneParserLib
             float exponent = BoneMath.Max(1f, m_Config.m_AimResponseCurveExponent);
             float curvedMagnitude = (float)Math.Pow(normalizedMagnitude, exponent);
             return curvedMagnitude * BoneMath.Sign(targetOffset);
+        }
+
+        private static float ApplyShoulderTurnJitterDeadZone(float value, float jitterDeadZone)
+        {
+            float normalizedDeadZone = BoneMath.Clamp01(jitterDeadZone);
+            if (normalizedDeadZone <= 0f)
+            {
+                return value;
+            }
+
+            if (normalizedDeadZone >= 1f)
+            {
+                return 0f;
+            }
+
+            float magnitude = BoneMath.Abs(value);
+            if (magnitude <= normalizedDeadZone)
+            {
+                return 0f;
+            }
+
+            float normalizedMagnitude = (magnitude - normalizedDeadZone) /
+                                       BoneMath.Max(1f - normalizedDeadZone, 0.0001f);
+            return BoneMath.Sign(value) * BoneMath.Clamp01(normalizedMagnitude);
         }
 
         private static float ConvertAngleToOffset(float angleDegrees, float maxAngle)

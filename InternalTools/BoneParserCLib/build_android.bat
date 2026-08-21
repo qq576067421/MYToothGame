@@ -35,8 +35,6 @@ if errorlevel 1 goto fail
 if /I "%TARGET_ABI%"=="all" (
     call :BuildAbi arm64-v8a
     if errorlevel 1 goto fail
-    call :BuildAbi armeabi-v7a
-    if errorlevel 1 goto fail
     goto ok
 )
 

@@ -34,20 +34,6 @@
         "ANDROID_STL": "c++_static",
         "BONE_PARSER_CLIB_COPY_TO_UNITY": "ON"
       }
-    },
-    {
-      "name": "android-armeabi-v7a-release",
-      "displayName": "Android armeabi-v7a Release",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/android-armeabi-v7a-release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_TOOLCHAIN_FILE": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
-        "ANDROID_ABI": "armeabi-v7a",
-        "ANDROID_PLATFORM": "android-30",
-        "ANDROID_STL": "c++_static",
-        "BONE_PARSER_CLIB_COPY_TO_UNITY": "ON"
-      }
     }
   ],
   "buildPresets": [
@@ -62,10 +48,6 @@
     {
       "name": "android-arm64-v8a-release",
       "configurePreset": "android-arm64-v8a-release"
-    },
-    {
-      "name": "android-armeabi-v7a-release",
-      "configurePreset": "android-armeabi-v7a-release"
     }
   ]
 }

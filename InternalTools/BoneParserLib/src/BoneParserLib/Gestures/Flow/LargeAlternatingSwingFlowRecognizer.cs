@@ -239,8 +239,8 @@ namespace CompanyInternalTools.BoneParserLib
                 shoulderWidth,
                 context.m_DeltaTimeSeconds,
                 context.m_Config);
-            leftSwingDetected = leftMotionCompleted &&
-                context.m_FrameTimeSeconds - state.m_LastLeftAlternatingTimeSeconds >= context.m_Config.m_AlternatingSwingCooldownSeconds;
+                leftSwingDetected = leftMotionCompleted &&
+                    context.m_FrameTimeSeconds - state.m_LastLeftAlternatingTimeSeconds >= context.m_Config.m_LargeAlternatingSwingCooldownSeconds;
 
             bool rightMotionCompleted = EvaluateHandSwing(
                 state.m_RightHand,
@@ -249,8 +249,8 @@ namespace CompanyInternalTools.BoneParserLib
                 shoulderWidth,
                 context.m_DeltaTimeSeconds,
                 context.m_Config);
-            rightSwingDetected = rightMotionCompleted &&
-                context.m_FrameTimeSeconds - state.m_LastRightAlternatingTimeSeconds >= context.m_Config.m_AlternatingSwingCooldownSeconds;
+                rightSwingDetected = rightMotionCompleted &&
+                    context.m_FrameTimeSeconds - state.m_LastRightAlternatingTimeSeconds >= context.m_Config.m_LargeAlternatingSwingCooldownSeconds;
 
             if (leftSwingDetected == rightSwingDetected)
             {
@@ -260,7 +260,7 @@ namespace CompanyInternalTools.BoneParserLib
             int currentSideMarker = leftSwingDetected ? m_LeftSideMarker : m_RightSideMarker;
             bool hasPreviousSide = state.m_LastAlternatingSideMarker != 0;
             bool isOppositeSide = hasPreviousSide && state.m_LastAlternatingSideMarker != currentSideMarker;
-            int maxWindowFrames = Math.Max(1, context.m_Config.m_AlternatingSwingWindowFrames);
+            int maxWindowFrames = Math.Max(1, context.m_Config.m_LargeAlternatingSwingWindowFrames);
             bool isInsideWindow =
                 context.ReadFrameSerial() <= 0 ||
                 state.m_LastAlternatingFrameSerial <= 0 ||
@@ -292,8 +292,8 @@ namespace CompanyInternalTools.BoneParserLib
             float frameDelta = wristHeight - previousWristHeight;
             handState.m_LastWristHeight = wristHeight;
 
-            float directionNoise = shoulderWidth * BoneMath.Max(0f, config.m_AlternatingSwingDirectionNoiseRatio);
-            int minDirectionalFrames = Math.Max(2, config.m_AlternatingSwingMinDirectionalFrames);
+            float directionNoise = shoulderWidth * BoneMath.Max(0f, config.m_LargeAlternatingSwingDirectionNoiseRatio);
+            int minDirectionalFrames = Math.Max(2, config.m_LargeAlternatingSwingMinDirectionalFrames);
             if (frameDelta <= directionNoise)
             {
                 if (frameDelta < -directionNoise)
@@ -338,7 +338,7 @@ namespace CompanyInternalTools.BoneParserLib
             bool isCompleted =
                 handState.m_UpwardFrameCount >= minDirectionalFrames &&
                 verticalDistance >= torsoHeight * BoneMath.Max(0f, config.m_LargeAlternatingSwingMinTorsoDistanceRatio) &&
-                verticalSpeed >= shoulderWidth * config.m_AlternatingSwingSpeedRatioPerSecond;
+                verticalSpeed >= shoulderWidth * config.m_LargeAlternatingSwingSpeedRatioPerSecond;
             if (isCompleted)
             {
                 handState.ResetStroke(wristHeight);
