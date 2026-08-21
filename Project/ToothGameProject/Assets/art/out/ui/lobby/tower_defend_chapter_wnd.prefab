@@ -1166,8 +1166,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -15, y: -320}
-  m_SizeDelta: {x: 650, y: 500}
+  m_AnchoredPosition: {x: -10, y: -290}
+  m_SizeDelta: {x: 620, y: 500}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1314105308864574976
 CanvasRenderer:
@@ -1697,8 +1697,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -15, y: -320}
-  m_SizeDelta: {x: 650, y: 500}
+  m_AnchoredPosition: {x: -10, y: -290}
+  m_SizeDelta: {x: 620, y: 500}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &295823950926690006
 CanvasRenderer:
@@ -1909,6 +1909,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   StyleName: normal
+  ChooseState: {fileID: 0}
   Cooldown: 0.1
 --- !u!114 &7831942439412405906
 MonoBehaviour:
@@ -2193,8 +2194,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -15, y: -320}
-  m_SizeDelta: {x: 650, y: 500}
+  m_AnchoredPosition: {x: -10, y: -290}
+  m_SizeDelta: {x: 620, y: 500}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &715871327202328251
 CanvasRenderer:
@@ -5099,8 +5100,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -15, y: -320}
-  m_SizeDelta: {x: 650, y: 500}
+  m_AnchoredPosition: {x: -10, y: -290}
+  m_SizeDelta: {x: 620, y: 500}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7740678654802897475
 CanvasRenderer:
@@ -5311,6 +5312,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   StyleName: normal
+  ChooseState: {fileID: 0}
   Cooldown: 0.1
 --- !u!114 &2154440832890654921
 MonoBehaviour:
@@ -5517,8 +5519,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: -15, y: -320}
-  m_SizeDelta: {x: 650, y: 500}
+  m_AnchoredPosition: {x: -10, y: -290}
+  m_SizeDelta: {x: 620, y: 500}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &8526077775687190845
 CanvasRenderer:
@@ -6429,6 +6431,7 @@ MonoBehaviour:
     m_PersistentCalls:
       m_Calls: []
   StyleName: normal
+  ChooseState: {fileID: 0}
   Cooldown: 0.1
 --- !u!114 &8740842247780955797
 MonoBehaviour:

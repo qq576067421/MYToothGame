@@ -57,7 +57,7 @@ LineRenderer:
   m_RenderingLayerMask: 4294967295
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 348b980c747e90d4191c62743e0b4141, type: 2}
+  - {fileID: 2100000, guid: 93b67f816fbc50346ac0c2c7ef008f04, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
@@ -79,23 +79,15 @@ LineRenderer:
   m_SortingLayer: 0
   m_SortingOrder: 0
   m_Positions:
-  - {x: 0, y: 0, z: 0}
-  - {x: 0, y: 0, z: 1}
+  - {x: -0.78704494, y: 0.82300013, z: -5.7303143}
+  - {x: -0.7870449, y: 0.78, z: -2.8}
+  - {x: -0.7870449, y: 0.82300013, z: 1.77}
   m_Parameters:
     serializedVersion: 3
-    widthMultiplier: 0.15
+    widthMultiplier: 0.06
     widthCurve:
       serializedVersion: 2
       m_Curve:
-      - serializedVersion: 3
-        time: 0
-        value: 0.25
-        inSlope: 0
-        outSlope: 0
-        tangentMode: 0
-        weightedMode: 0
-        inWeight: 0.33333334
-        outWeight: 0.33333334
       - serializedVersion: 3
         time: 1
         value: 1
@@ -110,16 +102,16 @@ LineRenderer:
       m_RotationOrder: 4
     colorGradient:
       serializedVersion: 2
-      key0: {r: 0.28924298, g: 1, b: 0, a: 0}
-      key1: {r: 1, g: 0.64744824, b: 0, a: 0.5019608}
-      key2: {r: 0, g: 0, b: 0, a: 0.7529412}
+      key0: {r: 0, g: 0.5764706, b: 0.51527405, a: 0}
+      key1: {r: 0.062482823, g: 0.98039216, b: 0.015686247, a: 1}
+      key2: {r: 0, g: 0, b: 0, a: 1}
       key3: {r: 0, g: 0, b: 0, a: 0}
       key4: {r: 0, g: 0, b: 0, a: 0}
       key5: {r: 0, g: 0, b: 0, a: 0}
       key6: {r: 0, g: 0, b: 0, a: 0}
       key7: {r: 0, g: 0, b: 0, a: 0}
       ctime0: 0
-      ctime1: 65535
+      ctime1: 44382
       ctime2: 0
       ctime3: 0
       ctime4: 0
@@ -127,8 +119,8 @@ LineRenderer:
       ctime6: 0
       ctime7: 0
       atime0: 0
-      atime1: 21659
-      atime2: 38042
+      atime1: 5754
+      atime2: 59621
       atime3: 65535
       atime4: 0
       atime5: 0
@@ -141,7 +133,7 @@ LineRenderer:
     numCornerVertices: 4
     numCapVertices: 4
     alignment: 0
-    textureMode: 0
+    textureMode: 1
     textureScale: {x: 1, y: 1}
     shadowBias: 0
     generateLightingData: 0

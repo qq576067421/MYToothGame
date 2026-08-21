@@ -37,6 +37,20 @@ SpriteAtlas:
       m_IgnorePlatformSupport: 0
       m_AndroidETC2FallbackOverride: 0
       m_ForceMaximumCompressionQuality_BC6H_BC7: 0
+    - serializedVersion: 3
+      m_BuildTarget: Android
+      m_MaxTextureSize: 2048
+      m_MaxPlaceholderSize: 32
+      m_ResizeAlgorithm: 0
+      m_TextureFormat: 48
+      m_TextureCompression: 1
+      m_CompressionQuality: 50
+      m_CrunchedCompression: 0
+      m_AllowsAlphaSplitting: 0
+      m_Overridden: 1
+      m_IgnorePlatformSupport: 0
+      m_AndroidETC2FallbackOverride: 0
+      m_ForceMaximumCompressionQuality_BC6H_BC7: 0
     packingSettings:
       serializedVersion: 2
       padding: 2
@@ -52,10 +66,88 @@ SpriteAtlas:
     bindAsDefault: 1
     isAtlasV2: 0
     cachedData: {fileID: 0}
-    packedSpriteRenderDataKeys: []
+    packedSpriteRenderDataKeys:
+    - 348a1930e352cab44ab85e205ab039f8: 21300000
+    - 288592400c4a4cc4a95494d1679e4e7a: 21300000
+    - f851eb70af7299f4099addb1c5d49d67: 21300000
+    - 5b26eaa0fe385a741996ffea36b9ea09: 21300000
+    - c8c2721240eeaa94eb5a238ffc89317c: 21300000
+    - 0e533d22dcefcec49b2d8ef029830c89: 21300000
+    - 18d154c21d55ad44c9e831f900f827a1: 21300000
+    - 4fc92e237d84a214680b8932e6506ad3: 21300000
+    - 362bdc5332d40d049867c4ace37a2706: 21300000
+    - e0eec4a3e9e6ce74b826f6f9c740b159: 21300000
+    - f47c2ec315ef0d84a847fb662d17cab7: 21300000
+    - 90d604746303db54a85eb18360c29289: 21300000
+    - f094ce95aa3e0d4489be16e30e7cc6b5: 21300000
+    - 94f9ac17da7a02a42a90414b7ea8099d: 21300000
+    - 2884695701c06554ab8f095705f70f4c: 21300000
+    - d5e5811814b47c94f8285798719c0acf: 21300000
+    - 7fc8b25876d5bb044bf9650869db64fe: 21300000
+    - ea42d9d86a06a294babbcc5c90785572: 21300000
+    - 2842e43aa7ff59d40bfe72810a971512: 21300000
+    - 7137b4dae85309343b9d00d1555c46c8: 21300000
+    - dccc02db4f5d3214e9c25703994ee651: 21300000
+    - c24524ccd3b7c024d8b5ad53f23f4b69: 21300000
+    - 60185b4d22afa554db08aa969489d2de: 21300000
+    - 2884a9ddb0cf8964fa0a54fdcca214ee: 21300000
+    - 6f5e46cec642dc74daa65304453e46cd: 21300000
+    - eeb1dd2f1db4efa42adc6bd3d4200785: 21300000
   m_MasterAtlas: {fileID: 0}
-  m_PackedSprites: []
-  m_PackedSpriteNamesToIndex: []
+  m_PackedSprites:
+  - {fileID: 21300000, guid: 348a1930e352cab44ab85e205ab039f8, type: 3}
+  - {fileID: 21300000, guid: 288592400c4a4cc4a95494d1679e4e7a, type: 3}
+  - {fileID: 21300000, guid: f851eb70af7299f4099addb1c5d49d67, type: 3}
+  - {fileID: 21300000, guid: 5b26eaa0fe385a741996ffea36b9ea09, type: 3}
+  - {fileID: 21300000, guid: c8c2721240eeaa94eb5a238ffc89317c, type: 3}
+  - {fileID: 21300000, guid: 0e533d22dcefcec49b2d8ef029830c89, type: 3}
+  - {fileID: 21300000, guid: 18d154c21d55ad44c9e831f900f827a1, type: 3}
+  - {fileID: 21300000, guid: 4fc92e237d84a214680b8932e6506ad3, type: 3}
+  - {fileID: 21300000, guid: 362bdc5332d40d049867c4ace37a2706, type: 3}
+  - {fileID: 21300000, guid: e0eec4a3e9e6ce74b826f6f9c740b159, type: 3}
+  - {fileID: 21300000, guid: f47c2ec315ef0d84a847fb662d17cab7, type: 3}
+  - {fileID: 21300000, guid: 90d604746303db54a85eb18360c29289, type: 3}
+  - {fileID: 21300000, guid: f094ce95aa3e0d4489be16e30e7cc6b5, type: 3}
+  - {fileID: 21300000, guid: 94f9ac17da7a02a42a90414b7ea8099d, type: 3}
+  - {fileID: 21300000, guid: 2884695701c06554ab8f095705f70f4c, type: 3}
+  - {fileID: 21300000, guid: d5e5811814b47c94f8285798719c0acf, type: 3}
+  - {fileID: 21300000, guid: 7fc8b25876d5bb044bf9650869db64fe, type: 3}
+  - {fileID: 21300000, guid: ea42d9d86a06a294babbcc5c90785572, type: 3}
+  - {fileID: 21300000, guid: 2842e43aa7ff59d40bfe72810a971512, type: 3}
+  - {fileID: 21300000, guid: 7137b4dae85309343b9d00d1555c46c8, type: 3}
+  - {fileID: 21300000, guid: dccc02db4f5d3214e9c25703994ee651, type: 3}
+  - {fileID: 21300000, guid: c24524ccd3b7c024d8b5ad53f23f4b69, type: 3}
+  - {fileID: 21300000, guid: 60185b4d22afa554db08aa969489d2de, type: 3}
+  - {fileID: 21300000, guid: 2884a9ddb0cf8964fa0a54fdcca214ee, type: 3}
+  - {fileID: 21300000, guid: 6f5e46cec642dc74daa65304453e46cd, type: 3}
+  - {fileID: 21300000, guid: eeb1dd2f1db4efa42adc6bd3d4200785, type: 3}
+  m_PackedSpriteNamesToIndex:
+  - chanrenweishuazhongtu
+  - weishuajiantou
+  - sirenshuazhongtubiao
+  - shuangrenweishuatubiao
+  - chanrenshuazhongtubiao
+  - sanrenshuazhongtu
+  - chanrenweishuade
+  - sanrenweishuatubiao
+  - sirenweishuatubiao
+  - chanrenweishuatubiao
+  - shuangrenshuazhongtu
+  - sanrenweishuazhongtu
+  - shuangrenhesanrenweishuade
+  - shuangrenshuazhongtubiao
+  - sirenweishuazhongtu
+  - shuangrenweishuazhongtu
+  - shuazhongjiantou
+  - shuangrenhesanrenshuazhongde
+  - palyericon1
+  - sanrenshuazhongtubiao
+  - sirenshuazhongde
+  - sirenshuazhongtu
+  - sirenweishuade
+  - palyericon0
+  - chanrenshuazhongtu
+  - chanrenshuazhongde
   m_RenderDataMap: {}
   m_Tag: selectpersonnel
   m_IsVariant: 0

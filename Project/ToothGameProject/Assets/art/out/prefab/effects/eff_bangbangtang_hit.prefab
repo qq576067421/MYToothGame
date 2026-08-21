@@ -9702,7 +9702,7 @@ ParticleSystemRenderer:
   m_virtualGeometry: 0
   m_ShadingRate: 0
   m_ForceDisableGRD: 0
-  m_RenderingLayerMask: 1
+  m_RenderingLayerMask: 65536
   m_RendererPriority: 0
   m_Materials:
   - {fileID: 2100000, guid: c867c3967d7161c43bb8f491b3e2104d, type: 2}
@@ -9757,7 +9757,7 @@ ParticleSystemRenderer:
   m_MeshWeighting1: 1
   m_MeshWeighting2: 1
   m_MeshWeighting3: 1
-  m_MaskInteraction: 0
+  m_MaskInteraction: 1
 --- !u!1 &4451459901587512297
 GameObject:
   m_ObjectHideFlags: 0

@@ -37,6 +37,20 @@ SpriteAtlas:
       m_IgnorePlatformSupport: 0
       m_AndroidETC2FallbackOverride: 0
       m_ForceMaximumCompressionQuality_BC6H_BC7: 0
+    - serializedVersion: 3
+      m_BuildTarget: Android
+      m_MaxTextureSize: 2048
+      m_MaxPlaceholderSize: 32
+      m_ResizeAlgorithm: 0
+      m_TextureFormat: 48
+      m_TextureCompression: 1
+      m_CompressionQuality: 50
+      m_CrunchedCompression: 0
+      m_AllowsAlphaSplitting: 0
+      m_Overridden: 1
+      m_IgnorePlatformSupport: 0
+      m_AndroidETC2FallbackOverride: 0
+      m_ForceMaximumCompressionQuality_BC6H_BC7: 0
     packingSettings:
       serializedVersion: 2
       padding: 2
@@ -52,10 +66,40 @@ SpriteAtlas:
     bindAsDefault: 1
     isAtlasV2: 0
     cachedData: {fileID: 0}
-    packedSpriteRenderDataKeys: []
+    packedSpriteRenderDataKeys:
+    - ab84bb1632e2644419c9060df426fe66: 21300000
+    - 4546af665cbe26e429951bd3d8064d10: 21300000
+    - 6f7dd368a5a726142ae47f718483745b: 21300000
+    - 85f905c8b0e668a4292f1d7801dd2f91: 21300000
+    - 035fe1991122ac64c987440c43f033f8: 21300000
+    - b887b15a3f99ebb46af3bbd88e4ffb3d: 21300000
+    - d01de96b0a95b8c4586a2218b6a5031f: 21300000
+    - e3d0372dd5f1d134cbdfad8a51c77988: 21300000
+    - e5bf6c4d34755364ba52e9011807c4f3: 21300000
+    - f3b8482fe38601041995248043fc89b9: 21300000
   m_MasterAtlas: {fileID: 0}
-  m_PackedSprites: []
-  m_PackedSpriteNamesToIndex: []
+  m_PackedSprites:
+  - {fileID: 21300000, guid: ab84bb1632e2644419c9060df426fe66, type: 3}
+  - {fileID: 21300000, guid: 4546af665cbe26e429951bd3d8064d10, type: 3}
+  - {fileID: 21300000, guid: 6f7dd368a5a726142ae47f718483745b, type: 3}
+  - {fileID: 21300000, guid: 85f905c8b0e668a4292f1d7801dd2f91, type: 3}
+  - {fileID: 21300000, guid: 035fe1991122ac64c987440c43f033f8, type: 3}
+  - {fileID: 21300000, guid: b887b15a3f99ebb46af3bbd88e4ffb3d, type: 3}
+  - {fileID: 21300000, guid: d01de96b0a95b8c4586a2218b6a5031f, type: 3}
+  - {fileID: 21300000, guid: e3d0372dd5f1d134cbdfad8a51c77988, type: 3}
+  - {fileID: 21300000, guid: e5bf6c4d34755364ba52e9011807c4f3, type: 3}
+  - {fileID: 21300000, guid: f3b8482fe38601041995248043fc89b9, type: 3}
+  m_PackedSpriteNamesToIndex:
+  - vip
+  - de 2
+  - vip512
+  - weishuazhonganniu
+  - kuolingdishikuang
+  - de 1
+  - de
+  - anniu
+  - shuazhonganniu
+  - login_1
   m_RenderDataMap: {}
   m_Tag: loading
   m_IsVariant: 0

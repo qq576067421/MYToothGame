@@ -37,6 +37,20 @@ SpriteAtlas:
       m_IgnorePlatformSupport: 0
       m_AndroidETC2FallbackOverride: 0
       m_ForceMaximumCompressionQuality_BC6H_BC7: 0
+    - serializedVersion: 3
+      m_BuildTarget: Android
+      m_MaxTextureSize: 2048
+      m_MaxPlaceholderSize: 32
+      m_ResizeAlgorithm: 0
+      m_TextureFormat: 48
+      m_TextureCompression: 1
+      m_CompressionQuality: 50
+      m_CrunchedCompression: 0
+      m_AllowsAlphaSplitting: 0
+      m_Overridden: 1
+      m_IgnorePlatformSupport: 0
+      m_AndroidETC2FallbackOverride: 0
+      m_ForceMaximumCompressionQuality_BC6H_BC7: 0
     packingSettings:
       serializedVersion: 2
       padding: 2
@@ -52,10 +66,55 @@ SpriteAtlas:
     bindAsDefault: 1
     isAtlasV2: 0
     cachedData: {fileID: 0}
-    packedSpriteRenderDataKeys: []
+    packedSpriteRenderDataKeys:
+    - fd733da210177b744b75bca4d0b880f8: 21300000
+    - e5bc27d2453fe6a4a9e232ae95c45915: 21300000
+    - 6d8dc4933da620741b03ce69312551cb: 21300000
+    - 6a98d67632740ac49a49d7b6a764fc9b: 21300000
+    - 1990a4d713b1e6f449c68e41fcfa051d: 21300000
+    - bd14943821522474b8f903f0d21d9682: 21300000
+    - bb00404886bc6dc4dbe31238c9b53c16: 21300000
+    - f36056d897b4f724d9ab0edfdf95c6a4: 21300000
+    - 09630409b10d6dc41a107e27cb9c53d2: 21300000
+    - 49a87939761cff947bfcc92ca61f0f9e: 21300000
+    - abfc1ac9e9a859041b0cace006ea44fd: 21300000
+    - 972048dbf98b6174486802e4575e3458: 21300000
+    - 3415897e10962dc4e86c2d0c0ed1bd16: 21300000
+    - 457a3b2f4fc222743b8af28d454c7ce1: 21300000
+    - 34636d5f95454724d90ab3b14c3e31e8: 21300000
   m_MasterAtlas: {fileID: 0}
-  m_PackedSprites: []
-  m_PackedSpriteNamesToIndex: []
+  m_PackedSprites:
+  - {fileID: 21300000, guid: fd733da210177b744b75bca4d0b880f8, type: 3}
+  - {fileID: 21300000, guid: e5bc27d2453fe6a4a9e232ae95c45915, type: 3}
+  - {fileID: 21300000, guid: 6d8dc4933da620741b03ce69312551cb, type: 3}
+  - {fileID: 21300000, guid: 6a98d67632740ac49a49d7b6a764fc9b, type: 3}
+  - {fileID: 21300000, guid: 1990a4d713b1e6f449c68e41fcfa051d, type: 3}
+  - {fileID: 21300000, guid: bd14943821522474b8f903f0d21d9682, type: 3}
+  - {fileID: 21300000, guid: bb00404886bc6dc4dbe31238c9b53c16, type: 3}
+  - {fileID: 21300000, guid: f36056d897b4f724d9ab0edfdf95c6a4, type: 3}
+  - {fileID: 21300000, guid: 09630409b10d6dc41a107e27cb9c53d2, type: 3}
+  - {fileID: 21300000, guid: 49a87939761cff947bfcc92ca61f0f9e, type: 3}
+  - {fileID: 21300000, guid: abfc1ac9e9a859041b0cace006ea44fd, type: 3}
+  - {fileID: 21300000, guid: 972048dbf98b6174486802e4575e3458, type: 3}
+  - {fileID: 21300000, guid: 3415897e10962dc4e86c2d0c0ed1bd16, type: 3}
+  - {fileID: 21300000, guid: 457a3b2f4fc222743b8af28d454c7ce1, type: 3}
+  - {fileID: 21300000, guid: 34636d5f95454724d90ab3b14c3e31e8, type: 3}
+  m_PackedSpriteNamesToIndex:
+  - jindutiao
+  - jiesuode
+  - de3
+  - weishuazhongbaojitubiao
+  - weishuazhonggongsutubiao
+  - jindutiaode
+  - detu
+  - shuazhonggongjitubiao
+  - de2
+  - shuazhonggongsutubiao
+  - de1
+  - shuazhongbaojitubiao
+  - suode
+  - weishuazhonggongjitubiao
+  - suo
   m_RenderDataMap: {}
   m_Tag: giftedness
   m_IsVariant: 0

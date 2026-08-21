@@ -47,7 +47,7 @@ PrefabInstance:
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[1].time
-      value: 0.16167615
+      value: 0.16388868
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
@@ -92,12 +92,12 @@ PrefabInstance:
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[0].value
-      value: 0.09360963
+      value: 0.20393068
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[1].value
-      value: 0.059326172
+      value: 0.1923523
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
@@ -152,7 +152,7 @@ PrefabInstance:
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[1].inSlope
-      value: -1.1823896
+      value: -0.48149723
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
@@ -212,7 +212,7 @@ PrefabInstance:
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[1].outSlope
-      value: -1.1823896
+      value: -0.48149723
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
@@ -267,7 +267,7 @@ PrefabInstance:
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[1].outWeight
-      value: 0.51122296
+      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}

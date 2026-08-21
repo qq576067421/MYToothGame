@@ -37,6 +37,20 @@ SpriteAtlas:
       m_IgnorePlatformSupport: 0
       m_AndroidETC2FallbackOverride: 0
       m_ForceMaximumCompressionQuality_BC6H_BC7: 0
+    - serializedVersion: 3
+      m_BuildTarget: Android
+      m_MaxTextureSize: 2048
+      m_MaxPlaceholderSize: 32
+      m_ResizeAlgorithm: 0
+      m_TextureFormat: 48
+      m_TextureCompression: 1
+      m_CompressionQuality: 50
+      m_CrunchedCompression: 0
+      m_AllowsAlphaSplitting: 0
+      m_Overridden: 1
+      m_IgnorePlatformSupport: 0
+      m_AndroidETC2FallbackOverride: 0
+      m_ForceMaximumCompressionQuality_BC6H_BC7: 0
     packingSettings:
       serializedVersion: 2
       padding: 2
@@ -66,6 +80,7 @@ SpriteAtlas:
     - 094ab7fa8e1998144ae4c3db6bb56e5e: 21300000
     - 47c8d11b4876ddf44bbe3302e065bd2a: 21300000
     - b4d68f8b845598345b1cbb32386c00b0: 21300000
+    - 2625959cea3d34748a4f4f15a09d0e4d: 21300000
     - fb0a6b9e0a2f131458419ab32ca2a50f: 21300000
     - 4e3dab5f9a0bb2a43826e4c0f9e59718: 21300000
     - 1cf55f5fdf375364f82c94c47a18b840: 21300000
@@ -84,6 +99,7 @@ SpriteAtlas:
   - {fileID: 21300000, guid: 094ab7fa8e1998144ae4c3db6bb56e5e, type: 3}
   - {fileID: 21300000, guid: 47c8d11b4876ddf44bbe3302e065bd2a, type: 3}
   - {fileID: 21300000, guid: b4d68f8b845598345b1cbb32386c00b0, type: 3}
+  - {fileID: 21300000, guid: 2625959cea3d34748a4f4f15a09d0e4d, type: 3}
   - {fileID: 21300000, guid: fb0a6b9e0a2f131458419ab32ca2a50f, type: 3}
   - {fileID: 21300000, guid: 4e3dab5f9a0bb2a43826e4c0f9e59718, type: 3}
   - {fileID: 21300000, guid: 1cf55f5fdf375364f82c94c47a18b840, type: 3}
@@ -101,6 +117,7 @@ SpriteAtlas:
   - jindutiaode
   - prepare_2
   - prepare_7
+  - touxiangweixuanzhongdi
   - jushou1
   - prepare_4
   - jushou

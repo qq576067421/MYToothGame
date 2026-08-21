@@ -147,7 +147,7 @@ PrefabInstance:
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[3].inSlope
-      value: -0.0076324563
+      value: -0.15325126
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
@@ -212,7 +212,7 @@ PrefabInstance:
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[3].outSlope
-      value: -0.0076324563
+      value: -0.15325126
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
@@ -253,6 +253,11 @@ PrefabInstance:
         type: 3}
       propertyPath: rolloffCustomCurve.m_Curve.Array.data[2].outWeight
       value: 0.55604535
+      objectReference: {fileID: 0}
+    - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
+        type: 3}
+      propertyPath: rolloffCustomCurve.m_Curve.Array.data[3].outWeight
+      value: 0.25751
       objectReference: {fileID: 0}
     - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
