@@ -186,7 +186,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -387,7 +387,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -588,7 +588,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 29220.627, y: 29220.627, z: 29220.627}
+    m_Extent: {x: 146103.14, y: 146103.14, z: 146103.14}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -789,7 +789,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 17138.332, y: 17138.332, z: 17138.332}
+    m_Extent: {x: 85691.66, y: 85691.66, z: 85691.66}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -990,7 +990,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 19271.637, y: 19271.637, z: 19271.637}
+    m_Extent: {x: 96358.19, y: 96358.19, z: 96358.19}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -1191,7 +1191,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 14540.977, y: 14540.977, z: 14540.977}
+    m_Extent: {x: 72704.88, y: 72704.88, z: 72704.88}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -1392,7 +1392,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 8742.632, y: 8742.632, z: 8742.632}
+    m_Extent: {x: 43713.16, y: 43713.16, z: 43713.16}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -1593,7 +1593,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -1794,7 +1794,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 11379.924, y: 11379.924, z: 11379.924}
+    m_Extent: {x: 56899.617, y: 56899.617, z: 56899.617}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -1995,7 +1995,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -2196,7 +2196,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 8523.837, y: 8523.837, z: 8523.837}
+    m_Extent: {x: 42619.184, y: 42619.184, z: 42619.184}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -2397,7 +2397,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 8111.215, y: 8111.215, z: 8111.215}
+    m_Extent: {x: 40556.074, y: 40556.074, z: 40556.074}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -2598,7 +2598,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -2799,7 +2799,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -3000,7 +3000,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -3201,7 +3201,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -3402,7 +3402,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -3603,7 +3603,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 8174.301, y: 8174.301, z: 8174.301}
+    m_Extent: {x: 40871.504, y: 40871.504, z: 40871.504}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -3804,7 +3804,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 13595.897, y: 13595.897, z: 13595.897}
+    m_Extent: {x: 67979.484, y: 67979.484, z: 67979.484}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -4005,7 +4005,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -4206,7 +4206,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 8946.423, y: 8946.423, z: 8946.423}
+    m_Extent: {x: 44732.113, y: 44732.113, z: 44732.113}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -4407,7 +4407,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -4608,7 +4608,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -4809,7 +4809,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -5010,7 +5010,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 10641.219, y: 10641.219, z: 10641.219}
+    m_Extent: {x: 53206.094, y: 53206.094, z: 53206.094}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -5211,7 +5211,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 32133.947, y: 32133.947, z: 32133.947}
+    m_Extent: {x: 160669.73, y: 160669.73, z: 160669.73}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -5412,7 +5412,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -5613,7 +5613,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 8259.979, y: 8259.979, z: 8259.979}
+    m_Extent: {x: 41299.89, y: 41299.89, z: 41299.89}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -5814,7 +5814,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 13926.768, y: 13926.768, z: 13926.768}
+    m_Extent: {x: 69633.836, y: 69633.836, z: 69633.836}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -6216,7 +6216,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 10638.368, y: 10638.368, z: 10638.368}
+    m_Extent: {x: 53191.84, y: 53191.84, z: 53191.84}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -6417,7 +6417,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -6618,7 +6618,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 8825.202, y: 8825.202, z: 8825.202}
+    m_Extent: {x: 44126.01, y: 44126.01, z: 44126.01}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -6819,7 +6819,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 9813.094, y: 9813.094, z: 9813.094}
+    m_Extent: {x: 49065.47, y: 49065.47, z: 49065.47}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -7020,7 +7020,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -7221,7 +7221,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 11234.142, y: 11234.142, z: 11234.142}
+    m_Extent: {x: 56170.707, y: 56170.707, z: 56170.707}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -7422,7 +7422,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -7623,7 +7623,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -7824,7 +7824,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -8025,7 +8025,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 13477.326, y: 13477.326, z: 13477.326}
+    m_Extent: {x: 67386.63, y: 67386.63, z: 67386.63}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -8226,7 +8226,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -8427,7 +8427,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -8628,7 +8628,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -8829,7 +8829,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -9030,7 +9030,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -9231,7 +9231,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 11796.445, y: 11796.445, z: 11796.445}
+    m_Extent: {x: 58982.227, y: 58982.227, z: 58982.227}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -9432,7 +9432,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -9633,7 +9633,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -9834,7 +9834,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 9717.423, y: 9717.423, z: 9717.423}
+    m_Extent: {x: 48587.113, y: 48587.113, z: 48587.113}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -10035,7 +10035,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 21966.352, y: 21966.352, z: 21966.352}
+    m_Extent: {x: 109831.76, y: 109831.76, z: 109831.76}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -10236,7 +10236,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -10437,7 +10437,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 8116.2363, y: 8116.2363, z: 8116.2363}
+    m_Extent: {x: 40581.18, y: 40581.18, z: 40581.18}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -10638,7 +10638,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 16998.822, y: 16998.822, z: 16998.822}
+    m_Extent: {x: 84994.11, y: 84994.11, z: 84994.11}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -10839,7 +10839,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 16222.535, y: 16222.535, z: 16222.535}
+    m_Extent: {x: 81112.67, y: 81112.67, z: 81112.67}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -11040,7 +11040,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -11241,7 +11241,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -11442,7 +11442,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 10893.546, y: 10893.546, z: 10893.546}
+    m_Extent: {x: 54467.73, y: 54467.73, z: 54467.73}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -11643,7 +11643,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 7812.5, y: 7812.5, z: 7812.5}
+    m_Extent: {x: 39062.5, y: 39062.5, z: 39062.5}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -11844,7 +11844,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 9354.271, y: 9354.271, z: 9354.271}
+    m_Extent: {x: 46771.36, y: 46771.36, z: 46771.36}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
@@ -12045,7 +12045,7 @@ Mesh:
     m_UVInfo: 0
   m_LocalAABB:
     m_Center: {x: 0, y: 0, z: 0}
-    m_Extent: {x: 9039.031, y: 9039.031, z: 9039.031}
+    m_Extent: {x: 45195.156, y: 45195.156, z: 45195.156}
   m_MeshUsageFlags: 0
   m_CookingOptions: 30
   m_BakedConvexCollisionMesh: 
