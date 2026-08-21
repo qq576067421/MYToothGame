@@ -1,4 +1,4 @@
-<Solution>
+﻿<Solution>
   <Project Path="Assembly-CSharp-firstpass.csproj" />
   <Project Path="Assembly-CSharp.csproj" />
   <Project Path="ParticleImage.csproj" />
@@ -16,5 +16,4 @@
   <Project Path="Febucci.TextAnimator.Demo.Runtime.csproj" />
   <Project Path="Febucci.Attributes.Editor.csproj" />
   <Project Path="Febucci.TextAnimator.TMP.Runtime.csproj" />
-  <Project Path="GameDll/GameDll.csproj" Id="77fb753b-f101-4bac-bc0f-1209bdbca18d" />
 </Solution>
