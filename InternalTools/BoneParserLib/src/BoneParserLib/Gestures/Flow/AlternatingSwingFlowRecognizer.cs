@@ -3,80 +3,91 @@ using System.Collections.Generic;
 
 namespace CompanyInternalTools.BoneParserLib
 {
-    internal sealed class AlternatingSwingHandState
+    internal sealed class UpDownSwingHandState
     {
-        public bool m_HasLastRelativeWristY;
-        public float m_LastRelativeWristY;
-        public float m_StrokeStartRelativeWristY;
-        public float m_StrokeDurationSeconds;
-        public int m_StrokeDirection;
-        public int m_DirectionalFrameCount;
-        public int m_IdleFrameCount;
+        public bool m_IsArmed;
+        public bool m_IsWaitingForDownstroke;
+        public float m_ArmedStartHeight;
+        public float m_PeakHeight;
+        public float m_ArmedElapsedSeconds;
+        public bool m_HasCompletedStroke;
+        public float m_CompletedStrokeTimeSeconds = float.NegativeInfinity;
+
+        public void ResetStroke()
+        {
+            m_IsArmed = false;
+            m_IsWaitingForDownstroke = false;
+            m_ArmedStartHeight = 0f;
+            m_PeakHeight = 0f;
+            m_ArmedElapsedSeconds = 0f;
+        }
+
+        public void 开始记录行程(float height)
+        {
+            m_IsArmed = true;
+            m_IsWaitingForDownstroke = false;
+            m_ArmedStartHeight = height;
+            m_PeakHeight = height;
+            m_ArmedElapsedSeconds = 0f;
+        }
+
+        public void ResetTracking()
+        {
+            ResetStroke();
+            ClearCompletedStroke();
+        }
+
+        public void MarkCompletedStroke(float currentTimeSeconds)
+        {
+            m_HasCompletedStroke = true;
+            m_CompletedStrokeTimeSeconds = currentTimeSeconds;
+        }
+
+        public void ExpireCompletedStroke(float currentTimeSeconds, float pairingWindowSeconds)
+        {
+            if (m_HasCompletedStroke &&
+                currentTimeSeconds - m_CompletedStrokeTimeSeconds > pairingWindowSeconds)
+            {
+                ClearCompletedStroke();
+            }
+        }
+
+        public void ClearCompletedStroke()
+        {
+            m_HasCompletedStroke = false;
+            m_CompletedStrokeTimeSeconds = float.NegativeInfinity;
+        }
 
         public void Reset()
         {
-            m_HasLastRelativeWristY = false;
-            m_LastRelativeWristY = 0f;
-            ResetStroke(0f);
-        }
-
-        public void ResetStroke(float relativeWristY)
-        {
-            m_StrokeStartRelativeWristY = relativeWristY;
-            m_StrokeDurationSeconds = 0f;
-            m_StrokeDirection = 0;
-            m_DirectionalFrameCount = 0;
-            m_IdleFrameCount = 0;
+            ResetTracking();
         }
     }
 
-    internal sealed class AlternatingSwingFlowState : IBoneGestureRuntimeState
+    internal sealed class UpDownSwingFlowState : IBoneGestureRuntimeState
     {
-        public readonly AlternatingSwingHandState m_LeftHand = new AlternatingSwingHandState();
-        public readonly AlternatingSwingHandState m_RightHand = new AlternatingSwingHandState();
-        public int m_LastAlternatingSideMarker;
-        public int m_LastAlternatingFrameSerial;
-        public float m_LastLeftAlternatingTimeSeconds;
-        public float m_LastRightAlternatingTimeSeconds;
-        public bool m_IsPending;
-        public int m_ActionEventId;
-        public bool m_LeftSwingDetected;
-        public bool m_RightSwingDetected;
-        public float m_FrameTimeSeconds;
-        public int m_FrameSerial;
+        public readonly UpDownSwingHandState m_LeftHand = new UpDownSwingHandState();
+        public readonly UpDownSwingHandState m_RightHand = new UpDownSwingHandState();
+        public int m_PendingEventId;
+        public float m_ElapsedTimeSeconds;
 
         public void Reset()
         {
             m_LeftHand.Reset();
             m_RightHand.Reset();
-            m_LastAlternatingSideMarker = 0;
-            m_LastAlternatingFrameSerial = 0;
-            m_LastLeftAlternatingTimeSeconds = 0f;
-            m_LastRightAlternatingTimeSeconds = 0f;
-            ResetPending();
-        }
-
-        public void ResetPending()
-        {
-            m_IsPending = false;
-            m_ActionEventId = 0;
-            m_LeftSwingDetected = false;
-            m_RightSwingDetected = false;
-            m_FrameTimeSeconds = 0f;
-            m_FrameSerial = 0;
+            m_PendingEventId = 0;
+            m_ElapsedTimeSeconds = 0f;
         }
     }
 
-    internal sealed class AlternatingSwingFlowRecognizer : IBoneGestureRecognizer
+    internal sealed class UpDownSwingFlowRecognizer : IBoneGestureRecognizer
     {
-        private const string m_StateKey = "Flow.AlternatingSwing";
-        private const int m_LeftSideMarker = 1;
-        private const int m_RightSideMarker = 2;
+        private const string m_StateKey = "Flow.UpDownSwing";
 
         public void CollectDefinitions(List<BoneGestureDefinition> definitions)
         {
             definitions.Add(new BoneGestureDefinition(
-                BoneGestureType.左右交替挥击_流程,
+                BoneGestureType.双手上下挥动_流程,
                 BoneGestureCategory.流程,
                 BoneGesturePhaseMask.触发,
                 BoneGesturePhaseMask.触发));
@@ -84,337 +95,202 @@ namespace CompanyInternalTools.BoneParserLib
 
         public void Reset(BoneGestureRuntimeContext context)
         {
-            context.m_SeatState.ReadGestureState<AlternatingSwingFlowState>(m_StateKey)?.Reset();
+            context.m_SeatState.ReadGestureState<UpDownSwingFlowState>(m_StateKey)?.Reset();
         }
 
         public void Update(BoneGestureRuntimeContext context)
         {
-            AlternatingSwingFlowState state = context.m_SeatState.ReadGestureState<AlternatingSwingFlowState>(m_StateKey);
-            if (!TryReadFlowInput(
-                    context,
-                    out float shoulderWidth,
-                    out bool hasLeftWrist,
-                    out float leftRelativeWristY,
-                    out bool hasRightWrist,
-                    out float rightRelativeWristY))
+            UpDownSwingFlowState state = context.m_SeatState.ReadGestureState<UpDownSwingFlowState>(m_StateKey);
+            if (!context.HasRecognizableActionBinding(BoneGestureType.双手上下挥动_流程))
             {
                 state.Reset();
                 return;
             }
 
-            bool leftSwingDetected = false;
-            bool rightSwingDetected = false;
-            bool shouldEmitTrigger = false;
-            if (!state.m_IsPending)
+            state.m_ElapsedTimeSeconds += BoneMath.Max(context.m_DeltaTimeSeconds, 0f);
+            float currentTimeSeconds = state.m_ElapsedTimeSeconds;
+            float pairingWindowSeconds = BoneMath.Max(
+                0f, context.m_Config.m_UpDownSwingPairingWindowSeconds);
+            state.m_LeftHand.ExpireCompletedStroke(currentTimeSeconds, pairingWindowSeconds);
+            state.m_RightHand.ExpireCompletedStroke(currentTimeSeconds, pairingWindowSeconds);
+
+            if (读取单侧身体坐标(context, BoneBodyJointType.左肩, BoneBodyJointType.左髋,
+                    out BoneVector2 leftShoulder, out BoneVector2 leftHip))
             {
-                shouldEmitTrigger = EvaluateSwing(
-                    context,
-                    state,
-                    shoulderWidth,
-                    hasLeftWrist,
-                    leftRelativeWristY,
-                    hasRightWrist,
-                    rightRelativeWristY,
-                    out leftSwingDetected,
-                    out rightSwingDetected);
+                if (识别单手(context, state.m_LeftHand, BoneBodyJointType.左手腕,
+                        leftShoulder, leftHip))
+                {
+                    state.m_LeftHand.MarkCompletedStroke(currentTimeSeconds);
+                }
             }
             else
             {
-                SynchronizeHandSample(state.m_LeftHand, hasLeftWrist, leftRelativeWristY);
-                SynchronizeHandSample(state.m_RightHand, hasRightWrist, rightRelativeWristY);
+                state.m_LeftHand.ResetStroke();
             }
 
-            if (shouldEmitTrigger)
+            if (读取单侧身体坐标(context, BoneBodyJointType.右肩, BoneBodyJointType.右髋,
+                    out BoneVector2 rightShoulder, out BoneVector2 rightHip))
             {
-                BoneActionEvent actionEvent = context.AddGestureEvent(
-                    BoneGestureType.左右交替挥击_流程,
-                    BoneGesturePhase.触发);
-                if (actionEvent != null && actionEvent.m_RequiresConsumeResult)
+                if (识别单手(context, state.m_RightHand, BoneBodyJointType.右手腕,
+                        rightShoulder, rightHip))
                 {
-                    PendingAction(
-                        state,
-                        actionEvent.m_ActionEventId,
-                        leftSwingDetected,
-                        rightSwingDetected,
-                        context.m_FrameTimeSeconds,
-                        context.ReadFrameSerial());
-                }
-                else if (actionEvent != null)
-                {
-                    SubmitSwing(
-                        state,
-                        leftSwingDetected,
-                        rightSwingDetected,
-                        context.m_FrameTimeSeconds,
-                        context.ReadFrameSerial());
+                    state.m_RightHand.MarkCompletedStroke(currentTimeSeconds);
                 }
             }
+            else
+            {
+                state.m_RightHand.ResetStroke();
+            }
 
-            UpdateHandTracking(state.m_LeftHand, hasLeftWrist);
-            UpdateHandTracking(state.m_RightHand, hasRightWrist);
+            if (!state.m_LeftHand.m_HasCompletedStroke || !state.m_RightHand.m_HasCompletedStroke)
+            {
+                return;
+            }
+
+            if (BoneMath.Abs(state.m_LeftHand.m_CompletedStrokeTimeSeconds -
+                    state.m_RightHand.m_CompletedStrokeTimeSeconds) > pairingWindowSeconds)
+            {
+                return;
+            }
+
+            BoneActionEvent actionEvent = context.AddGestureEvent(
+                BoneGestureType.双手上下挥动_流程,
+                BoneGesturePhase.触发,
+                BoneGestureTriggerHand.双手);
+            state.m_LeftHand.ClearCompletedStroke();
+            state.m_RightHand.ClearCompletedStroke();
+            state.m_PendingEventId = actionEvent != null && actionEvent.m_RequiresConsumeResult
+                ? actionEvent.m_ActionEventId : 0;
         }
 
         public bool TryApplyConsumeResult(BoneGestureRuntimeContext context, BoneActionConsumeResult consumeResult)
         {
-            AlternatingSwingFlowState state = context.m_SeatState.ReadGestureState<AlternatingSwingFlowState>(m_StateKey);
-            if (state == null || !state.m_IsPending || state.m_ActionEventId != consumeResult.m_ActionEventId)
+            UpDownSwingFlowState state = context.m_SeatState.ReadGestureState<UpDownSwingFlowState>(m_StateKey);
+            if (consumeResult.m_ActionEventId <= 0)
             {
                 return false;
             }
 
-            if (consumeResult.m_ResultType == BoneActionConsumeResultType.接受)
+            if (state.m_PendingEventId != consumeResult.m_ActionEventId)
             {
-                SubmitSwing(
-                    state,
-                    state.m_LeftSwingDetected,
-                    state.m_RightSwingDetected,
-                    state.m_FrameTimeSeconds,
-                    state.m_FrameSerial);
+                return false;
             }
 
-            state.ResetPending();
+            // 是否被游戏接受不改变物理行程：同一次挥动不会在冷却结束后补发。
+            state.m_PendingEventId = 0;
             return true;
         }
 
-        private static bool TryReadFlowInput(
-            BoneGestureRuntimeContext context,
-            out float shoulderWidth,
-            out bool hasLeftWrist,
-            out float leftRelativeWristY,
-            out bool hasRightWrist,
-            out float rightRelativeWristY)
+        private static bool 读取单侧身体坐标(BoneGestureRuntimeContext context,
+            BoneBodyJointType shoulderJoint, BoneBodyJointType hipJoint,
+            out BoneVector2 shoulder, out BoneVector2 hip)
         {
-            shoulderWidth = 0f;
-            hasLeftWrist = false;
-            leftRelativeWristY = 0f;
-            hasRightWrist = false;
-            rightRelativeWristY = 0f;
-
-            if (context.m_Person == null ||
-                !BoneSkeletonQuery.TryReadBodyJoint(context.m_Person, BoneBodyJointType.左肩, context.m_Config.m_GestureKeypointMinConfidence, out BoneVector2 leftShoulder) ||
-                !BoneSkeletonQuery.TryReadBodyJoint(context.m_Person, BoneBodyJointType.右肩, context.m_Config.m_GestureKeypointMinConfidence, out BoneVector2 rightShoulder))
-            {
-                return false;
-            }
-
-            shoulderWidth = BoneMath.Abs(rightShoulder.m_X - leftShoulder.m_X) + context.m_Config.m_ShoulderWidthEpsilon;
-            hasLeftWrist = BoneSkeletonQuery.TryReadBodyJoint(
-                context.m_Person,
-                BoneBodyJointType.左手腕,
-                context.m_Config.m_GestureKeypointMinConfidence,
-                out BoneVector2 leftWrist);
-            hasRightWrist = BoneSkeletonQuery.TryReadBodyJoint(
-                context.m_Person,
-                BoneBodyJointType.右手腕,
-                context.m_Config.m_GestureKeypointMinConfidence,
-                out BoneVector2 rightWrist);
-            if (hasLeftWrist)
-            {
-                leftRelativeWristY = leftWrist.m_Y - leftShoulder.m_Y;
-            }
-
-            if (hasRightWrist)
-            {
-                rightRelativeWristY = rightWrist.m_Y - rightShoulder.m_Y;
-            }
-
-            return true;
+            shoulder = BoneVector2.m_Zero;
+            hip = BoneVector2.m_Zero;
+            float score = context.m_Config.m_GestureKeypointMinConfidence;
+            return BoneSkeletonQuery.TryReadBodyJoint(context.m_Person, shoulderJoint, score, out shoulder) &&
+                BoneSkeletonQuery.TryReadBodyJoint(context.m_Person, hipJoint, score, out hip);
         }
 
-        private static bool EvaluateSwing(
-            BoneGestureRuntimeContext context,
-            AlternatingSwingFlowState state,
-            float shoulderWidth,
-            bool hasLeftWrist,
-            float leftRelativeWristY,
-            bool hasRightWrist,
-            float rightRelativeWristY,
-            out bool leftSwingDetected,
-            out bool rightSwingDetected)
+        private static bool 识别单手(BoneGestureRuntimeContext context, UpDownSwingHandState state,
+            BoneBodyJointType wristJoint,
+            BoneVector2 sameSideShoulder, BoneVector2 sameSideHip)
         {
-            leftSwingDetected = false;
-            rightSwingDetected = false;
-            if (state == null || context.m_DeltaTimeSeconds <= 0f)
+            BoneParserConfig config = context.m_Config;
+            if (!BoneSkeletonQuery.TryReadBodyJoint(context.m_Person, wristJoint,
+                    config.m_GestureKeypointMinConfidence, out BoneVector2 wrist))
             {
+                // 当前半截行程不能跨越丢点拼接，但另一只手已经完成的结果仍在配对窗口内有效。
+                state.ResetStroke();
                 return false;
             }
 
-            if (hasLeftWrist)
+            float torsoX = sameSideShoulder.m_X - sameSideHip.m_X;
+            float torsoY = sameSideShoulder.m_Y - sameSideHip.m_Y;
+            float torsoLength = (float)Math.Sqrt(torsoX * torsoX + torsoY * torsoY);
+            if (torsoLength <= config.m_ShoulderWidthEpsilon)
             {
-                bool leftMotionCompleted = EvaluateHandSwing(
-                    state.m_LeftHand,
-                    leftRelativeWristY,
-                    shoulderWidth,
-                    context.m_DeltaTimeSeconds,
-                    context.m_Config);
-                leftSwingDetected = leftMotionCompleted &&
-                    context.m_FrameTimeSeconds - state.m_LastLeftAlternatingTimeSeconds >= context.m_Config.m_AlternatingSwingCooldownSeconds;
-            }
-
-            if (hasRightWrist)
-            {
-                bool rightMotionCompleted = EvaluateHandSwing(
-                    state.m_RightHand,
-                    rightRelativeWristY,
-                    shoulderWidth,
-                    context.m_DeltaTimeSeconds,
-                    context.m_Config);
-                rightSwingDetected = rightMotionCompleted &&
-                    context.m_FrameTimeSeconds - state.m_LastRightAlternatingTimeSeconds >= context.m_Config.m_AlternatingSwingCooldownSeconds;
-            }
-
-            if (leftSwingDetected == rightSwingDetected)
-            {
+                state.ResetStroke();
                 return false;
             }
 
-            int currentSideMarker = leftSwingDetected ? m_LeftSideMarker : m_RightSideMarker;
-            bool hasPreviousSide = state.m_LastAlternatingSideMarker != 0;
-            bool isOppositeSide = hasPreviousSide && state.m_LastAlternatingSideMarker != currentSideMarker;
-            int maxWindowFrames = Math.Max(1, context.m_Config.m_AlternatingSwingWindowFrames);
-            bool isInsideWindow =
-                context.ReadFrameSerial() <= 0 ||
-                state.m_LastAlternatingFrameSerial <= 0 ||
-                context.ReadFrameSerial() - state.m_LastAlternatingFrameSerial <= maxWindowFrames;
-            if (!isOppositeSide || !isInsideWindow)
+            BoneVector2 bodyUp = new BoneVector2(torsoX / torsoLength, torsoY / torsoLength);
+            float x = wrist.m_X - sameSideHip.m_X;
+            float y = wrist.m_Y - sameSideHip.m_Y;
+            float height = (x * bodyUp.m_X + y * bodyUp.m_Y) / torsoLength;
+            float lateral = (x * -bodyUp.m_Y + y * bodyUp.m_X) / torsoLength;
+
+            float startMin = BoneMath.Min(
+                config.m_UpDownSwingStartMinHeightRatio,
+                config.m_UpDownSwingStartMaxHeightRatio);
+            float startMax = BoneMath.Max(
+                config.m_UpDownSwingStartMinHeightRatio,
+                config.m_UpDownSwingStartMaxHeightRatio);
+            float minStrokeDistance = BoneMath.Max(
+                0.0001f, config.m_UpDownSwingMinStrokeDistanceRatio);
+            float maxLateral = BoneMath.Max(0f, config.m_UpDownSwingMaxLateralRatio);
+            bool isWithinLateral = BoneMath.Abs(lateral) <= maxLateral;
+            if (!isWithinLateral)
             {
-                SubmitSwing(state, leftSwingDetected, rightSwingDetected, context.m_FrameTimeSeconds, context.ReadFrameSerial());
+                state.ResetStroke();
                 return false;
             }
 
-            return true;
-        }
-
-        private static bool EvaluateHandSwing(
-            AlternatingSwingHandState handState,
-            float relativeWristY,
-            float shoulderWidth,
-            float deltaTimeSeconds,
-            BoneParserConfig config)
-        {
-            if (!handState.m_HasLastRelativeWristY)
+            bool isWithinStartRange = height >= startMin && height <= startMax;
+            if (state.m_IsWaitingForDownstroke)
             {
-                handState.m_HasLastRelativeWristY = true;
-                handState.m_LastRelativeWristY = relativeWristY;
-                handState.ResetStroke(relativeWristY);
-                return false;
-            }
-
-            float previousRelativeWristY = handState.m_LastRelativeWristY;
-            float frameDelta = relativeWristY - previousRelativeWristY;
-            handState.m_LastRelativeWristY = relativeWristY;
-
-            float directionNoise = shoulderWidth * BoneMath.Max(0f, config.m_AlternatingSwingDirectionNoiseRatio);
-            int minDirectionalFrames = Math.Max(2, config.m_AlternatingSwingMinDirectionalFrames);
-            if (BoneMath.Abs(frameDelta) < directionNoise)
-            {
-                if (handState.m_StrokeDirection != 0)
+                state.m_PeakHeight = BoneMath.Max(state.m_PeakHeight, height);
+                if (isWithinStartRange && state.m_PeakHeight - height >= minStrokeDistance)
                 {
-                    handState.m_IdleFrameCount++;
-                    handState.m_StrokeDurationSeconds += deltaTimeSeconds;
-                    if (handState.m_DirectionalFrameCount < minDirectionalFrames || handState.m_IdleFrameCount > 1)
-                    {
-                        handState.ResetStroke(relativeWristY);
-                    }
+                    state.开始记录行程(height);
+                }
+                return false;
+            }
+
+            if (!state.m_IsArmed)
+            {
+                if (!isWithinStartRange)
+                {
+                    return false;
                 }
 
+                state.开始记录行程(height);
                 return false;
             }
 
-            int currentDirection = frameDelta > 0f ? 1 : -1;
-            if (handState.m_StrokeDirection != currentDirection)
+            if (isWithinStartRange && height < state.m_ArmedStartHeight)
             {
-                handState.m_StrokeStartRelativeWristY = previousRelativeWristY;
-                handState.m_StrokeDurationSeconds = deltaTimeSeconds;
-                handState.m_StrokeDirection = currentDirection;
-                handState.m_DirectionalFrameCount = 1;
-                handState.m_IdleFrameCount = 0;
-            }
-            else
-            {
-                handState.m_StrokeDurationSeconds += deltaTimeSeconds;
-                handState.m_DirectionalFrameCount++;
-                handState.m_IdleFrameCount = 0;
+                // 连续记录当前行程的最低点，缓慢放手也能为下一次上挥建立起点。
+                state.开始记录行程(height);
+                return false;
             }
 
-            float verticalDistance = BoneMath.Abs(relativeWristY - handState.m_StrokeStartRelativeWristY);
-            float verticalSpeed = verticalDistance / BoneMath.Max(handState.m_StrokeDurationSeconds, 1f / 120f);
-            bool isCompleted =
-                handState.m_DirectionalFrameCount >= minDirectionalFrames &&
-                verticalDistance >= shoulderWidth * config.m_AlternatingSwingMinVerticalDistanceRatio &&
-                verticalSpeed >= shoulderWidth * config.m_AlternatingSwingSpeedRatioPerSecond;
-            if (isCompleted)
+            if (height > state.m_PeakHeight)
             {
-                handState.ResetStroke(relativeWristY);
+                state.m_PeakHeight = height;
+                state.m_ArmedElapsedSeconds += BoneMath.Max(context.m_DeltaTimeSeconds, 0f);
             }
 
-            return isCompleted;
-        }
-
-        private static void PendingAction(
-            AlternatingSwingFlowState state,
-            int actionEventId,
-            bool leftSwingDetected,
-            bool rightSwingDetected,
-            float frameTimeSeconds,
-            int frameSerial)
-        {
-            state.m_IsPending = true;
-            state.m_ActionEventId = actionEventId;
-            state.m_LeftSwingDetected = leftSwingDetected;
-            state.m_RightSwingDetected = rightSwingDetected;
-            state.m_FrameTimeSeconds = frameTimeSeconds;
-            state.m_FrameSerial = frameSerial;
-        }
-
-        private static void SubmitSwing(
-            AlternatingSwingFlowState state,
-            bool leftSwingDetected,
-            bool rightSwingDetected,
-            float frameTimeSeconds,
-            int frameSerial)
-        {
-            if (leftSwingDetected)
+            float strokeDistance = state.m_PeakHeight - state.m_ArmedStartHeight;
+            if (strokeDistance < minStrokeDistance)
             {
-                state.m_LastLeftAlternatingTimeSeconds = frameTimeSeconds;
-                RecordSwing(state, m_LeftSideMarker, frameSerial);
+                return false;
             }
 
-            if (rightSwingDetected)
+            float elapsedSeconds = BoneMath.Max(state.m_ArmedElapsedSeconds, 1f / 120f);
+            float upwardSpeed = strokeDistance / elapsedSeconds;
+            if (upwardSpeed < BoneMath.Max(0f, config.m_UpDownSwingMinUpwardSpeedRatioPerSecond))
             {
-                state.m_LastRightAlternatingTimeSeconds = frameTimeSeconds;
-                RecordSwing(state, m_RightSideMarker, frameSerial);
-            }
-        }
-
-        private static void RecordSwing(AlternatingSwingFlowState state, int punchHand, int frameSerial)
-        {
-            state.m_LastAlternatingSideMarker = punchHand;
-            state.m_LastAlternatingFrameSerial = frameSerial;
-        }
-
-        private static void UpdateHandTracking(AlternatingSwingHandState handState, bool hasWrist)
-        {
-            if (!hasWrist)
-            {
-                handState.Reset();
-            }
-        }
-
-        private static void SynchronizeHandSample(
-            AlternatingSwingHandState handState,
-            bool hasWrist,
-            float relativeWristY)
-        {
-            if (!hasWrist)
-            {
-                handState.Reset();
-                return;
+                // 速度不足只淘汰本次上挥；随后下放时会立即形成新的起点，不进入锁定等待。
+                state.开始记录行程(height);
+                return false;
             }
 
-            handState.m_HasLastRelativeWristY = true;
-            handState.m_LastRelativeWristY = relativeWristY;
-            handState.ResetStroke(relativeWristY);
+            // 达到有效上挥幅度后消耗本次行程，必须出现新的下挥才能再次触发。
+            state.m_IsArmed = false;
+            state.m_IsWaitingForDownstroke = true;
+            state.m_PeakHeight = height;
+            return true;
         }
     }
 }

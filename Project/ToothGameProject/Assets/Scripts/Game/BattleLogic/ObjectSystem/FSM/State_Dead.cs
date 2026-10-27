@@ -34,8 +34,28 @@ namespace GameDll
                 var cfg  = t_monsterBean.GetConfig(m_Owner.ReadBeanId());
                 m_AniLength = cfg.t_die_time / 1000.0f;
                 m_DieStartEffectTime = cfg.t_die_effect_start_time / 1000.0f;
+
+
+                var sounds = cfg.t_die_sound;
+                if(sounds.Count > 0)
+                {
+                    var soundId = sounds[0];
+                    int rad = 1000;
+                    if(sounds.Count >= 2)
+                    {
+                        rad = sounds[1];
+                    }
+                    var r = UnityEngine.Random.Range(0, 1000);
+                    if(r <= rad)
+                    {
+                        AudioManager.GetInstance().Play3D(soundId, m_Owner.GetPosition());
+                    }
+                }
+
             }
             m_AniStartTime = BattleManager.ReadBattleTime();
+
+
         }
 
         public override void OnChangedState()

@@ -35,6 +35,8 @@ private static string m_FileName = "t_skillDescBean.csv";
     public int t_attackSound{ get { return _t_attackSound; }}
     private int _t_hitSound;
     public int t_hitSound{ get { return _t_hitSound; }}
+    private int _t_keepSound;
+    public int t_keepSound{ get { return _t_keepSound; }}
     private int _t_skill_op_type;
     public int t_skill_op_type{ get { return _t_skill_op_type; }}
     private int _t_skill_op_radius;
@@ -47,6 +49,8 @@ private static string m_FileName = "t_skillDescBean.csv";
     public int t_finish_change_idle{ get { return _t_finish_change_idle; }}
     private string _t_action;
     public string t_action{ get { return _t_action; }}
+    private List<int> _t_upper_rot_params;
+    public ReadOnlyCollection<int> t_upper_rot_params;
     private int _t_warning;
     public int t_warning{ get { return _t_warning; }}
     private string _t_icon;
@@ -113,12 +117,15 @@ private static string m_FileName = "t_skillDescBean.csv";
         _t_hitEff = source._t_hitEff;
         _t_attackSound = source._t_attackSound;
         _t_hitSound = source._t_hitSound;
+        _t_keepSound = source._t_keepSound;
         _t_skill_op_type = source._t_skill_op_type;
         _t_skill_op_radius = source._t_skill_op_radius;
         _t_skill_op_deg = source._t_skill_op_deg;
         _t_change_attack = source._t_change_attack;
         _t_finish_change_idle = source._t_finish_change_idle;
         _t_action = source._t_action;
+        _t_upper_rot_params = source._t_upper_rot_params;
+        t_upper_rot_params = source.t_upper_rot_params;
         _t_warning = source._t_warning;
         _t_icon = source._t_icon;
         _t_gesture = source._t_gesture;
@@ -141,12 +148,15 @@ private static string m_FileName = "t_skillDescBean.csv";
             bean._t_hitEff = ReadInt(datas[index++]);
             bean._t_attackSound = ReadInt(datas[index++]);
             bean._t_hitSound = ReadInt(datas[index++]);
+            bean._t_keepSound = ReadInt(datas[index++]);
             bean._t_skill_op_type = ReadInt(datas[index++]);
             bean._t_skill_op_radius = ReadInt(datas[index++]);
             bean._t_skill_op_deg = ReadInt(datas[index++]);
             bean._t_change_attack = ReadInt(datas[index++]);
             bean._t_finish_change_idle = ReadInt(datas[index++]);
             bean._t_action = ReadString(datas[index++]);
+            bean._t_upper_rot_params = ReadIntArray(datas[index++]);
+            bean.t_upper_rot_params = GetReadOnlyArray(bean._t_upper_rot_params);
             bean._t_warning = ReadInt(datas[index++]);
             bean._t_icon = ReadString(datas[index++]);
             bean._t_gesture = ReadInt(datas[index++]);
@@ -177,12 +187,15 @@ private static string m_FileName = "t_skillDescBean.csv";
             bean._t_hitEff = SqliteDataManager_ReadInt();
             bean._t_attackSound = SqliteDataManager_ReadInt();
             bean._t_hitSound = SqliteDataManager_ReadInt();
+            bean._t_keepSound = SqliteDataManager_ReadInt();
             bean._t_skill_op_type = SqliteDataManager_ReadInt();
             bean._t_skill_op_radius = SqliteDataManager_ReadInt();
             bean._t_skill_op_deg = SqliteDataManager_ReadInt();
             bean._t_change_attack = SqliteDataManager_ReadInt();
             bean._t_finish_change_idle = SqliteDataManager_ReadInt();
             bean._t_action = SqliteDataManager_ReadString();
+            bean._t_upper_rot_params = SqliteDataManager_ReadIntArray();
+            bean.t_upper_rot_params = GetReadOnlyArray(bean._t_upper_rot_params);
             bean._t_warning = SqliteDataManager_ReadInt();
             bean._t_icon = SqliteDataManager_ReadString();
             bean._t_gesture = SqliteDataManager_ReadInt();

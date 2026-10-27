@@ -194,21 +194,33 @@ public class AssetbundleLoader : MonoBehaviour
 
     IEnumerator OnLoadLevelAssetAsync(string abName, int mode, Action func)
     {
+        Debug.Log("[入战加载] 协程开始 ab=" + abName + " mode=" + mode);
         //为了确保异步，强制添加一个返回
         yield return null;
         string assetName = System.IO.Path.GetFileNameWithoutExtension(abName);
+        Debug.Log("[入战加载] 请求 bundle ab=" + abName);
         var bundleRequest = abm.GetBundleAsync(abName, false);
         yield return bundleRequest;
+        Debug.Log("[入战加载] bundle 结果 failed=" + bundleRequest.Failed + " ab=" + abName);
         if (bundleRequest.Failed || bundleRequest.AssetBundle == null)
         {
             Debug.LogError("Load scene assetbundle failed, bundle:" + abName + " scene:" + assetName);
             yield break;
         }
+        Debug.Log("[入战加载] 调用 LoadSceneAsync scene=" + assetName + " mode=" + mode);
         var bundle = SceneManager.LoadSceneAsync(assetName, (LoadSceneMode) mode);
+        int waitingFrames = 0;
         while (!bundle.isDone)
         {
+            waitingFrames++;
+            if (waitingFrames % 60 == 0)
+            {
+                Debug.Log("[入战加载] 等待场景激活 scene=" + assetName +
+                          " frames=" + waitingFrames + " progress=" + bundle.progress.ToString("F2"));
+            }
             yield return new WaitForEndOfFrame();
         }
+        Debug.Log("[入战加载] LoadSceneAsync 完成 scene=" + assetName + " frames=" + waitingFrames);
         UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetSceneByName(assetName);
         if (scene != null)
         {
@@ -221,6 +233,7 @@ public class AssetbundleLoader : MonoBehaviour
         m_LoadRequests.Remove(abName);
         abm.UnloadBundle(abName, false, false);
         func();
+        Debug.Log("[入战加载] 场景切换回调完成 ab=" + abName);
     }
 
     private Dictionary<string, int> temp = new Dictionary<string, int>();

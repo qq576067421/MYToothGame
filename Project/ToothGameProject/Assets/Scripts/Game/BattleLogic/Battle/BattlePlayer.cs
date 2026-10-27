@@ -26,5 +26,6 @@ namespace GameDll
         public List<long> m_Equips = new List<long>();
 
         public List<int> m_Talents = new List<int>();
+        public List<int> m_TalentBranches = new List<int>();
     }
 }

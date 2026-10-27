@@ -162,6 +162,60 @@ namespace GameDll
         {
             m_Animator.SetAnimationSpeed(speed);
         }
+
+        // 附加骨骼旋转：在动画更新之后（LateUpdate 时机）叠加的偏移。
+        // spine 等骨骼被动画整体重写，直接设 localRotation 会被覆盖、增量补转会丢累计量；
+        // 这里每帧比较"当前值是否等于上帧写入值"来判定动画是否写过本帧：
+        // 写过 → 当前值即动画输出的干净基础，直接叠加全量偏移；没写 → 沿用上帧基础，避免累积。
+        // 偏移叠加在动画/其它系统的默认姿态之上（如 spine 默认 26 度 + 配置 30 = 56 度）。
+        private string m_ExtraBoneRotName;
+        private Transform m_ExtraBoneRotBone;
+        private float m_ExtraBoneRotAngle;
+        private Quaternion m_ExtraBoneRotLastBase;
+        private Quaternion m_ExtraBoneRotLastWritten;
+        private bool m_ExtraBoneRotHasBase;
+
+        public void SetExtraBoneRotation(string boneName, float angleX)
+        {
+            if (m_ExtraBoneRotName != boneName)
+            {
+                m_ExtraBoneRotName = boneName;
+                m_ExtraBoneRotBone = null;
+                m_ExtraBoneRotHasBase = false;
+            }
+            m_ExtraBoneRotAngle = angleX;
+        }
+
+        public void ApplyExtraBoneRotation()
+        {
+            if (string.IsNullOrEmpty(m_ExtraBoneRotName))
+            {
+                return;
+            }
+
+            if (m_ExtraBoneRotBone == null)
+            {
+                m_ExtraBoneRotBone = RenderAPI.GetTransform(m_GameObject, m_ExtraBoneRotName, true);
+                if (m_ExtraBoneRotBone == null)
+                {
+                    return;
+                }
+                m_ExtraBoneRotHasBase = false;
+            }
+
+            var current = m_ExtraBoneRotBone.localRotation;
+            var baseRotation = m_ExtraBoneRotHasBase && current == m_ExtraBoneRotLastWritten
+                ? m_ExtraBoneRotLastBase
+                : current;
+            m_ExtraBoneRotLastBase = baseRotation;
+            m_ExtraBoneRotHasBase = true;
+
+            // 配置正角度 = 抬头（后仰）：spine 骨架绕局部 X 的正方向是低头（前倾），取反
+            var target = baseRotation * Quaternion.Euler(-m_ExtraBoneRotAngle, 0f, 0f);
+            m_ExtraBoneRotBone.localRotation = target;
+            m_ExtraBoneRotLastWritten = target;
+        }
+
         public override void ReplayCurrentAnimation(float normalizedTime)
         {
             m_Animator.ReplayCurrentAnimation(normalizedTime);

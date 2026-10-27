@@ -22,6 +22,8 @@ namespace GameDll
                 m_AutoSkillCfgId = ResolveOptionalSkillCfgId(cfg.t_auto_skill_id, level, roleCfgId, "t_auto_skill_id"),
             };
             AppendSkillCfgIds(snapshot.m_ActiveSkillCfgIds, cfg.t_skill_id, roleCfgId, "t_skill_id");
+            // 动作技能是可选列表：0 或空表示该角色没有动作技能，跳过即可
+            AppendOptionalSkillCfgIds(snapshot.m_AutoActionSkillCfgIds, cfg.t_auto_action_skill_id);
 
             var growCfg = t_tdRoleGrowBean.GetConfig(roleCfgId, false);
             if (growCfg == null)
@@ -103,6 +105,24 @@ namespace GameDll
                 }
 
                 output.Add(skillCfgId);
+            }
+        }
+
+        private static void AppendOptionalSkillCfgIds(List<long> output, ReadOnlyCollection<long> skillCfgIds)
+        {
+            if (output == null || skillCfgIds == null)
+            {
+                return;
+            }
+
+            int count = skillCfgIds.Count;
+            for (int i = 0; i < count; i++)
+            {
+                long skillCfgId = skillCfgIds[i];
+                if (skillCfgId > 0)
+                {
+                    output.Add(skillCfgId);
+                }
             }
         }
     }

@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
+using YoudooGame.Framework;
 
 namespace GameDll
 {
@@ -38,10 +39,12 @@ namespace GameDll
         public int m_SeatId;
         public int m_HPPercent;
         public int m_MagicPercent;
+        public List<int> m_Talents = new List<int>();
+        public List<int> m_TalentBranches = new List<int>();
 
         public BattleStartupPlayerData Clone()
         {
-            return new BattleStartupPlayerData
+            var clone = new BattleStartupPlayerData
             {
                 m_PlayerId = m_PlayerId,
                 m_PlayerName = m_PlayerName,
@@ -53,11 +56,14 @@ namespace GameDll
                 m_HPPercent = m_HPPercent,
                 m_MagicPercent = m_MagicPercent,
             };
+            clone.m_Talents.AddRange(m_Talents);
+            clone.m_TalentBranches.AddRange(m_TalentBranches);
+            return clone;
         }
 
         public Packet_BattlePlayer ToBattlePlayer()
         {
-            return new Packet_BattlePlayer
+            var packet = new Packet_BattlePlayer
             {
                 m_ID = m_PlayerId,
                 m_Name = m_PlayerName,
@@ -69,6 +75,9 @@ namespace GameDll
                 m_HPPercent = m_HPPercent,
                 m_MagicPercent = m_MagicPercent,
             };
+            packet.m_Talents.AddRange(m_Talents);
+            packet.m_TalentBranches.AddRange(m_TalentBranches);
+            return packet;
         }
     }
     public class BattleStartupRequest
@@ -88,6 +97,7 @@ namespace GameDll
         public int m_BaseHealth;
         public List<BattleStartupPlayerData> m_Players = new List<BattleStartupPlayerData>();
         public int[] m_SdkSlotIndicesBySeat = new int[] { -1, -1, -1, -1 };
+        public int[] m_PersonIdsBySeat = new int[] { -1, -1, -1, -1 };
         public int m_PreparePlayerCount = TowerDefendSeatLayout.DefaultPlayerCount;
         public long[] m_SelectedRoleCfgIdsBySeat = new long[] { 0, 0, 0, 0 };
 
@@ -163,6 +173,40 @@ namespace GameDll
             EnsureSdkSlotBindingStorage();
             sdkSlotIndex = m_SdkSlotIndicesBySeat[seatId];
             return sdkSlotIndex >= 0;
+        }
+
+        // 人脸和准备流程确认的骨骼编号必须随战斗请求一起快照，不能在场景加载后再读取准备界面的运行时状态。
+        public void ClearPersonIdBindings()
+        {
+            EnsurePersonIdBindingStorage();
+            for (int i = 0; i < m_PersonIdsBySeat.Length; i++)
+            {
+                m_PersonIdsBySeat[i] = BoneTrackedLayout.m_InvalidPersonId;
+            }
+        }
+
+        public void SetPersonIdForSeat(int seatId, int personId)
+        {
+            if (!IsValidSeatId(seatId))
+            {
+                return;
+            }
+
+            EnsurePersonIdBindingStorage();
+            m_PersonIdsBySeat[seatId] = personId;
+        }
+
+        public bool TryGetPersonIdForSeat(int seatId, out int personId)
+        {
+            personId = BoneTrackedLayout.m_InvalidPersonId;
+            if (!IsValidSeatId(seatId))
+            {
+                return false;
+            }
+
+            EnsurePersonIdBindingStorage();
+            personId = m_PersonIdsBySeat[seatId];
+            return personId != BoneTrackedLayout.m_InvalidPersonId;
         }
 
         // 真机绑定关系必须显式存在，不能再回退到“战斗座位等于 SDK 槽位”的旧假设。
@@ -248,6 +292,12 @@ namespace GameDll
             for (int i = 0; i < Mathf.Min(m_SdkSlotIndicesBySeat.Length, clone.m_SdkSlotIndicesBySeat.Length); i++)
             {
                 clone.m_SdkSlotIndicesBySeat[i] = m_SdkSlotIndicesBySeat[i];
+            }
+            clone.ClearPersonIdBindings();
+            EnsurePersonIdBindingStorage();
+            for (int i = 0; i < Mathf.Min(m_PersonIdsBySeat.Length, clone.m_PersonIdsBySeat.Length); i++)
+            {
+                clone.m_PersonIdsBySeat[i] = m_PersonIdsBySeat[i];
             }
             clone.EnsureSelectedRoleStorage();
             EnsureSelectedRoleStorage();
@@ -452,6 +502,32 @@ namespace GameDll
             }
         }
 
+        private void EnsurePersonIdBindingStorage()
+        {
+            if (m_PersonIdsBySeat != null && m_PersonIdsBySeat.Length == m_MaxSupportedBattleSeatCount)
+            {
+                return;
+            }
+
+            var oldBindings = m_PersonIdsBySeat;
+            m_PersonIdsBySeat = new int[m_MaxSupportedBattleSeatCount];
+            for (int i = 0; i < m_PersonIdsBySeat.Length; i++)
+            {
+                m_PersonIdsBySeat[i] = BoneTrackedLayout.m_InvalidPersonId;
+            }
+
+            if (oldBindings == null)
+            {
+                return;
+            }
+
+            int copyCount = Mathf.Min(oldBindings.Length, m_PersonIdsBySeat.Length);
+            for (int i = 0; i < copyCount; i++)
+            {
+                m_PersonIdsBySeat[i] = oldBindings[i];
+            }
+        }
+
         private static bool IsValidSeatId(int seatId)
         {
             return seatId >= 0 && seatId < m_MaxSupportedBattleSeatCount;
@@ -472,6 +548,8 @@ namespace GameDll
         public int m_SeatId;
         public int m_HPPercent = 10000;
         public int m_MagicPercent = 10000;
+        public List<int> m_Talents = new List<int>();
+        public List<int> m_TalentBranches = new List<int>();
     }
     public class LevelInputData
     {
@@ -592,7 +670,6 @@ namespace GameDll
         private BoneFrameSourceResolver m_BoneFrameSource;
         private TowerDefendBoneInputDriver m_BoneInputDriver;
         private BoneDebugSkeletonOverlay m_BoneDebugSkeletonOverlay;
-        private BattleSkeletonVisualSuppressor m_BattleSkeletonVisualSuppressor;
         private string m_LastBoneSourceName;
         private static readonly int m_EnvironmentRotationParamHash = Animator.StringToHash(m_EnvironmentRotationParamName);
 
@@ -702,6 +779,7 @@ namespace GameDll
         }
         protected override void OnLoadMap()
         {
+            Debug.Log("[塔防入战] OnLoadMap begin");
             base.OnLoadMap();
             string scenePointError;
             if (!TryResolveScenePointData(out m_ScenePointData, out scenePointError))
@@ -721,6 +799,7 @@ namespace GameDll
             // 当前直接使用 battle 目录下已经接通的 HUD 窗口类。
             RenderEvent.Event.OnTowerDefendBattleHudOpenRequest();
             EnsureBoneInputRuntime();
+            UDebug.Log("[塔防入战] OnLoadMap end");
             //m_SceneState = ESceneState.StartGame;
         }
 
@@ -831,6 +910,30 @@ namespace GameDll
             UpdateAimAssistLines();
         }
 
+        public override void LateUpdate()
+        {
+            // 动画在本帧更新完成后，应用英雄的上半身附加旋转（spine 表现）。
+            // 渲染对象的常规更新在 Update 阶段（动画写入骨骼之前），直接设置会被动画覆盖。
+            var battle = BattleManager.GetBattle() as TowerDefendBattle;
+            var spawer = battle != null ? battle.ReadBattleSpawer() as TowerDefendBattleSpawer : null;
+            var heroes = spawer != null ? spawer.ReadGuardHeroes() : null;
+            if (heroes == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < heroes.Count; i++)
+            {
+                var hero = heroes[i];
+                if (hero == null)
+                {
+                    continue;
+                }
+
+                (hero.GetRender() as UActor)?.ApplyExtraBoneRotation();
+            }
+        }
+
         private void SyncUpgradeChallengeTargetVisualParent(TowerDefendBattle battle)
         {
             if (battle == null || m_LevelRoot == null)
@@ -938,6 +1041,15 @@ namespace GameDll
 
             if (!pause)
             {
+                bool frameworkPaused = battle.IsBattlePause() &&
+                    GameProductUiAdapter.HasLiveSession &&
+                    YoudooAPI.TryGetSessionSnapshot(out var currentSnapshot) &&
+                    currentSnapshot.Phase == YoudooGame.MatchFlow.GameSessionPhase.Paused;
+                if (frameworkPaused && !YoudooAPI.ResumeGameplay())
+                {
+                    Debug.LogWarning("[塔防骨骼输入] Framework ResumeGameplay failed while closing pause.");
+                }
+
                 ApplyBattlePauseState(battle, false);
                 ClosePauseWindowOnly();
                 return true;
@@ -945,6 +1057,15 @@ namespace GameDll
 
             if (m_SceneState != ESceneState.Loop)
             {
+                return false;
+            }
+
+            bool frameworkAlreadyPaused = GameProductUiAdapter.HasLiveSession &&
+                YoudooAPI.TryGetSessionSnapshot(out var pauseSnapshot) &&
+                pauseSnapshot.Phase == YoudooGame.MatchFlow.GameSessionPhase.Paused;
+            if (GameProductUiAdapter.HasLiveSession && !frameworkAlreadyPaused && !YoudooAPI.PauseGameplay())
+            {
+                Debug.LogWarning("[塔防骨骼输入] Framework PauseGameplay failed; local pause was not applied.");
                 return false;
             }
 
@@ -1035,7 +1156,6 @@ namespace GameDll
             m_IsUpgradeChallengeCameraRotationEnabled = false;
             m_HasCachedUpgradeChallengeCameraAnimatorEnabled = false;
             m_DefaultUpgradeChallengeCameraAnimatorEnabled = false;
-            ClearBattleSkeletonVisualSuppressor();
             BoneRemoteDebugEditorConfig.SetBattleSkeletonDisplaySuppressed(false);
             ClearBoneInputRuntime();
 
@@ -1066,7 +1186,6 @@ namespace GameDll
 
             // 塔防战斗期间不允许显示骨骼可视化，避免真机和编辑器在战斗里出现调试骨架。
             BoneRemoteDebugEditorConfig.SetBattleSkeletonDisplaySuppressed(true);
-            EnsureBattleSkeletonVisualSuppressor();
             m_Scene.Enter();
             ResolveBattleCamera();
             CacheEnvironmentAnimator();
@@ -1348,9 +1467,7 @@ namespace GameDll
 
         private static int[] BuildInitialBattlePersonIds(int playerCount, BattleStartupRequest startRequest)
         {
-            var parseDataDemo = global::AndroidParseDataDemo.Instance;
-            var readySeatIds = parseDataDemo != null ? parseDataDemo.GetReadySeatIds() : null;
-            if (readySeatIds == null || readySeatIds.Count <= 0)
+            if (startRequest == null)
             {
                 return null;
             }
@@ -1358,26 +1475,48 @@ namespace GameDll
             var personIds = new int[BoneSlotLayout.m_SlotCount];
             for (int i = 0; i < personIds.Length; i++)
             {
-                personIds[i] = YouDooSDKConstants.PersonIdNull;
+                personIds[i] = BoneTrackedLayout.m_InvalidPersonId;
             }
 
             int seatCount = Mathf.Min(playerCount, personIds.Length);
+            bool hasPersonId = false;
             for (int seatId = 0; seatId < seatCount; seatId++)
             {
-                int sdkSlotIndex = seatId;
-                if (startRequest != null &&
-                    startRequest.TryGetSdkSlotIndexForSeat(seatId, out int mappedSdkSlotIndex))
+                if (startRequest.TryGetSdkSlotIndexForSeat(seatId, out int sdkSlotIndex) &&
+                    sdkSlotIndex >= 0 &&
+                    sdkSlotIndex < personIds.Length &&
+                    startRequest.TryGetPersonIdForSeat(seatId, out int personId))
                 {
-                    sdkSlotIndex = mappedSdkSlotIndex;
-                }
-
-                if (readySeatIds.TryGetValue(sdkSlotIndex, out int personId))
-                {
-                    personIds[seatId] = personId;
+                    personIds[sdkSlotIndex] = personId;
+                    hasPersonId = true;
                 }
             }
 
-            return personIds;
+            return hasPersonId ? personIds : null;
+        }
+
+        public void WriteCurrentBonePersonIds(BattleStartupRequest request)
+        {
+            if (request == null)
+            {
+                return;
+            }
+
+            request.ClearPersonIdBindings();
+            if (m_BattleBoneParseData == null)
+            {
+                return;
+            }
+
+            int playerCount = request.ReadPreparePlayerCount();
+            for (int seatId = 0; seatId < playerCount; seatId++)
+            {
+                if (request.TryGetSdkSlotIndexForSeat(seatId, out int sdkSlotIndex) &&
+                    m_BattleBoneParseData.TryReadLockedPersonId(sdkSlotIndex, out int personId))
+                {
+                    request.SetPersonIdForSeat(seatId, personId);
+                }
+            }
         }
 
         private void UpdateBoneInput()
@@ -1459,44 +1598,6 @@ namespace GameDll
 
             m_BattleBoneParseData = null;
             m_LastBoneSourceName = null;
-        }
-
-        private void EnsureBattleSkeletonVisualSuppressor()
-        {
-            if (m_LevelRoot == null)
-            {
-                return;
-            }
-
-            if (m_BattleSkeletonVisualSuppressor == null)
-            {
-                m_BattleSkeletonVisualSuppressor = m_LevelRoot.GetComponent<BattleSkeletonVisualSuppressor>();
-                if (m_BattleSkeletonVisualSuppressor == null)
-                {
-                    m_BattleSkeletonVisualSuppressor = m_LevelRoot.AddComponent<BattleSkeletonVisualSuppressor>();
-                }
-            }
-
-            m_BattleSkeletonVisualSuppressor.ForceHide();
-        }
-
-        private void ClearBattleSkeletonVisualSuppressor()
-        {
-            if (m_BattleSkeletonVisualSuppressor == null)
-            {
-                return;
-            }
-
-            if (Application.isPlaying)
-            {
-                UnityEngine.Object.Destroy(m_BattleSkeletonVisualSuppressor);
-            }
-            else
-            {
-                UnityEngine.Object.DestroyImmediate(m_BattleSkeletonVisualSuppressor);
-            }
-
-            m_BattleSkeletonVisualSuppressor = null;
         }
 
         protected virtual bool TryResolveScenePointData(out TowerDefendScenePointData pointData, out string error)
@@ -1702,11 +1803,14 @@ namespace GameDll
                 return;
             }
             var res = cfg.ScenePath;
+            Debug.Log("[塔防入战] 开始加载关卡场景 path=" + res);
             var empty_scene = new UScene();
             empty_scene.LoadEmpty((hr) =>
             {
+                Debug.Log("[塔防入战] 空场景加载完成 result=" + hr + " path=" + res);
                 m_Scene.Init(res, 0, (result) =>
                 {
+                    Debug.Log("[塔防入战] 关卡场景加载完成 result=" + result + " path=" + res);
                     m_LevelRoot = GameObject.Find(Tool.GetAssetName(res));
                     if (result)
                     {
@@ -1762,8 +1866,14 @@ namespace GameDll
 
         private void ClosePauseWindow()
         {
-            ApplyBattlePauseState(BattleManager.GetBattle(), false);
-            ClosePauseWindowOnly();
+            var battle = BattleManager.GetBattle();
+            if (battle == null)
+            {
+                ClosePauseWindowOnly();
+                return;
+            }
+
+            TrySetBattlePause(false, false);
         }
 
         private void ClosePauseWindowOnly()
@@ -2039,33 +2149,5 @@ namespace GameDll
             }
         }
 
-        // 战斗里不改 SDK Demo 逻辑，只在场景末尾把外部骨骼可视化统一收掉。
-        private sealed class BattleSkeletonVisualSuppressor : MonoBehaviour
-        {
-            public void ForceHide()
-            {
-                HideExternalBattleSkeletons();
-            }
-
-            private void LateUpdate()
-            {
-                HideExternalBattleSkeletons();
-            }
-
-            private static void HideExternalBattleSkeletons()
-            {
-                if (BoneRemoteDebugEditorConfig.ReadShouldDrawBattleSkeleton())
-                {
-                    return;
-                }
-
-                var parseDataDemo = global::AndroidParseDataDemo.Instance;
-                var playerTextureShow = parseDataDemo != null ? parseDataDemo.playerTextuerShow : null;
-                if (playerTextureShow != null)
-                {
-                    playerTextureShow.SetSkeletsonHide();
-                }
-            }
-        }
     }
 }

@@ -116,6 +116,14 @@ MonoBehaviour:
   - {fileID: 4623785532228699706}
   - {fileID: 671689445379026021}
   - {fileID: 7328752168236718283}
+  - {fileID: 6512666621456220264}
+  - {fileID: 2052893404290461155}
+  - {fileID: 642095065234067397}
+  - {fileID: 7791443180190038207}
+  - {fileID: 1895194852849012332}
+  - {fileID: 1765862916795268744}
+  - {fileID: 1094880052290089378}
+  - {fileID: 663431920255929178}
 --- !u!114 &114022697273988096
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -669,7 +677,7 @@ GameObject:
   - component: {fileID: 663431920255929178}
   m_Layer: 5
   m_HasEditorInfo: 1
-  m_Name: txtmeshline_1
+  m_Name: btnSettingChoose_txt
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -689,10 +697,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 5589251038772790527}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 68, y: 7}
-  m_SizeDelta: {x: -80, y: 0}
+  m_SizeDelta: {x: 355, y: 72}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1017126537772813518
 CanvasRenderer:
@@ -753,7 +761,7 @@ MonoBehaviour:
   m_fontSize: 72
   m_fontSizeBase: 72
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -766,7 +774,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -890,7 +898,7 @@ GameObject:
   - component: {fileID: 6512666621456220264}
   m_Layer: 5
   m_HasEditorInfo: 1
-  m_Name: txtmeshline_1
+  m_Name: btnModeChapter_txt
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -913,7 +921,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 57, y: 9}
-  m_SizeDelta: {x: 400, y: 100}
+  m_SizeDelta: {x: 320, y: 62}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &4992507628693625511
 CanvasRenderer:
@@ -974,7 +982,7 @@ MonoBehaviour:
   m_fontSize: 62
   m_fontSizeBase: 62
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -987,7 +995,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -1443,7 +1451,7 @@ GameObject:
   - component: {fileID: 1765862916795268744}
   m_Layer: 5
   m_HasEditorInfo: 1
-  m_Name: txtmeshline_1
+  m_Name: btnToothFactoryChoose_txt
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -1466,7 +1474,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 67, y: 7}
-  m_SizeDelta: {x: 608, y: 218}
+  m_SizeDelta: {x: 355, y: 72}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3955978181920773070
 CanvasRenderer:
@@ -1527,7 +1535,7 @@ MonoBehaviour:
   m_fontSize: 65
   m_fontSizeBase: 65
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -1540,7 +1548,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -1871,7 +1879,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: e12aa419bdb566d49b5e820f233052d0, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 086b58080e82acd468d778453ea4933a, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -2127,7 +2135,7 @@ GameObject:
   - component: {fileID: 1094880052290089378}
   m_Layer: 5
   m_HasEditorInfo: 1
-  m_Name: txtmeshline_1
+  m_Name: btnSetting_txt
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2147,10 +2155,10 @@ RectTransform:
   m_Children: []
   m_Father: {fileID: 2000000000000032}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 57, y: 6.5}
-  m_SizeDelta: {x: 0, y: 0}
+  m_SizeDelta: {x: 320, y: 62}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7190455186602997474
 CanvasRenderer:
@@ -2211,7 +2219,7 @@ MonoBehaviour:
   m_fontSize: 62
   m_fontSizeBase: 62
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -2224,7 +2232,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -2351,7 +2359,7 @@ GameObject:
   - component: {fileID: 7791443180190038207}
   m_Layer: 5
   m_HasEditorInfo: 1
-  m_Name: txtmeshline_1
+  m_Name: btnModeEndlessChoose_txt
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2374,7 +2382,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 70, y: 9}
-  m_SizeDelta: {x: 608, y: 218}
+  m_SizeDelta: {x: 355, y: 72}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &7749514354499075567
 CanvasRenderer:
@@ -2435,7 +2443,7 @@ MonoBehaviour:
   m_fontSize: 72
   m_fontSizeBase: 72
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -2448,7 +2456,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -2716,7 +2724,7 @@ GameObject:
   - component: {fileID: 2052893404290461155}
   m_Layer: 5
   m_HasEditorInfo: 1
-  m_Name: txtmeshline_1
+  m_Name: btnModeEndless_txt
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -2739,7 +2747,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 68, y: 7}
-  m_SizeDelta: {x: 608, y: 218}
+  m_SizeDelta: {x: 320, y: 62}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &6610353390865919925
 CanvasRenderer:
@@ -2800,7 +2808,7 @@ MonoBehaviour:
   m_fontSize: 62
   m_fontSizeBase: 62
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -2813,7 +2821,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -3337,7 +3345,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: a237d8f2be8e05a409904d65c2c95e04, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 89d9aff026ff34041829a077c5e5affa, type: 3}
   m_Type: 0
   m_PreserveAspect: 1
   m_FillCenter: 1
@@ -3542,7 +3550,7 @@ GameObject:
   - component: {fileID: 642095065234067397}
   m_Layer: 5
   m_HasEditorInfo: 1
-  m_Name: txtmeshline_1
+  m_Name: btnModeChapterChoose_txt
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -3565,7 +3573,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 67, y: 10}
-  m_SizeDelta: {x: 400, y: 100}
+  m_SizeDelta: {x: 355, y: 72}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &3231435975359223593
 CanvasRenderer:
@@ -3626,7 +3634,7 @@ MonoBehaviour:
   m_fontSize: 72
   m_fontSizeBase: 72
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -3639,7 +3647,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -4095,7 +4103,7 @@ GameObject:
   - component: {fileID: 1895194852849012332}
   m_Layer: 5
   m_HasEditorInfo: 1
-  m_Name: txtmeshline_1
+  m_Name: btnToothFactory_txt
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -4118,7 +4126,7 @@ RectTransform:
   m_AnchorMin: {x: 0.5, y: 0.5}
   m_AnchorMax: {x: 0.5, y: 0.5}
   m_AnchoredPosition: {x: 54, y: 7}
-  m_SizeDelta: {x: 608, y: 218}
+  m_SizeDelta: {x: 320, y: 62}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &1749563247917007772
 CanvasRenderer:
@@ -4179,7 +4187,7 @@ MonoBehaviour:
   m_fontSize: 62
   m_fontSizeBase: 62
   m_fontWeight: 400
-  m_enableAutoSizing: 0
+  m_enableAutoSizing: 1
   m_fontSizeMin: 18
   m_fontSizeMax: 72
   m_fontStyle: 0
@@ -4192,7 +4200,7 @@ MonoBehaviour:
   m_lineSpacingMax: 0
   m_paragraphSpacing: 0
   m_charWidthMaxAdj: 0
-  m_enableWordWrapping: 1
+  m_enableWordWrapping: 0
   m_wordWrappingRatios: 0.4
   m_overflowMode: 0
   m_linkedTextComponent: {fileID: 0}
@@ -4542,6 +4550,16 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 22100000, guid: 304eea694c4e8ab4fa91504ceb408296,
         type: 2}
+    - target: {fileID: 5340328046114051861, guid: 76aca17732c644b4daa6f0d2163203ca,
+        type: 3}
+      propertyPath: m_OpenMaxTime
+      value: 20
+      objectReference: {fileID: 0}
+    - target: {fileID: 5340328046114051861, guid: 76aca17732c644b4daa6f0d2163203ca,
+        type: 3}
+      propertyPath: m_CloseMaxTime
+      value: 20
+      objectReference: {fileID: 0}
     - target: {fileID: 5734613197119878177, guid: 76aca17732c644b4daa6f0d2163203ca,
         type: 3}
       propertyPath: m_SizeDelta.y

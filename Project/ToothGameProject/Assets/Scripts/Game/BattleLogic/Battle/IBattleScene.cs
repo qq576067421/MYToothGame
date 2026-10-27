@@ -136,7 +136,9 @@ namespace GameDll
                         }
                     }
 
-                    var open_after = PlayerPrefs.GetInt("pic_after", 0) == 1;
+                    var saveServiceForPic = GameSaveService.Instance;
+                    var open_after = saveServiceForPic != null && saveServiceForPic.IsReady
+                        && saveServiceForPic.Root.m_GraphicsAfter == 1;
                     if (open_after)
                     {
                         light.intensity = rlp.m_Intensity2 * m_LightFactor;

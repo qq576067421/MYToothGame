@@ -297,7 +297,7 @@ public class BuildAssetBundle
         SmallNameOutFile();
         RemoveAllAssetBundleNames();
         NameAssetBundle(EditorTool.GetArtOutPath(), EditorTool.GetArtOutPath() + "/");
-        NameTextureSets();
+        //NameTextureSets();
         //UIAtalsEditor.CreateSpriteAtlasRoot();
         BuildAllResourcesImp();
     }

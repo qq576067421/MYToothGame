@@ -14,6 +14,35 @@ namespace GameDll
         private const float m_GroundOffset = 0.02f;
         private const int m_ImpactEffectId = 100;
 
+        // 激光下压收口：向下最多若干度（BattleConst.TowerDefendLaserMaxDownPitchDegrees，默认 5 度，GMTools 可实时调），
+        // 超过则压回下限。修改即生效——瞄准线、姿态俯仰、光束方向每帧都读该值。
+        // 角色姿态、瞄准线、光束统一走这里（TowerDefendBattle / AimAssistLine / BulletObj 三处调用）。
+        // 这是角色2激光的刻意口径：光束允许被压平（可能从远处被 Curve World 弯下去的怪物上方掠过），
+        // 但命中判定必须以瞄准线的视觉接触为准——瞄准线碰到怪物时，伤害与攻击特效就在接触位置产生。
+        public static Vector3 ClampLaserForwardPitch(Vector3 forward)
+        {
+            if (forward.y >= 0.0f)
+            {
+                return forward;
+            }
+
+            var horizontalSqr = forward.x * forward.x + forward.z * forward.z;
+            if (horizontalSqr <= 0.0001f)
+            {
+                return forward;
+            }
+
+            var maxDownY = -Mathf.Tan(BattleConst.TowerDefendLaserMaxDownPitchDegrees * Mathf.Deg2Rad) * Mathf.Sqrt(horizontalSqr);
+            if (forward.y >= maxDownY)
+            {
+                return forward;
+            }
+
+            forward.y = maxDownY;
+            forward.Normalize();
+            return forward;
+        }
+
         private readonly GameObject m_LevelRoot;
         private readonly List<Vector3> m_AimPoints = new List<Vector3>(m_ParabolicSegmentCount);
         private readonly List<Vector3> m_RenderPoints = new List<Vector3>(m_ParabolicSegmentCount);
@@ -26,6 +55,13 @@ namespace GameDll
         private RenderEff m_ImpactEff;
         private bool m_HasImpactPoint;
         private Vector3 m_ImpactPoint;
+        // 激光类普攻（trajectory=3）：瞄准线按单位“视觉位置”（Curve World 弯折偏移后）做命中截断，
+        // 与直线激光的瞄准/判定同口径；同时瞄准线材质关闭弯曲，保持直线渲染
+        private bool m_UseVisualOffsetTargets;
+        // 穿透激光（t_penetrate=0）：光束不在怪物处截断，瞄准线也必须同样穿透画到边界，否则两者后半段对不齐
+        private bool m_LaserPierces;
+        private MaterialPropertyBlock m_LinePropertyBlock;
+        private bool m_BendOffApplied;
 
         public TowerDefendAimAssistLine(GameObject levelRoot)
         {
@@ -63,6 +99,9 @@ namespace GameDll
                 return;
             }
 
+            m_UseVisualOffsetTargets = bulletCfg.t_trajectory == 3;
+            m_LaserPierces = m_UseVisualOffsetTargets && bulletCfg.t_penetrate == 0;
+
             var start = hero.ReadResolvedFirePointCenter();
             var forward = battle.ReadManualAimForwardBySeat(seatId);
             if (forward.sqrMagnitude <= 0.0001f)
@@ -79,13 +118,31 @@ namespace GameDll
                 return;
             }
 
+            ApplyBendOffState(m_UseVisualOffsetTargets);
+
             m_HasImpactPoint = false;
             forward.Normalize();
+            if (m_UseVisualOffsetTargets)
+            {
+                // 激光：向下最多 5 度（手操方向先收口，与角色姿态/光束同口径）
+                forward = ClampLaserForwardPitch(forward);
+            }
 
             var hasAutoAimSolution =
                 battle.TryResolveGuardHeroNormalAutoAim(hero, skill, forward, out var autoAimSolution) &&
                 autoAimSolution.m_HasSnapTarget;
-            if (hasAutoAimSolution)
+
+            if (m_UseVisualOffsetTargets)
+            {
+                // 激光：瞄准线必须与光束严格同源——同一起点（同一开火点约束）、同一方向（入口的瞄准朝向）。
+                // 瞄准朝向就是驱动角色俯仰姿态的那份方向；开火点节点朝向会被攻击动画改写
+                // （瞄准态 spine 保持住俯仰，施法态被动画关键帧带回水平），读节点画线就会
+                // 和施法中的激光对不齐。光束侧（BulletObj.UpdateLaserBeam）同样优先读瞄准朝向。
+                // 激光的伤害/特效不依赖光束必须穿过怪物身体——以瞄准线的视觉接触为准（见 BulletObj 命中段）。
+                start = BulletFlightConstraintUtility.ResolveConstrainedPosition(bulletCfg, start);
+                PopulateStraightLine(battle, hero, start, forward, hero.GetSkillCastDist(skill));
+            }
+            else if (hasAutoAimSolution)
             {
                 // 自动吸附现在只负责修正最终发射方向。
                 // 角色姿态统一由 TowerDefendBattle 内部缓存与 RefreshControlledSeatAimPose 回写，
@@ -207,7 +264,6 @@ namespace GameDll
             m_LineRenderer = m_LineRoot.GetComponent<LineRenderer>();
             if (m_LineRenderer == null)
             {
-                UDebug.LogError(string.Format("瞄准线预制件缺少 LineRenderer：{0}", prefab.name));
                 DestroyLineInstance();
                 CreateFallbackLine(styleId);
                 return;
@@ -283,26 +339,17 @@ namespace GameDll
             m_AimPoints.Clear();
             m_AimPoints.Add(start);
 
-            if (TryResolveBlock(battle, attacker, start, end, out var hitPoint))
+            if (TryResolveAimSegment(battle, attacker, start, end, out var lineEnd, out _, out var hasImpact, out var impactPoint))
             {
-                m_AimPoints.Add(hitPoint);
-                m_HasImpactPoint = true;
-                m_ImpactPoint = hitPoint;
-            }
-            else
-            {
-                if (TryResolveNoTargetBoundary(battle, attacker, start, end, out var clampedEnd, out var isGroundHit))
+                end = lineEnd;
+                if (hasImpact)
                 {
-                    end = clampedEnd;
-                    if (isGroundHit)
-                    {
-                        m_HasImpactPoint = true;
-                        m_ImpactPoint = clampedEnd;
-                    }
+                    m_HasImpactPoint = true;
+                    m_ImpactPoint = impactPoint;
                 }
-
-                m_AimPoints.Add(end);
             }
+
+            m_AimPoints.Add(end);
 
             ApplyAimPoints();
         }
@@ -335,24 +382,19 @@ namespace GameDll
                     continue;
                 }
 
-                if (TryResolveBlock(battle, attacker, previous, pos, out var hitPoint))
+                if (TryResolveAimSegment(battle, attacker, previous, pos, out var lineEnd, out var stopped, out var hasImpact, out var impactPoint))
                 {
-                    m_AimPoints.Add(hitPoint);
-                    m_HasImpactPoint = true;
-                    m_ImpactPoint = hitPoint;
-                    break;
-                }
-
-                if (TryResolveNoTargetBoundary(battle, attacker, previous, pos, out var clampedEnd, out var isGroundHit))
-                {
-                    m_AimPoints.Add(clampedEnd);
-                    if (isGroundHit)
+                    if (hasImpact)
                     {
                         m_HasImpactPoint = true;
-                        m_ImpactPoint = clampedEnd;
+                        m_ImpactPoint = impactPoint;
                     }
 
-                    break;
+                    if (stopped)
+                    {
+                        m_AimPoints.Add(lineEnd);
+                        break;
+                    }
                 }
 
                 m_AimPoints.Add(pos);
@@ -455,48 +497,150 @@ namespace GameDll
             outputPoints.Add(sourcePoints[sourcePoints.Count - 1]);
         }
 
-        private bool TryResolveBlock(TowerDefendBattle battle, PropertyEntity attacker, Vector3 segmentStart, Vector3 segmentEnd, out Vector3 hitPoint)
+        // 解析一段瞄准线：lineEnd 为最终线端，stopped 表示该段被阻挡/收束，hasImpact/impactPoint 为
+        // 线端之前的第一个接触点特效。
+        // 两种口径都遵循“先接触者出接触特效”：
+        //  - 普通座位：怪物/NPC/棒棒糖/地面中最近者为阻挡点，线端与其重合、特效同位；
+        //  - 穿透激光：怪物只算接触不算阻挡（线继续穿向地面/边界），但第一个怪物接触仍要显示特效，
+        //    不能因为穿透就完全不检测怪物，否则线掠过怪物时特效会跑到更远的地面上或干脆不出现。
+        // 激光座位的接触点都是完整弯折后的视觉点（特效材质 BendOff，与线端同位）；普通座位都是逻辑点。
+        // 战斗关注物 Z 平面收束只在没有目标/地面阻挡时生效，且不是接触点，不出特效。
+        private bool TryResolveAimSegment(
+            TowerDefendBattle battle,
+            PropertyEntity attacker,
+            Vector3 segmentStart,
+            Vector3 segmentEnd,
+            out Vector3 lineEnd,
+            out bool stopped,
+            out bool hasImpact,
+            out Vector3 impactPoint)
         {
-            hitPoint = segmentEnd;
+            lineEnd = segmentEnd;
+            stopped = false;
+            hasImpact = false;
+            impactPoint = segmentEnd;
 
             if (!BattleManager.ReadIsEntityValide(attacker))
             {
                 return false;
             }
 
-            var hasHit = false;
-            var nearestHitT = float.MaxValue;
-            if (TryFindMonsterHit(attacker, segmentStart, segmentEnd, out var monsterHitT, out var monsterHitPoint))
+            var hasTargetBlock = false;
+            var targetBlockT = float.MaxValue;
+            var targetBlockPoint = segmentEnd;
+            var lineEndT = 1f;
+            var contactT = float.MaxValue;
+            var contactPoint = segmentEnd;
+
+            if (TryFindMonsterHit(attacker, segmentStart, segmentEnd, out var monsterHitT, out var monsterHitPoint, out var monsterImpactPoint))
             {
-                nearestHitT = monsterHitT;
-                hitPoint = monsterHitPoint;
-                hasHit = true;
+                contactT = monsterHitT;
+                contactPoint = monsterImpactPoint;
+                hasImpact = true;
+                // 穿透激光不在怪物处截断，但怪物仍是路径上的第一个接触点，接触特效必须保留
+                if (!m_LaserPierces)
+                {
+                    hasTargetBlock = true;
+                    targetBlockT = monsterHitT;
+                    targetBlockPoint = monsterHitPoint;
+                }
             }
 
-            if (TryFindNpcSpeakIntroHit(battle, segmentStart, segmentEnd, out var npcHitT, out var npcHitPoint) &&
-                (!hasHit || npcHitT < nearestHitT))
+            if (TryFindNpcSpeakIntroHit(battle, segmentStart, segmentEnd, out var npcHitT, out var npcHitPoint))
             {
-                nearestHitT = npcHitT;
-                hitPoint = npcHitPoint;
-                hasHit = true;
+                if (!hasImpact || npcHitT < contactT)
+                {
+                    contactT = npcHitT;
+                    contactPoint = npcHitPoint;
+                    hasImpact = true;
+                }
+
+                if (!hasTargetBlock || npcHitT < targetBlockT)
+                {
+                    hasTargetBlock = true;
+                    targetBlockT = npcHitT;
+                    targetBlockPoint = npcHitPoint;
+                }
             }
 
-            if (TryFindUpgradeChallengeHit(battle, segmentStart, segmentEnd, out var upgradeHitT, out var upgradeHitPoint) &&
-                (!hasHit || upgradeHitT < nearestHitT))
+            if (TryFindUpgradeChallengeHit(battle, segmentStart, segmentEnd, out var upgradeHitT, out var upgradeHitPoint, out var upgradeImpactPoint))
             {
-                nearestHitT = upgradeHitT;
-                hitPoint = upgradeHitPoint;
-                hasHit = true;
+                if (!hasImpact || upgradeHitT < contactT)
+                {
+                    contactT = upgradeHitT;
+                    contactPoint = upgradeImpactPoint;
+                    hasImpact = true;
+                }
+
+                if (!hasTargetBlock || upgradeHitT < targetBlockT)
+                {
+                    hasTargetBlock = true;
+                    targetBlockT = upgradeHitT;
+                    targetBlockPoint = upgradeHitPoint;
+                }
             }
 
-            if (hasHit &&
-                TryFindGroundHit(attacker, segmentStart, segmentEnd, out var groundHitT, out var groundHitPoint) &&
-                groundHitT < nearestHitT)
+            var hasGroundHit = TryFindGroundHit(
+                attacker,
+                segmentStart,
+                segmentEnd,
+                m_UseVisualOffsetTargets,
+                out var groundHitT,
+                out var groundHitPoint,
+                out var groundImpactPoint);
+            if (hasGroundHit && (!hasImpact || groundHitT < contactT))
             {
-                hitPoint = groundHitPoint;
+                contactT = groundHitT;
+                contactPoint = groundImpactPoint;
+                hasImpact = true;
             }
 
-            return hasHit;
+            if (hasTargetBlock)
+            {
+                if (hasGroundHit && groundHitT < targetBlockT)
+                {
+                    lineEnd = groundHitPoint;
+                    lineEndT = groundHitT;
+                }
+                else
+                {
+                    lineEnd = targetBlockPoint;
+                    lineEndT = targetBlockT;
+                }
+
+                stopped = true;
+            }
+            else if (hasGroundHit)
+            {
+                if (TryFindNoTargetAimClampHit(battle, segmentStart, segmentEnd, out var groundClampT, out var groundClampPoint) &&
+                    groundClampT <= groundHitT)
+                {
+                    lineEnd = groundClampPoint;
+                    lineEndT = groundClampT;
+                }
+                else
+                {
+                    lineEnd = groundHitPoint;
+                    lineEndT = groundHitT;
+                }
+
+                stopped = true;
+            }
+            else if (TryFindNoTargetAimClampHit(battle, segmentStart, segmentEnd, out var clampHitT, out var clampPoint))
+            {
+                lineEnd = clampPoint;
+                lineEndT = clampHitT;
+                stopped = true;
+            }
+
+            // 接触点画在线端之外（例如穿透激光的怪物位于 Z 平面收束点之后）时不显示特效
+            if (hasImpact && contactT > lineEndT)
+            {
+                hasImpact = false;
+            }
+
+            impactPoint = contactPoint;
+            return stopped || hasImpact;
         }
 
         // 真实目标没有命中时，才允许用战斗关注物边界或地面来收束瞄准线。
@@ -506,10 +650,13 @@ namespace GameDll
             PropertyEntity attacker,
             Vector3 segmentStart,
             Vector3 segmentEnd,
+            bool useVisualOffset,
             out Vector3 boundaryPoint,
-            out bool isGroundHit)
+            out bool isGroundHit,
+            out Vector3 impactPoint)
         {
             boundaryPoint = segmentEnd;
+            impactPoint = segmentEnd;
             isGroundHit = false;
 
             var hasBoundary = false;
@@ -518,18 +665,40 @@ namespace GameDll
             {
                 nearestHitT = clampHitT;
                 boundaryPoint = clampPoint;
+                impactPoint = clampPoint;
                 hasBoundary = true;
             }
 
-            if (TryFindGroundHit(attacker, segmentStart, segmentEnd, out var groundHitT, out var groundPoint) &&
+            if (TryFindGroundHit(attacker, segmentStart, segmentEnd, useVisualOffset, out var groundHitT, out var groundPoint, out var groundImpactPoint) &&
                 (!hasBoundary || groundHitT < nearestHitT))
             {
                 boundaryPoint = groundPoint;
+                impactPoint = groundImpactPoint;
                 isGroundHit = true;
                 hasBoundary = true;
             }
 
             return hasBoundary;
+        }
+
+        // 供激光弹道复用的终点收束：与瞄准线同源的边界/地面截断，但不做怪物命中截断——
+        // 激光按穿透弹道结算，光束要能越过头一只怪打到射程内整条线上的目标。
+        // useVisualOffset：激光传 true，地面截断按“可见地面”求交，避免光束被看不见的逻辑地面提前切断。
+        public static Vector3 ResolveLaserBeamEnd(
+            TowerDefendBattle battle,
+            PropertyEntity attacker,
+            Vector3 start,
+            Vector3 forward,
+            float distance,
+            bool useVisualOffset)
+        {
+            var end = start + forward * Mathf.Max(0.5f, distance);
+            if (TryResolveNoTargetBoundary(battle, attacker, start, end, useVisualOffset, out var clampedEnd, out _, out _))
+            {
+                end = clampedEnd;
+            }
+
+            return end;
         }
 
         // 无真实目标时，瞄准线最远只能延伸到当前战斗关注物所在的 Z 平面前方。
@@ -568,15 +737,17 @@ namespace GameDll
             return true;
         }
 
-        private static bool TryFindMonsterHit(
+        private bool TryFindMonsterHit(
             PropertyEntity attacker,
             Vector3 segmentStart,
             Vector3 segmentEnd,
             out float hitT,
-            out Vector3 hitPoint)
+            out Vector3 hitPoint,
+            out Vector3 impactPoint)
         {
             hitT = float.MaxValue;
             hitPoint = segmentEnd;
+            impactPoint = segmentEnd;
 
             var objectManager = BattleManager.GetObjectManager();
             if (objectManager == null)
@@ -587,19 +758,46 @@ namespace GameDll
             var hasHit = false;
             var nearestHitT = float.MaxValue;
             var nearestHitPoint = segmentEnd;
+            var nearestImpactPoint = segmentEnd;
             const float hitRangeExtra = 0.2f;
             objectManager.ReadPropertyEntities((_, entity) =>
             {
+                // 渲染资源还没创建好的实体（例如棒棒糖这类逻辑目标）没有画面形体、也没有可视位置：
+                // 既不能参与视觉命中，也不能拿 GetPosition/GetMatrix4X4 做诊断，否则会空引用。
+                var hasRender = entity.GetRender() != null;
+                // 激光口径的候选与光束命中筛选（IsLaserSweepCandidate）保持一致（只看可受伤，不限小怪），
+                // 否则比如 boss：光束会截断在它身上、瞄准线却穿过去，两者对不齐。
+                var isCandidate = m_UseVisualOffsetTargets
+                    ? entity.ReadCanBeHurt()
+                    : (entity.ReadIsSmallMonster() || entity is MasterHero);
+
                 if (!BattleManager.ReadIsEntityValide(entity) ||
                     entity == attacker ||
                     entity.ReadHurtGroup() == attacker.ReadHurtGroup() ||
                     !entity.ReadCanBeTarget() ||
-                    (!entity.ReadIsSmallMonster() && !(entity is MasterHero)))
+                    entity.ReadIsInBorn() ||
+                    !hasRender ||
+                    !isCandidate)
                 {
                     return true;
                 }
 
-                if (!entity.TryIntersectSegment(segmentStart, segmentEnd, hitRangeExtra, out var currentHitT, out var currentHitPoint))
+                // 与子弹命中同口径：出生（从地面钻出）阶段的怪物既打不到也不应截断瞄准线
+                // 激光口径：直线激光/瞄准线打的是 Curve World 完整弯折后的画面形体，
+                // 直接对实体做“视觉口径”求交，命中点即画面上的视觉位置；
+                // 不能用“逻辑求交 + 命中节点常量偏移”近似——单位移动、命中节点与碰撞体不同高/不同深时都会失准。
+                bool hasSegmentHit;
+                float currentHitT;
+                Vector3 currentHitPoint;
+                if (m_UseVisualOffsetTargets)
+                {
+                    hasSegmentHit = entity.TryIntersectVisualSegment(segmentStart, segmentEnd, hitRangeExtra, out currentHitT, out currentHitPoint);
+                }
+                else
+                {
+                    hasSegmentHit = entity.TryIntersectSegment(segmentStart, segmentEnd, hitRangeExtra, out currentHitT, out currentHitPoint);
+                }
+                if (!hasSegmentHit)
                 {
                     return true;
                 }
@@ -607,7 +805,11 @@ namespace GameDll
                 if (currentHitT < nearestHitT)
                 {
                     nearestHitT = currentHitT;
+                    // 视觉求交返回的就是画面上的命中点，截线与落点特效同位：
+                    // line_hit_eff 材质强制非弯折渲染（BendOff），必须放视觉坐标，画面位置才与截线点完全重合；
+                    // 普通座位命中点即逻辑点，同位即正确。
                     nearestHitPoint = currentHitPoint;
+                    nearestImpactPoint = currentHitPoint;
                     hasHit = true;
                 }
 
@@ -616,18 +818,21 @@ namespace GameDll
 
             hitT = nearestHitT;
             hitPoint = nearestHitPoint;
+            impactPoint = nearestImpactPoint;
             return hasHit;
         }
 
-        private static bool TryFindUpgradeChallengeHit(
+        private bool TryFindUpgradeChallengeHit(
             TowerDefendBattle battle,
             Vector3 segmentStart,
             Vector3 segmentEnd,
             out float hitT,
-            out Vector3 hitPoint)
+            out Vector3 hitPoint,
+            out Vector3 impactPoint)
         {
             hitT = float.MaxValue;
             hitPoint = segmentEnd;
+            impactPoint = segmentEnd;
 
             if (battle == null ||
                 (!battle.ReadIsUpgradeChallengePreActive() && !battle.ReadIsUpgradeChallengeActive()))
@@ -640,11 +845,38 @@ namespace GameDll
             // 否则刚进入棒棒糖时会出现“方向已经朝棒棒糖修正，但瞄准线又不承认棒棒糖可命中”，
             // 最终容易提前落地，看起来像是瞄准线先消失、攻击一次后才恢复。
             var targetEntity = battle.ReadUpgradeChallengeTarget();
-            return targetEntity != null &&
-                   targetEntity.TryIntersectSegment(segmentStart, segmentEnd, out hitT, out hitPoint);
+            if (targetEntity == null)
+            {
+                return false;
+            }
+
+            // 激光口径：与怪物命中共用同一套表现判定——对完整弯折后的棒棒糖形体求交，命中点即视觉点；
+            // 普通座位仍是逻辑求交，命中点即逻辑点。
+            Vector3 point;
+            bool hasHit;
+            if (m_UseVisualOffsetTargets)
+            {
+                hasHit = targetEntity.TryIntersectVisualSegment(segmentStart, segmentEnd, 0.0f, out hitT, out point);
+            }
+            else
+            {
+                hasHit = targetEntity.TryIntersectSegment(segmentStart, segmentEnd, 0.0f, out hitT, out point);
+            }
+
+            if (!hasHit)
+            {
+                hitT = float.MaxValue;
+                return false;
+            }
+
+            // 落点特效 line_hit_eff 与截线点同位：激光座位特效材质强制非弯折渲染（BendOff），
+            // 必须放视觉坐标；普通座位 hitPoint 即逻辑点，同位即正确。
+            hitPoint = point;
+            impactPoint = point;
+            return true;
         }
 
-        private static bool TryFindNpcSpeakIntroHit(
+        private bool TryFindNpcSpeakIntroHit(
             TowerDefendBattle battle,
             Vector3 segmentStart,
             Vector3 segmentEnd,
@@ -658,35 +890,65 @@ namespace GameDll
                 return false;
             }
 
-            return entity.TryIntersectSegment(segmentStart, segmentEnd, 0.2f, out hitT, out hitPoint);
+            // 激光口径：喊话实体同样按完整弯折后的画面形体判定，命中点即视觉点
+            return m_UseVisualOffsetTargets
+                ? entity.TryIntersectVisualSegment(segmentStart, segmentEnd, 0.2f, out hitT, out hitPoint)
+                : entity.TryIntersectSegment(segmentStart, segmentEnd, 0.2f, out hitT, out hitPoint);
         }
 
+        // hitPoint 用于截线：普通口径是逻辑地面交点；激光口径是“可见地面”交点（逻辑地面加该点视觉偏移，
+        // 偏移只含 Y 且随距离增大，两次迭代即可收敛），否则光束会在到达远处被弯下去的目标前就被看不见的逻辑地面截断。
+        // impactPoint 与截线点同位：激光座位是视觉地面交点（特效 BendOff），普通座位两者本来就相等。
         private static bool TryFindGroundHit(
             PropertyEntity attacker,
             Vector3 segmentStart,
             Vector3 segmentEnd,
+            bool useVisualOffset,
             out float hitT,
-            out Vector3 hitPoint)
+            out Vector3 hitPoint,
+            out Vector3 impactPoint)
         {
             hitT = float.MaxValue;
             hitPoint = segmentEnd;
+            impactPoint = segmentEnd;
 
             var groundY = attacker != null ? attacker.GetPosition().y : 0f;
-            if ((segmentStart.y >= groundY && segmentEnd.y >= groundY) ||
-                (segmentStart.y <= groundY && segmentEnd.y <= groundY))
-            {
-                return false;
-            }
-
             var delta = segmentEnd - segmentStart;
             if (Mathf.Abs(delta.y) <= 0.0001f)
             {
                 return false;
             }
 
-            hitT = Mathf.Clamp01((groundY - segmentStart.y) / delta.y);
+            var planeY = groundY;
+            if (!useVisualOffset)
+            {
+                if ((segmentStart.y >= planeY && segmentEnd.y >= planeY) ||
+                    (segmentStart.y <= planeY && segmentEnd.y <= planeY))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                var point = segmentStart + delta * Mathf.Clamp01((planeY - segmentStart.y) / delta.y);
+                for (int i = 0; i < 2; i++)
+                {
+                    planeY = groundY + CurveWorldVisualUtility.ReadVisualOffset(point).y;
+                    if ((segmentStart.y - planeY) * (segmentEnd.y - planeY) >= 0.0f)
+                    {
+                        return false;
+                    }
+
+                    point = segmentStart + delta * Mathf.Clamp01((planeY - segmentStart.y) / delta.y);
+                }
+            }
+
+            hitT = Mathf.Clamp01((planeY - segmentStart.y) / delta.y);
             hitPoint = segmentStart + delta * hitT;
-            hitPoint.y = groundY + m_GroundOffset;
+            hitPoint.y = planeY + m_GroundOffset;
+            // 落点特效与截线点同位：激光座位特效材质强制非弯折渲染（BendOff），
+            // 必须放视觉地面交点（激光口径 planeY 含视觉偏移）；普通座位两者本来就相等。
+            impactPoint = hitPoint;
             return true;
         }
 
@@ -712,16 +974,28 @@ namespace GameDll
                 if (m_ImpactEff != null)
                 {
                     m_ImpactEff.ShowEff(false, m_ImpactPoint, Vector3.zero, Vector3.one);
+                    // 激光座位：特效加载完成后同样关闭 Curve World 弯折（直线渲染 + 视觉点坐标）
+                    m_ImpactEff.AddLoadedCall(ApplyImpactEffectBendOff);
                 }
 
                 return;
             }
 
+            ApplyImpactEffectBendOff();
             m_ImpactEff.SetPosition(m_ImpactPoint);
             if (!m_ImpactEff.IsActive())
             {
                 m_ImpactEff.SetActive(true);
             }
+        }
+
+        // 落点特效 line_hit_eff 的材质开关统一由这里管理（特效池实例会被各座位复用）：
+        // 激光座位（trajectory=3）与瞄准线/激光光束同为直线渲染，特效放在视觉点坐标，
+        // 因此材质关闭 Curve World 弯折，直接渲染在世界坐标处；否则材质自身再弯折一次会把位置带偏。
+        // 普通座位保持材质默认弯折（逻辑点位置），并清除池化实例可能残留的 BendOff。
+        private void ApplyImpactEffectBendOff()
+        {
+            CurveWorldVisualUtility.SetBendOff(m_ImpactEff, m_UseVisualOffsetTargets);
         }
 
         private void HideImpactEffect()
@@ -746,6 +1020,33 @@ namespace GameDll
             m_LoadingStyleId = -1;
         }
 
+        // 激光座位的瞄准线材质关闭 Curve World 弯曲，与直线激光同为直线渲染；
+        // 其它座位保持弯曲，跟随弯折世界的表现
+        private void ApplyBendOffState(bool bendOff)
+        {
+            if (m_LineRenderer == null || m_BendOffApplied == bendOff)
+            {
+                return;
+            }
+
+            m_BendOffApplied = bendOff;
+            if (bendOff)
+            {
+                if (m_LinePropertyBlock == null)
+                {
+                    m_LinePropertyBlock = new MaterialPropertyBlock();
+                }
+
+                m_LineRenderer.GetPropertyBlock(m_LinePropertyBlock);
+                m_LinePropertyBlock.SetFloat(CurveWorldVisualUtility.BendOffPropertyName, 1f);
+                m_LineRenderer.SetPropertyBlock(m_LinePropertyBlock);
+            }
+            else
+            {
+                m_LineRenderer.SetPropertyBlock(null);
+            }
+        }
+
         private void DestroyLineInstance()
         {
             if (m_LineRoot != null)
@@ -756,6 +1057,7 @@ namespace GameDll
             m_LineRoot = null;
             m_LineRenderer = null;
             m_LoadedStyleId = -1;
+            m_BendOffApplied = false;
         }
     }
 }

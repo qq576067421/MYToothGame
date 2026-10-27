@@ -138,7 +138,7 @@ namespace CompanyInternalTools.BoneParserLib
             seatState.m_MissingFrameCount++;
             float deltaTimeSeconds = ReadDeltaTimeSeconds(frameData, seatState);
             m_TurnEstimator.UpdateMissing(seatState, result, deltaTimeSeconds);
-            if (seatState.m_MissingFrameCount > Math.Max(m_Config.m_MaxMissingFrameCount, m_Config.m_AimHoldMissingFrames) &&
+            if (seatState.m_MissingFrameCount > m_Config.m_MaxMissingFrameCount &&
                 !seatState.m_HasAimOutput)
             {
                 seatState.ResetForRelease();

@@ -26,7 +26,8 @@ namespace GameHot
     public class tower_defend_lvchoose_wnd : WindowBase
     {
         long m_CounterId;
-        private int m_MonsterPoolId;           //当前解锁到的主题ID
+        public static int m_levelCount = 5;
+        private int m_StageUnlockCount;        //当前解锁到的关卡数
         private v_tower_defend_lvchoose_wnd m_View;
         private SlideShowScrollViewPro_Scroll m_Scroll;
         public override void OnClassConstructed()
@@ -69,6 +70,8 @@ namespace GameHot
             RenderAPI.AddButtonClick(m_View.m_btnRight, OnClickRight, 0);
 
             m_Scroll = __GetWindowObj().GetComponentInChildren<SlideShowScrollViewPro_Scroll>();
+            InitStar();
+            OnInitLanguage();
         }
 
         private void OnClickRight()
@@ -107,30 +110,41 @@ namespace GameHot
             RenderEvent.Event.OnUpdateSelectionVisuals -= OnUpdateSelectionVisuals;
             RemoveCounter(m_CounterId);
         }
+        private void InitStar()
+        {
+            SetStar(1,m_View.m_Content_1.transform);
+            SetStar(2,m_View.m_Content_2.transform);
+            SetStar(3,m_View.m_Content_3.transform);
+            SetStar(4,m_View.m_Content_4.transform);
+            SetStar(5,m_View.m_Content_5.transform);
+        }
+        private void SetStar(int index, Transform obj)
+        {
+            int starCount = LobbyPlayer.GetInstance().GetStageStar((tower_defend_chapter_wnd.m_chapterId-1) * m_levelCount + index);
+
+            if (starCount > 0)
+            {
+                obj.Find($"Topic_1/stars{index}/star1/yellow_star").gameObject.SetActive(true);
+            }
+            if(starCount > 1)
+            {
+                obj.Find($"Topic_1/stars{index}/star2/yellow_star").gameObject.SetActive(true);
+            }
+            if(starCount > 2)
+            {
+                obj.Find($"Topic_1/stars{index}/star3/yellow_star").gameObject.SetActive(true);
+            }
+        }
+        private void OnInitLanguage()
+        {
+            RenderAPI.SetTextLan(m_View.m_txt_desc, "td_lobby_lvchoose_desc");
+        }
         private void ListeningSelectedElementID()
         {
             int selectedElementID = m_Scroll.selectedElementID;
-            switch (selectedElementID)
-            {
-                case 0:
-                    m_View.m_txt_title.text = "冰淇淋";
-                    break;
-                case 1:
-                    m_View.m_txt_title.text = "蛋糕";
-                    break;
-                case 2:
-                    m_View.m_txt_title.text = "糖果";
-                    break;
-                case 3:
-                    m_View.m_txt_title.text = "果冻";
-                    break;
-                case 4:
-                    m_View.m_txt_title.text = "甜甜圈";
-                    break;
-                default:
-                    m_View.m_txt_title.text = "选择关卡";
-                    break;
-            }
+
+            RenderAPI.SetTextLan(m_View.m_txt_title, "td_lobby_lvchoose_level", selectedElementID+1);
+
             m_View.m_btn_toggle_choose.gameObject.SetActive(selectedElementID == 0);
             m_View.m_btn_toggle_choose_new1.gameObject.SetActive(selectedElementID == 1);
             m_View.m_btn_toggle_choose_new2.gameObject.SetActive(selectedElementID == 2);
@@ -140,13 +154,18 @@ namespace GameHot
         private void OnClickConfirm(Transform ts)
         {
             var model = GetModel<tower_defend_lvchoose_model>();
-            if (m_MonsterPoolId <= m_Scroll.selectedElementID)
+            if (m_StageUnlockCount <= m_Scroll.selectedElementID)
             {
                 ts.parent.DOKill();
                 ts.parent.DOShakePosition(0.5f, 10, 10);
                 AudioManager.GetInstance().Play2D(7);
                 return;
             }
+
+            int stageId = m_Scroll.selectedElementID + 1;
+            model.m_Request.m_StageId = stageId;
+            CGameProcedure.s_ProcLobby.TrySetSelectedStageId(model.m_Request.m_GameMode, stageId);
+
             if (model.m_OnConfirm == null)
             {
                 UIManager.CloseWindow(this);
@@ -175,23 +194,28 @@ namespace GameHot
             }
             InitUnlockTopic();
         }
-        //初始化主题解锁到多少
+        //初始化关卡解锁到多少（GetUnlockedStage 是全局进度，换算成本章内已解锁的关卡数）
         private void InitUnlockTopic()
         {
-            var model = GetModel<tower_defend_lvchoose_model>();
-            var adapter = TowerDefendStageConfigResolver.Resolve(model.m_Request.m_StageId, model.m_Request.m_GameMode);
-            m_MonsterPoolId = adapter.MonsterPoolId;
-            m_View.m_lock.gameObject.SetActive(m_MonsterPoolId<1);
-            m_View.m_lock_new1.gameObject.SetActive(m_MonsterPoolId<2);
-            m_View.m_lock_new2.gameObject.SetActive(m_MonsterPoolId<3);
-            m_View.m_lock_new3.gameObject.SetActive(m_MonsterPoolId<4);
-            m_View.m_lock_new4.gameObject.SetActive(m_MonsterPoolId<5);
+            int unlockedStage = LobbyPlayer.GetInstance().GetUnlockedStage();
+            m_StageUnlockCount = Mathf.Clamp(unlockedStage - (tower_defend_chapter_wnd.m_chapterId - 1) * m_levelCount, 0, m_levelCount);
+            m_View.m_lock.gameObject.SetActive(m_StageUnlockCount<1);
+            m_View.m_lock_new1.gameObject.SetActive(m_StageUnlockCount<2);
+            m_View.m_lock_new2.gameObject.SetActive(m_StageUnlockCount<3);
+            m_View.m_lock_new3.gameObject.SetActive(m_StageUnlockCount<4);
+            m_View.m_lock_new4.gameObject.SetActive(m_StageUnlockCount<5);
+
+            m_View.m_stars1.gameObject.SetActive(m_StageUnlockCount >= 1);
+            m_View.m_stars2.gameObject.SetActive(m_StageUnlockCount >= 2);
+            m_View.m_stars3.gameObject.SetActive(m_StageUnlockCount >= 3);
+            m_View.m_stars4.gameObject.SetActive(m_StageUnlockCount >= 4);
+            m_View.m_stars5.gameObject.SetActive(m_StageUnlockCount >= 5);
 
             RenderAPI.NextFrameCall(() =>
             {
-                if (m_Scroll != null && m_Scroll.buttons.Count > m_MonsterPoolId)
+                if (m_Scroll != null && m_Scroll.activeButtons.Count >= m_StageUnlockCount)
                 {
-                    m_Scroll.SelectButtonByID_Click(m_MonsterPoolId - 1);
+                    m_Scroll.SelectButtonByID_Click(m_StageUnlockCount - 1);
                 }
             });
         }

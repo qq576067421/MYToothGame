@@ -70,6 +70,7 @@ namespace GameHot
             CacheUpgradeChallengeNoticeComponents();
             SetNoticeVisible(false);
             SetUpgradeChallengeNoticeVisible(false);
+            OnInitLanguage();
         }
 
         protected override void OnOpen()
@@ -86,7 +87,11 @@ namespace GameHot
             SetNoticeVisible(false);
             SetUpgradeChallengeNoticeVisible(false);
         }
-
+        private void OnInitLanguage()
+        {
+            RenderAPI.SetTextLan(m_View.m_wave_text, "td_notice_wave");
+            RenderAPI.SetTextLan(m_View.m_boss_text, "td_notice_boss2");
+        }
         private TowerDefendBattle ReadCurrentBattle()
         {
             return BattleManager.GetBattle() as TowerDefendBattle;

@@ -57,7 +57,10 @@
             return m_EventWriter.HasRecognizableActionBinding(m_SeatDefinition, gestureType);
         }
 
-        public BoneActionEvent AddGestureEvent(BoneGestureType gestureType, BoneGesturePhase phase)
+        public BoneActionEvent AddGestureEvent(
+            BoneGestureType gestureType,
+            BoneGesturePhase phase,
+            BoneGestureTriggerHand triggerHand = BoneGestureTriggerHand.未知)
         {
             return m_EventWriter.AddGestureEvent(
                 m_SeatDefinition,
@@ -65,7 +68,8 @@
                 gestureType,
                 phase,
                 ReadPersonId(),
-                ReadFrameSerial());
+                ReadFrameSerial(),
+                triggerHand);
         }
 
         public void AddBooleanGestureEvent(

@@ -9,8 +9,18 @@ namespace GameDll
 {
     public  class PlayerHero : MoveableCreature
     {
+        // 普攻输入“仍算连续攻击”的时间窗口：自动动作技能结束后判断玩家是否还在连点。
+        public const float NormalAttackInputActiveWindowSeconds = 1.0f;
+        // 自动接续普攻请求的最大等待时间。
+        public const float AutoNormalAttackContinueMaxAgeSeconds = 1.0f;
+
         protected t_modelBean m_ModelBean;
         private readonly List<long> m_AppliedRoleRuntimeBuffCfgIds = new List<long>();
+        // 玩家最近一次“普攻输入”的时间：用于自动动作技能持续释放结束后判断玩家是否还在连续攻击。
+        private float m_LastNormalAttackInputTime = float.NegativeInfinity;
+        // 待执行的“自动接续普攻”请求：自动动作持续技能因条件失效结束后，
+        // 若普攻也是持续型，则在当前技能真正结束后自动释放普攻，不等玩家再点一次。
+        private float m_AutoNormalAttackContinueRequestTime = -1f;
         public override bool ReadIsHero()
         {
             return true;
@@ -331,6 +341,7 @@ namespace GameDll
             UpsertSkillForSlot(snapshot.m_NormalSkillCfgId, 0);
             SyncActiveSkills(snapshot.m_ActiveSkillCfgIds);
             SyncAutoSkill(snapshot);
+            SyncAutoActionSkill(snapshot);
             RemoveObsoleteRoleSkills(snapshot);
             SyncSkillLevelsByHeroLevel();
             ApplyRoleRuntimeBuffs(snapshot);
@@ -376,6 +387,120 @@ namespace GameDll
             return skillMgr != null ? skillMgr.ReadSkillBySlot(autoSkillSlot) : null;
         }
 
+        // 程序触发的动作技能（t_auto_action_skill_id）：自身释放条件满足且当前主动技能（含普攻）
+        // 释放完毕后由程序自动施放的主动技能，与被动技能无关。
+        // 表里可配多个，按列表顺序占用主动技能（及自动技能）之后的连续槽位。
+        public bool TryGetTowerDefendAutoActionSkillSlots(out int firstSlot, out int lastSlot)
+        {
+            firstSlot = -1;
+            lastSlot = -1;
+            if (m_Bean == null)
+            {
+                return false;
+            }
+
+            var snapshot = ResolveRoleSnapshot();
+            if (snapshot == null || snapshot.m_AutoActionSkillCfgIds == null ||
+                snapshot.m_AutoActionSkillCfgIds.Count <= 0)
+            {
+                return false;
+            }
+
+            firstSlot = snapshot.m_ActiveSkillCfgIds.Count + 2;
+            lastSlot = firstSlot + snapshot.m_AutoActionSkillCfgIds.Count - 1;
+            return true;
+        }
+
+        public bool IsTowerDefendAutoActionSkillSlot(int slot)
+        {
+            return TryGetTowerDefendAutoActionSkillSlots(out int firstSlot, out int lastSlot) &&
+                slot >= firstSlot && slot <= lastSlot;
+        }
+
+        // 程序触发的动作技能（t_auto_action_skill_id）以"强化普攻"方式生效：
+        // 自身条件满足（CD、自身前置等）后，玩家的下一次普攻替换为该技能的施放；
+        // 施放后技能进入冷却，冷却期间普攻恢复正常。配置多个时按列表顺序取第一个满足条件的技能。
+        public bool TryResolveAutoActionSkillForNormalAttack(out int skillSlot)
+        {
+            skillSlot = -1;
+            if (!TryGetTowerDefendAutoActionSkillSlots(out int firstSlot, out int lastSlot))
+            {
+                return false;
+            }
+
+            var skillMgr = GetSkillManager();
+            if (skillMgr == null)
+            {
+                return false;
+            }
+
+            for (int slot = firstSlot; slot <= lastSlot; slot++)
+            {
+                var autoActionSkill = skillMgr.ReadSkillBySlot(slot);
+                if (autoActionSkill == null ||
+                    autoActionSkill.ReadCastStyle() != 0 ||
+                    !autoActionSkill.ReadIsCooldown() ||
+                    CanAttack(autoActionSkill) != AttackFailedReason.Success)
+                {
+                    continue;
+                }
+
+                skillSlot = autoActionSkill.ReadSlot();
+                return true;
+            }
+
+            return false;
+        }
+
+        // 自动动作技能作为普攻替换时，只有 cast_style == 0 的才参与；
+        // cast_style != 0 的仍走自动施放循环，不替换普攻。
+        public bool IsAutoActionNormalAttackSkill(Skill skill)
+        {
+            return skill != null &&
+                skill.ReadCastStyle() == 0 &&
+                IsTowerDefendAutoActionSkillSlot(skill.ReadSlot());
+        }
+
+        // 记录一次普攻输入（包含被拒绝的输入），用于判断玩家是否仍在连续攻击。
+        public void MarkNormalAttackInput()
+        {
+            m_LastNormalAttackInputTime = BattleManager.ReadBattleTime();
+        }
+
+        public bool ReadIsNormalAttackInputActive(float windowSeconds)
+        {
+            return BattleManager.ReadBattleTime() - m_LastNormalAttackInputTime <= windowSeconds;
+        }
+
+        // 自动动作持续技能结束后请求自动接续普攻。
+        public void RequestAutoNormalAttackContinue()
+        {
+            m_AutoNormalAttackContinueRequestTime = BattleManager.ReadBattleTime();
+        }
+
+        public bool TryPeekAutoNormalAttackContinue(float maxAgeSeconds, out float requestTime)
+        {
+            requestTime = m_AutoNormalAttackContinueRequestTime;
+            if (requestTime < 0f)
+            {
+                return false;
+            }
+
+            if (BattleManager.ReadBattleTime() - requestTime > maxAgeSeconds)
+            {
+                m_AutoNormalAttackContinueRequestTime = -1f;
+                requestTime = -1f;
+                return false;
+            }
+
+            return true;
+        }
+
+        public void ClearAutoNormalAttackContinue()
+        {
+            m_AutoNormalAttackContinueRequestTime = -1f;
+        }
+
         private void SyncActiveSkills(IList<long> activeSkillCfgIds)
         {
             if (activeSkillCfgIds == null || activeSkillCfgIds.Count <= 0)
@@ -399,6 +524,22 @@ namespace GameDll
 
             int autoSkillSlot = snapshot.m_ActiveSkillCfgIds.Count + 1;
             UpsertSkillForSlot(snapshot.m_AutoSkillCfgId, autoSkillSlot);
+        }
+
+        private void SyncAutoActionSkill(TowerDefendRoleSnapshot snapshot)
+        {
+            if (snapshot == null || snapshot.m_AutoActionSkillCfgIds == null ||
+                snapshot.m_AutoActionSkillCfgIds.Count <= 0)
+            {
+                return;
+            }
+
+            int firstSlot = snapshot.m_ActiveSkillCfgIds.Count + 2;
+            int count = snapshot.m_AutoActionSkillCfgIds.Count;
+            for (int i = 0; i < count; i++)
+            {
+                UpsertSkillForSlot(snapshot.m_AutoActionSkillCfgIds[i], firstSlot + i);
+            }
         }
 
         private void UpsertSkillForSlot(long skillCfgId, int slot)
@@ -450,6 +591,15 @@ namespace GameDll
             if (snapshot != null && snapshot.m_AutoSkillCfgId > 0)
             {
                 validSlots.Add(activeSkillCount + 1);
+            }
+
+            if (snapshot != null && snapshot.m_AutoActionSkillCfgIds != null)
+            {
+                int autoActionSkillCount = snapshot.m_AutoActionSkillCfgIds.Count;
+                for (int i = 0; i < autoActionSkillCount; i++)
+                {
+                    validSlots.Add(activeSkillCount + 2 + i);
+                }
             }
 
             var removeSkillCfgIds = new List<long>();
@@ -515,6 +665,48 @@ namespace GameDll
 
                 m_AppliedRoleRuntimeBuffCfgIds.Add(buffCfgId);
                 Debug.Log(string.Format("[升级] 角色升至 {0} 级，应用 buff {1}", ReadLevel(), buffCfgId));
+            }
+        }
+
+        public void ApplyTalentBonus(TowerDefendTalentBonus bonus)
+        {
+            if (bonus == null || bonus.ReadIsEmpty())
+            {
+                return;
+            }
+
+            var buffMgr = GetBuffManager();
+            if (buffMgr != null)
+            {
+                buffMgr.AddTalentProperty((int)PropertyType.atk, bonus.m_AtkAdd);
+                buffMgr.AddTalentProperty((int)PropertyType.crit, bonus.m_CritAdd);
+                buffMgr.AddTalentProperty((int)PropertyType.crit_damage, bonus.m_CritDamageAdd);
+                buffMgr.AddTalentProperty((int)PropertyType.amp, bonus.m_AmpAdd);
+                buffMgr.AddTalentProperty((int)PropertyType.duration, bonus.m_DurationAddSeconds);
+            }
+
+            if (bonus.m_SkillCdReduceSeconds > 0f)
+            {
+                ApplySkillCooldownReduce(bonus.m_SkillCdReduceSeconds);
+            }
+        }
+
+        private void ApplySkillCooldownReduce(float reduceSeconds)
+        {
+            var skillMgr = GetSkillManager();
+            var skills = skillMgr != null ? skillMgr.ReadSkills() : null;
+            if (skills == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < skills.Count; i++)
+            {
+                var skill = skills[i];
+                if (skill != null && skill.ReadSlot() > 0)
+                {
+                    skill.SetCooldownReduceSeconds(reduceSeconds);
+                }
             }
         }
 

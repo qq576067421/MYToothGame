@@ -102,7 +102,7 @@ namespace GameDll
         /// <param name="duckOptions">该请求播放期间使用的总线压低参数。</param>
         /// <param name="callbacks">根据最终结束原因选择执行的业务回调。</param>
         /// <returns>成功创建或保留请求时返回有效句柄；任何前置条件不满足时返回默认句柄。</returns>
-        public AudioHandle Play(int id, bool is3D, Vector3 position, AudioTransitionMode transitionMode, float transitionSeconds, AudioReplayMode replayMode, AudioLifetime lifetime, float cacheSeconds, AudioDuckOptions duckOptions, AudioPlaybackCallbacks callbacks)
+        public AudioHandle Play(int id, bool is3D, Vector3 position, AudioTransitionMode transitionMode, float transitionSeconds, AudioReplayMode replayMode, AudioLifetime lifetime, float cacheSeconds, AudioDuckOptions duckOptions, AudioPlaybackCallbacks callbacks, bool forceLoop = false)
         {
             if (!m_IsReady)
             {
@@ -148,6 +148,7 @@ namespace GameDll
             }
 
             var request = CreatePlaybackRequest(id, is3D, position, transitionMode, transitionSeconds, replayMode, lifetime, cacheSeconds, duckOptions, callbacks);
+            request.m_ForceLoop = forceLoop;
             m_ResourceCache.Request(request, key);
             var handle = new AudioHandle(request.m_RequestId, request.m_LifecycleVersion);
             return IsAudioHandleValid(handle) ? handle : default(AudioHandle);

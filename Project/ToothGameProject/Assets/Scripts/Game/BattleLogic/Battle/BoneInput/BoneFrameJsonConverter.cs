@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -100,7 +100,7 @@ namespace GameDll
                 var personData = RentPersonData();
                 personData.Reset();
                 var personDto = dto.m_Persons[i];
-                if (personDto == null || personDto.m_PersonId == YouDooSDKConstants.PersonIdNull)
+                if (personDto == null || personDto.m_PersonId == BoneTrackedLayout.m_InvalidPersonId)
                 {
                     m_FrameData.m_Persons.Add(personData);
                     continue;

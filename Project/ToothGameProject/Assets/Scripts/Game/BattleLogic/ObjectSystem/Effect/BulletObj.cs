@@ -429,6 +429,9 @@ namespace GameDll
         private const float m_DefaultTrackingDelayedLockRatio = 0.5f;
         private static readonly Dictionary<int, int> s_TrackingTargetAssignmentByBulletId = new Dictionary<int, int>();
         private static readonly Dictionary<int, int> s_TrackingTargetLoadCounts = new Dictionary<int, int>();
+        // 触发多发追踪弹的轮次序号，用于让前后多次发弹的扇面互相错开而不是重叠
+        private static int s_TrackingTriggerVolleyIndex;
+        private const float TrackingTriggerVolleyGoldenRatioConjugate = 0.6180339887f;
 
         private struct TrackingTargetCandidate
         {
@@ -503,6 +506,12 @@ namespace GameDll
         }
 
         private sealed class LinearBulletTrajectory : BulletTrajectoryBase
+        {
+        }
+
+        // 激光弹道（t_trajectory=3）：真正的位置/命中/表现全部由 UpdateLaserBeam 每帧驱动
+        // （跟随施法者朝向的持续光束），这里只作为工厂占位，不做弹道运动。
+        private sealed class LaserBulletTrajectory : BulletTrajectoryBase
         {
         }
 
@@ -643,7 +652,7 @@ namespace GameDll
                     return false;
                 }
 
-                TryUpdatePendingGuidance(owner);
+                TryUpdatePendingGuidance(owner, dt);
                 return false;
             }
 
@@ -669,7 +678,7 @@ namespace GameDll
                     return false;
                 }
 
-                TryUpdatePendingGuidance(owner);
+                TryUpdatePendingGuidance(owner, dt);
                 return false;
             }
 
@@ -808,7 +817,7 @@ namespace GameDll
                 m_PendingLockRemaining = 0f;
             }
 
-            private bool TryUpdatePendingGuidance(BulletObj owner)
+            private bool TryUpdatePendingGuidance(BulletObj owner, float dt)
             {
                 int guidanceTargetId = m_PendingGuidanceTargetId != 0 ? m_PendingGuidanceTargetId : m_PendingTargetId;
                 if (guidanceTargetId == 0)
@@ -829,7 +838,20 @@ namespace GameDll
 
                 var guidancePos = guidanceTarget.ReadHitPoint();
                 owner.SetDefenderPos(guidancePos);
-                owner.AimAt(guidancePos);
+                // 等待分配期间只做平滑转向，不能瞬间对准目标：
+                // 单目标时瞬间对准会让整批子弹的散开当面塌缩成一条线。
+                var toTarget = guidancePos - owner.GetPosition();
+                if (toTarget.sqrMagnitude > 0.0001f)
+                {
+                    var desiredForward = toTarget.normalized;
+                    float blend = Mathf.Clamp01(dt * BattleConst.SpawnPendingTurnSpeed);
+                    var nextForward = Vector3.Slerp(owner.GetForward(), desiredForward, blend);
+                    if (nextForward.sqrMagnitude > 0.0001f)
+                    {
+                        owner.SetForward(nextForward.normalized);
+                    }
+                }
+
                 return true;
             }
 
@@ -1061,7 +1083,7 @@ namespace GameDll
         protected float m_Size = 0f;
 
         // 击中时为目标添加的Buff
-        protected long m_HitTargetBuffId = 0;
+        protected IReadOnlyCollection<long> m_HitTargetBuffIds = null;
 
         // 触发子弹配置
         protected int m_TriggerBulletId = 0;
@@ -1101,6 +1123,7 @@ namespace GameDll
         {
             s_TrackingTargetAssignmentByBulletId.Clear();
             s_TrackingTargetLoadCounts.Clear();
+            s_TrackingTriggerVolleyIndex = 0;
         }
 
         private static int ReadTrackingTargetAssignedCount(int targetId)
@@ -1208,8 +1231,8 @@ namespace GameDll
         private readonly LinearBulletTrajectory m_LinearTrajectory = new LinearBulletTrajectory();
         private readonly ParabolicBulletTrajectory m_ParabolicTrajectory = new ParabolicBulletTrajectory();
         private readonly TrackingBulletTrajectory m_TrackingTrajectory = new TrackingBulletTrajectory();
+        private readonly LaserBulletTrajectory m_LaserTrajectory = new LaserBulletTrajectory();
         private IBulletTrajectory m_TrajectoryController;
-        private const float m_DefaultTrackingLaunchMinYawSeparation = 15f;
 
         //protected GameObject m_BulletLogic;
         protected float m_FlyPredictTime = 0;
@@ -1274,7 +1297,14 @@ namespace GameDll
                     }
                 case BulletState.Fly:
                     {
-                        OnFlying(dt);
+                        if (m_Trajectory == 3)
+                        {
+                            UpdateLaserBeam();
+                        }
+                        else
+                        {
+                            OnFlying(dt);
+                        }
                         break;
                     }
                 case BulletState.Finish:
@@ -1288,6 +1318,513 @@ namespace GameDll
                         break;
                     }
             }
+        }
+
+        // 激光（t_trajectory=3）：持续光束——每帧跟随施法者当前位置与朝向重新收束终点，
+        // 整条光束段持续扫射，同一目标由已命中去重保证整条光束只结算一次。
+        // 穿透口径走 t_penetrate：穿透=贯穿怪物打满整条线；非穿透=光束止于最近的命中物（怪物或棒棒糖）。
+        // 棒棒糖（升级挑战目标）：命中即结算伤害（只一次），之后光束持续架在棒棒糖上，直到超时或被击破。
+        // Curve World 口径：激光是直线（材质不走弯曲）；瞄准与命中按单位“完整弯折后的画面形体”计算——
+        // 对实体做视觉口径求交（TryIntersectVisualSegment：把逻辑碰撞体端点完整弯折后再与直线射线求交，
+        // 与瞄准线/落点特效同一套判定），命中点直接就是画面上的视觉位置，t 即直线射线上的位置。
+        // 不能用“逻辑求交 + 命中节点常量偏移”近似——怪物移动、命中节点与碰撞体不同高/不同深时都会失准。
+        private const int LaserBeamPointCount = 2;
+        private readonly Vector3[] m_LaserStraightPoints = new Vector3[LaserBeamPointCount];
+        private readonly Vector3[] m_LaserBentPoints = new Vector3[LaserBeamPointCount];
+        private int m_LaserRenderCount = LaserBeamPointCount;
+
+        // 激光（持续光束）的受击特效跟随：普通子弹的受击特效是一次性的（打中一处后留在原地），
+        // 但光束会持续接触移动中的怪物，受击点必须一直贴在“最新的激光-怪物接触点”上并跟着移动。
+        // 因此激光不走 PlayHitEffect 的一次性播放：每个接触中的目标各持有一个受击特效实例，
+        // 每帧同步到本帧算出的接触点；目标离开光束/死亡/光束回收时立即回池，避免残留旧位置的击中点。
+        private sealed class LaserContactEffect
+        {
+            public RenderEff m_Eff;
+            public Vector3 m_Position;
+            public int m_LastTouchFrame = -1;
+        }
+
+        private readonly Dictionary<int, LaserContactEffect> m_LaserContactEffects = new Dictionary<int, LaserContactEffect>();
+        private readonly List<int> m_LaserContactStaleIds = new List<int>();
+
+        private void UpdateLaserBeam()
+        {
+            var attacker = m_HurtInfo != null ? m_HurtInfo.m_Attacker : null;
+            var battle = BattleManager.GetBattle() as TowerDefendBattle;
+            if (battle == null || !BattleManager.ReadIsEntityValide(attacker))
+            {
+                // 施法者已无效时光束停在原地，等超时回收
+                SyncLaserBeamRender();
+                ReleaseAllLaserContactEffects();
+                if (HasTimedOut())
+                {
+                    FinishWithoutHit();
+                }
+                return;
+            }
+
+            var start = BulletFlightConstraintUtility.ResolveConstrainedPosition(
+                m_BulletBean,
+                attacker.ReadResolvedFirePointCenter());
+            // 方向与瞄准线同源：优先取战斗侧缓存的瞄准朝向（驱动角色俯仰姿态的同一份方向，
+            // 含默认俯仰与吸附偏移）。开火点节点朝向会被攻击动画改写——瞄准态 spine 保持住
+            // 俯仰、施法态被动画关键帧带回水平，直接读节点就表现为瞄准线上仰而激光打平，
+            // 因此节点朝向只作兜底；起点仍取开火点，保证光束贴着武器。
+            var forward = Vector3.zero;
+            battle.TryResolveCurrentAutoAimReferenceForward(attacker, out forward);
+            if (forward.sqrMagnitude <= 0.0001f)
+            {
+                forward = attacker.ReadForward();
+            }
+            if (forward.sqrMagnitude <= 0.0001f)
+            {
+                SyncLaserBeamRender();
+                ReleaseAllLaserContactEffects();
+                if (HasTimedOut())
+                {
+                    FinishWithoutHit();
+                }
+                return;
+            }
+
+            // 激光：向下最多 5 度（与角色姿态/瞄准线同口径，统一由 ClampLaserForwardPitch 收口）
+            forward = TowerDefendAimAssistLine.ClampLaserForwardPitch(forward);
+            var direction = forward.normalized;
+
+            // 命中/结算段：与瞄准线的命中判定完全同源——同起点、同方向、同一整段施法距离，
+            // 不做地面/关注物边界收束。角色2激光的刻意口径：瞄准线视觉上碰到谁，
+            // 伤害和攻击特效就必须在接触位置产生（即使光束因为 5 度收口从怪物上方掠过）。
+            var hitEnd = start + direction * Mathf.Max(0.5f, m_FlyDist);
+            // 渲染用末端：仍按地面/关注物边界收束，保持原有观感
+            var end = TowerDefendAimAssistLine.ResolveLaserBeamEnd(battle, attacker, start, direction, m_FlyDist, true);
+            int pointCount = LaserBeamPointCount;
+            for (int i = 0; i < pointCount; i++)
+            {
+                m_LaserStraightPoints[i] = Vector3.Lerp(start, end, i / (float)(pointCount - 1));
+                m_LaserBentPoints[i] = m_LaserStraightPoints[i];
+            }
+            m_StartPos = m_LaserBentPoints[0];
+
+            // 命中判定统一使用与瞄准线同源的整段施法距离（hitEnd），
+            // 渲染末端 end（地面/关注物边界收束）只用于光束观感。
+            bool hasChallengeHit = TryResolveLaserChallengeHit(
+                battle,
+                start,
+                hitEnd,
+                out var challengeT,
+                out var challengeVisualPoint,
+                out var challengeAnchorPoint);
+            bool beamEndedByChallenge = false;
+            bool showEndHitEffect = false;
+            var clampT = 1f;
+            var clampVisualPoint = end;
+
+            if (m_CanPenetrate)
+            {
+                SweepLaserBeamTargets(start, hitEnd);
+                beamEndedByChallenge = hasChallengeHit;
+                // 穿透光束的末端在射线远端而非怪物身上，末端同样保留受击特效
+                showEndHitEffect = true;
+            }
+            else
+            {
+                bool hasMonsterHit = FindLaserFirstMonsterHit(
+                    start,
+                    hitEnd,
+                    out var monsterT,
+                    out var monsterAnchor,
+                    out var monsterVisualPoint,
+                    out var monsterTarget);
+                bool clampToChallenge = hasChallengeHit && (!hasMonsterHit || challengeT <= monsterT);
+                if (clampToChallenge)
+                {
+                    clampT = challengeT;
+                    clampVisualPoint = challengeVisualPoint;
+                    beamEndedByChallenge = true;
+                    // 光束架在棒棒糖上：末端保留受击特效
+                    showEndHitEffect = true;
+                }
+                else if (hasMonsterHit)
+                {
+                    clampT = monsterT;
+                    clampVisualPoint = monsterVisualPoint;
+                    // 伤害数字与特效同位：都用视觉接触点，画面上正好落在线与模型的接触处
+                    HandleHit(monsterTarget, monsterVisualPoint, monsterVisualPoint);
+                    // 末端就是怪物接触点，接触特效已经贴在该位置，不再叠加末端特效
+                    showEndHitEffect = false;
+                }
+                else
+                {
+                    // 没打中目标：末端（地面/边界收束点）保持显示受击特效
+                    showEndHitEffect = true;
+                }
+            }
+
+            // 接触点受击特效：本帧命中分支跑完后统一同步，贴着最新的激光-怪物接触点
+            SyncLaserContactEffects();
+
+            // 末端受击特效：光束末端没有贴在怪物接触点上时（没打中/穿透远端/架在棒棒糖上），在末端保持显示
+            SyncLaserEndHitEffect(showEndHitEffect, clampVisualPoint);
+
+            pointCount = ClampLaserBeamPoints(clampT, clampVisualPoint);
+            SetPosition(m_LaserBentPoints[pointCount - 1]);
+            m_LaserRenderCount = pointCount;
+            SyncLaserBeamRender();
+
+            if (beamEndedByChallenge)
+            {
+                var challengeEntity = battle.ReadUpgradeChallengeTarget();
+                if (challengeEntity != null)
+                {
+                    // 光束末端用完整弯折变换后的视觉点（与 line_hit_eff 落点特效在画面上重合）；
+                    // 结算仍用逻辑锚点，避免用“视觉点-常量偏移”近似回逻辑点时再度引入 Y 误差。
+                    HandleLaserChallengeHit(battle, challengeEntity, challengeAnchorPoint, challengeVisualPoint);
+                    if (m_BulletState != BulletState.Fly)
+                    {
+                        return;
+                    }
+                }
+            }
+
+            if (HasTimedOut())
+            {
+                FinishWithoutHit();
+            }
+        }
+
+        // 光束被截断在视觉射线的 clampT（0~1）处。
+        // 命中时整条光束的渲染点统一起始于“光束起点”、终止于“视觉命中点”重新插值，
+        // 与瞄准线（起点 → 视觉命中点的一条直线）同源；否则中间点仍沿原来的逻辑远端终点方向，
+        // 只有末梢一个点被拉到命中点，视觉上光束主轴与瞄准线/落点特效出现偏折。
+        private int ClampLaserBeamPoints(float clampT, Vector3 visualPoint)
+        {
+            int lastIndex = Mathf.Clamp(
+                Mathf.CeilToInt(Mathf.Clamp01(clampT) * (LaserBeamPointCount - 1)),
+                1,
+                LaserBeamPointCount - 1);
+            var startPoint = m_LaserStraightPoints[0];
+            for (int i = 0; i <= lastIndex; i++)
+            {
+                m_LaserBentPoints[i] = Vector3.Lerp(startPoint, visualPoint, i / (float)lastIndex);
+            }
+            return lastIndex + 1;
+        }
+
+        private bool TryResolveLaserChallengeHit(
+            TowerDefendBattle battle,
+            Vector3 segmentStart,
+            Vector3 segmentEnd,
+            out float rayT,
+            out Vector3 visualPoint,
+            out Vector3 anchorPoint)
+        {
+            rayT = float.MaxValue;
+            visualPoint = Vector3.zero;
+            anchorPoint = Vector3.zero;
+            if (battle == null ||
+                (!battle.ReadIsUpgradeChallengeCountdown() && !battle.ReadIsUpgradeChallengeActive()))
+            {
+                return false;
+            }
+
+            var targetEntity = battle.ReadUpgradeChallengeTarget();
+            if (targetEntity == null)
+            {
+                return false;
+            }
+
+            // 与瞄准线同口径：使用同一整段施法距离求交（迭代收敛），同时取逻辑锚点用于结算/算环值。
+            // 不能用“中心点常量偏移”近似——近似交点与真实接触点在 Y 上不一致，会导致特效/光束末端比瞄准线偏高。
+            if (!targetEntity.TryIntersectVisualSegmentWithAnchor(segmentStart, segmentEnd, out var t, out var visual, out var anchor))
+            {
+                return false;
+            }
+
+            rayT = Mathf.Clamp01(t);
+            visualPoint = visual;
+            anchorPoint = anchor;
+            return true;
+        }
+
+        // 棒棒糖：持续光束命中后不能像普通子弹那样立刻回收，否则一帧就看不到激光。
+        // 伤害与普通子弹同口径只结算一次，之后光束持续架在棒棒糖上，直到超时或被击破。
+        // hitPoint 为逻辑锚点（结算/受击反馈），visualPoint 为击中点特效位置（完整弯折变换后的视觉点）。
+        private void HandleLaserChallengeHit(TowerDefendBattle battle, UpgradeChallengeTarget challengeEntity, Vector3 hitPoint, Vector3 visualPoint)
+        {
+            var challengeId = challengeEntity.ReadId();
+            if (HasAlreadyAffectedEntity(challengeId))
+            {
+                return;
+            }
+
+            MarkAffectedEntity(challengeId);
+            int bulletBbtDamage = m_BulletBean != null ? m_BulletBean.t_bbt_damage : 0;
+            bool targetDefeated = battle.TryHandleUpgradeChallengeHit(
+                m_HurtInfo != null ? m_HurtInfo.m_Attacker : null,
+                bulletBbtDamage,
+                hitPoint,
+                out var shouldResolveChallengeResult) && shouldResolveChallengeResult;
+            // 结算/环值仍用逻辑锚点；棒棒糖的受击特效与瞄准线/激光同口径：
+            // 放在视觉接触点并关闭 Curve World 弯折（否则二次弯折、Y 方向偏低）
+            challengeEntity.NotifyChallengeHit(hitPoint, visualPoint);
+            GetRender().BulletBoom(visualPoint, GetRender().GetForward());
+            PlayHitSound();
+            if (targetDefeated)
+            {
+                battle.ResolveUpgradeChallengeResult();
+                m_BulletState = BulletState.Finish;
+                OnFinish();
+            }
+        }
+
+        private bool FindLaserFirstMonsterHit(
+            Vector3 start,
+            Vector3 end,
+            out float rayT,
+            out Vector3 straightAnchor,
+            out Vector3 visualPoint,
+            out PropertyEntity hitTarget)
+        {
+            rayT = float.MaxValue;
+            straightAnchor = Vector3.zero;
+            visualPoint = Vector3.zero;
+            hitTarget = null;
+
+            var actors = BattleManager.GetObjectManager().ReadPropertyEntities();
+            foreach (var kv in actors)
+            {
+                var defender = kv;
+                if (!IsLaserSweepCandidate(defender))
+                {
+                    continue;
+                }
+
+                // 与瞄准线同口径：直接对完整弯折后的画面形体求交，命中点即视觉位置；
+                // 不能用“逻辑求交 + 命中节点常量偏移”近似——怪物移动、命中节点与碰撞体不同高/不同深时都会失准。
+                var hasLaserCandidateHit = defender.TryIntersectVisualSegment(start, end, m_DefaultSingleTargetHitRange, out var t, out var point);
+                if (!hasLaserCandidateHit)
+                {
+                    continue;
+                }
+
+                var clampedT = Mathf.Clamp01(t);
+                if (clampedT < rayT)
+                {
+                    rayT = clampedT;
+                    hitTarget = defender;
+                    // 视觉求交返回的就是画面上的命中点：光束末端与落点特效/飘字同位
+                    straightAnchor = point;
+                    visualPoint = point;
+                }
+            }
+
+            return hitTarget != null;
+        }
+
+        private bool IsLaserSweepCandidate(PropertyEntity defender)
+        {
+            if (!BattleManager.ReadIsEntityValide(defender))
+            {
+                return false;
+            }
+            if (m_HurtInfo != null && defender == m_HurtInfo.m_Attacker)
+            {
+                return false;
+            }
+            if (defender.ReadIsInBorn())
+            {
+                return false;
+            }
+            if (!defender.ReadCanBeTarget() || !defender.ReadCanBeHurt())
+            {
+                return false;
+            }
+            if (defender.ReadHurtGroup() == m_BulletGroup)
+            {
+                return false;
+            }
+            return true;
+        }
+
+        private void SweepLaserBeamTargets(Vector3 start, Vector3 end)
+        {
+            var actors = BattleManager.GetObjectManager().ReadPropertyEntities();
+            foreach (var kv in actors)
+            {
+                var defender = kv;
+                if (!IsLaserSweepCandidate(defender))
+                {
+                    continue;
+                }
+
+                // 与瞄准线同口径：对完整弯折后的画面形体求交，命中点即视觉位置
+                if (!defender.TryIntersectVisualSegment(start, end, m_DefaultSingleTargetHitRange, out var t, out var point))
+                {
+                    continue;
+                }
+
+                // 伤害数字与特效同位：都用视觉接触点，画面上正好落在线与模型的接触处
+                var visualPoint = point;
+                HandleHit(defender, visualPoint, visualPoint);
+            }
+        }
+
+        private void SyncLaserBeamRender()
+        {
+            var render = GetRender();
+            if (render != null)
+            {
+                render.SetBeamPoints(m_LaserBentPoints, Mathf.Max(2, m_LaserRenderCount));
+            }
+        }
+
+        private void RecordLaserContact(int defenderId, Vector3 contactPoint)
+        {
+            if (!m_LaserContactEffects.TryGetValue(defenderId, out var contact))
+            {
+                contact = new LaserContactEffect();
+                m_LaserContactEffects.Add(defenderId, contact);
+            }
+
+            contact.m_Position = contactPoint;
+            contact.m_LastTouchFrame = Time.frameCount;
+        }
+
+        // 每帧在激光命中分支之后调用：本帧仍接触的目标把受击特效贴到最新接触点，
+        // 已经脱离光束的目标（不再被登记）立即回池，保证击中点永远只出现在当前接触位置。
+        private void SyncLaserContactEffects()
+        {
+            if (m_LaserContactEffects.Count <= 0)
+            {
+                return;
+            }
+
+            int hitEffectId = m_HurtInfo != null && m_HurtInfo.skillDescCfg != null
+                ? m_HurtInfo.skillDescCfg.t_hitEff
+                : 0;
+            var effectManager = RenderEffManager.GetInstance();
+            m_LaserContactStaleIds.Clear();
+            foreach (var kv in m_LaserContactEffects)
+            {
+                var contact = kv.Value;
+                if (contact.m_LastTouchFrame != Time.frameCount || hitEffectId == 0)
+                {
+                    m_LaserContactStaleIds.Add(kv.Key);
+                    continue;
+                }
+
+                if (contact.m_Eff == null)
+                {
+                    contact.m_Eff = effectManager.CreateRenderEff(hitEffectId);
+                    if (contact.m_Eff == null)
+                    {
+                        continue;
+                    }
+
+                    contact.m_Eff.ShowEff(false, contact.m_Position, Vector3.zero, Vector3.one);
+                }
+
+                // 角色2 激光受击特效与瞄准线/接触点特效同为表现（直线）口径：
+                // 特效放在视觉接触点，材质必须关闭 Curve World 弯折，
+                // 否则会被世界再弯一次、Y 方向偏低，和瞄准线对不上。
+                CurveWorldVisualUtility.SetBendOff(contact.m_Eff, true);
+                contact.m_Eff.SetPosition(contact.m_Position);
+                if (!contact.m_Eff.IsActive())
+                {
+                    contact.m_Eff.SetActive(true);
+                }
+            }
+
+            for (int i = 0; i < m_LaserContactStaleIds.Count; i++)
+            {
+                ReleaseLaserContactEffect(m_LaserContactStaleIds[i]);
+            }
+        }
+
+        private void ReleaseLaserContactEffect(int defenderId)
+        {
+            if (!m_LaserContactEffects.TryGetValue(defenderId, out var contact))
+            {
+                return;
+            }
+
+            m_LaserContactEffects.Remove(defenderId);
+            if (contact.m_Eff != null)
+            {
+                // 回池前恢复默认弯折，避免直线口径残留在池化实例上
+                CurveWorldVisualUtility.SetBendOff(contact.m_Eff, false);
+                RenderEffManager.GetInstance().PoolRenderEff(contact.m_Eff);
+            }
+        }
+
+        private void ReleaseAllLaserContactEffects()
+        {
+            if (m_LaserContactEffects.Count <= 0)
+            {
+                return;
+            }
+
+            var effectManager = RenderEffManager.GetInstance();
+            foreach (var kv in m_LaserContactEffects)
+            {
+                if (kv.Value.m_Eff != null)
+                {
+                    CurveWorldVisualUtility.SetBendOff(kv.Value.m_Eff, false);
+                    effectManager.PoolRenderEff(kv.Value.m_Eff);
+                }
+            }
+
+            m_LaserContactEffects.Clear();
+            m_LaserContactStaleIds.Clear();
+        }
+
+        // 光束末端的受击特效：末端没有贴在怪物接触点上时（没打中/穿透远端/架在棒棒糖上）保持在末端显示，
+        // 命中怪物时释放（怪物自身的接触特效已经在末端位置）
+        private RenderEff m_LaserEndHitEffect;
+
+        private void SyncLaserEndHitEffect(bool show, Vector3 position)
+        {
+            int hitEffectId = m_HurtInfo != null && m_HurtInfo.skillDescCfg != null
+                ? m_HurtInfo.skillDescCfg.t_hitEff
+                : 0;
+            if (!show || hitEffectId == 0)
+            {
+                ReleaseLaserEndHitEffect();
+                return;
+            }
+
+            var effectManager = RenderEffManager.GetInstance();
+            if (m_LaserEndHitEffect == null)
+            {
+                m_LaserEndHitEffect = effectManager.CreateRenderEff(hitEffectId);
+                if (m_LaserEndHitEffect == null)
+                {
+                    return;
+                }
+
+                m_LaserEndHitEffect.ShowEff(false, position, Vector3.zero, Vector3.one);
+            }
+
+            // 与接触特效同口径：特效放在直线空间的末端位置，材质必须关闭 Curve World 弯折
+            CurveWorldVisualUtility.SetBendOff(m_LaserEndHitEffect, true);
+            m_LaserEndHitEffect.SetPosition(position);
+            if (!m_LaserEndHitEffect.IsActive())
+            {
+                m_LaserEndHitEffect.SetActive(true);
+            }
+        }
+
+        private void ReleaseLaserEndHitEffect()
+        {
+            if (m_LaserEndHitEffect == null)
+            {
+                return;
+            }
+
+            // 回池前恢复默认弯折，避免直线口径残留在池化实例上
+            CurveWorldVisualUtility.SetBendOff(m_LaserEndHitEffect, false);
+            RenderEffManager.GetInstance().PoolRenderEff(m_LaserEndHitEffect);
+            m_LaserEndHitEffect = null;
         }
 
 
@@ -1325,7 +1862,8 @@ namespace GameDll
             var assignedTrackingTargets = BuildTriggerTrackingTargets(
                 triggerConfig.t_trajectory,
                 triggerConfig.t_tracking_range,
-                m_TriggerBulletCount);
+                m_TriggerBulletCount,
+                out int distinctTargetCount);
             var childVisitedIds = new HashSet<int>();
             if (m_TriggerChainVisitedConfigIds != null)
             {
@@ -1337,7 +1875,8 @@ namespace GameDll
                 childVisitedIds.Add(currentConfigId);
             }
             childVisitedIds.Add(m_TriggerBulletId);
-            float launchYawOffset = BuildTriggerLaunchYawOffset(triggerConfig.t_trajectory, m_TriggerBulletCount);
+            float yawStep = ResolveTriggerLaunchYawStep(m_TriggerBulletCount, distinctTargetCount);
+            float launchYawOffset = BuildTriggerLaunchVolleyYawOffset(triggerConfig.t_trajectory, yawStep);
 
             for (int i = 0; i < m_TriggerBulletCount; i++)
             {
@@ -1358,7 +1897,7 @@ namespace GameDll
                 triggerBullet.SetPlay(true);
                 triggerBullet.SetVisiable(true);
 
-                var launchForward = BuildTriggerLaunchForward(triggerBean.t_trajectory, i, m_TriggerBulletCount, launchYawOffset);
+                var launchForward = BuildTriggerLaunchForward(triggerConfig.t_trajectory, i, m_TriggerBulletCount, yawStep, launchYawOffset);
                 triggerBullet.SetDefender(null);
                 var triggerSpawnPosition = ResolveTriggerSpawnPosition(triggerBean);
                 triggerBullet.SetPosition(triggerSpawnPosition);
@@ -1368,19 +1907,13 @@ namespace GameDll
                 float flyDist = triggerBean.t_max_time / 1000.0f * triggerBean.t_move_speed / 1000.0f;
                 triggerBullet.SetFlyDist(flyDist);
 
-                long triggerHitBuff = 0;
-                if (triggerBean.t_bullet_hittarget_buff_id != null && triggerBean.t_bullet_hittarget_buff_id.Count > 0)
-                {
-                    triggerHitBuff = triggerBean.t_bullet_hittarget_buff_id[0];
-                }
-
                 triggerBullet.SetTriggerChainVisitedConfigIds(childVisitedIds);
                 triggerBullet.SetBulletConfig(
                     triggerBean.t_penetrate,
                     triggerBean.t_size,
                     triggerBean.t_trajectory,
                     triggerBean.t_tracking_range,
-                    triggerHitBuff,
+                    triggerBean.t_bullet_hittarget_buff_id,
                     triggerBean.t_trigger_bullet_id,
                     triggerBean.t_trigger_bullet_count,
                     triggerBean.t_trigger_type
@@ -1491,6 +2024,13 @@ namespace GameDll
                 render.SetTargetPosition(m_LastDefenderPos);
                 render.SetIsFollow(true);
             }
+
+            if (m_Trajectory == 3)
+            {
+                // 激光：发弹当帧就按当前姿态建立光束（否则要等下一帧 UpdateLaserBeam，
+                // 首帧会露出预制件默认控制点或上一发残留的光束）
+                UpdateLaserBeam();
+            }
         }
 
         public void SetDashEnemy(int t_tankai_dist, float t_tan_time)
@@ -1499,22 +2039,76 @@ namespace GameDll
             m_DashEnemyTime = t_tan_time;
         }
 
-        public void SetBulletConfig(int penetrate, int size, int trajectory, int trackingRange, long hitTargetBuffId, int triggerBulletId, int triggerBulletCount, int triggerType)
+        public void SetBulletConfig(int penetrate, int size, int trajectory, int trackingRange, IReadOnlyCollection<long> hitTargetBuffIds, int triggerBulletId, int triggerBulletCount, int triggerType)
         {
             m_CanPenetrate = (penetrate == 0);
             m_Size = size / 1000f;
             m_Trajectory = trajectory;
             m_TrackingRange = trackingRange / 1000f;
-            m_HitTargetBuffId = hitTargetBuffId;
+            m_HitTargetBuffIds = hitTargetBuffIds;
             m_TriggerBulletId = triggerBulletId;
             m_TriggerBulletCount = triggerBulletCount;
             m_TriggerType = triggerType;
+
+            if (m_Trajectory == 3)
+            {
+                ResetLaserBeamRenderState();
+            }
+        }
+
+        // 激光普攻续期判断：光束未回池、未销毁且处于待飞/飞行状态，才算仍在作用期内的存活光束。
+        // 只看 m_BulletState 不够——外部走 SetFinish 静默回池时 state 会停留在 Fly，需叠加对象池标记。
+        public bool ReadIsLaserBeamAlive()
+        {
+            return m_Trajectory == 3 && !IsPooled && !ReadIsDestroy() &&
+                (m_BulletState == BulletState.Init || m_BulletState == BulletState.Fly);
+        }
+
+        // 单次作用时间内再次触发普攻：不重走发弹流程，只把超时起点推到当前战斗时间并重置已命中去重，
+        // 光束表现连续，结算口径与重新发一颗激光完全一致（每次触发对线上目标各结算一次）。
+        public void RenewLaserLifeTime()
+        {
+            m_FlyTime = BattleManager.ReadBattleTime();
+            m_DamagedEntityIds.Clear();
+        }
+
+        // 持续发弹结束：技能在收尾时主动收束光束，不播受击爆炸表现，直接走回收流程。
+        // 发弹窗口就是光束的可见时长，避免出现"光束还在但不再结算伤害"的空窗。
+        public void FinishLaserBeam()
+        {
+            if (!ReadIsLaserBeamAlive())
+            {
+                return;
+            }
+
+            m_BulletState = BulletState.Finish;
+            OnFinish();
+        }
+
+        // 复用/首次发弹时清干净光束渲染状态：LineRenderer 会保留预制件默认控制点或上一发的控制点，
+        // 在 UpdateLaserBeam 建立新光束之前就会渲染出来，表现为点普攻时闪一下旧光束/预制件状态。
+        private void ResetLaserBeamRenderState()
+        {
+            m_LaserRenderCount = LaserBeamPointCount;
+            for (int i = 0; i < LaserBeamPointCount; i++)
+            {
+                m_LaserStraightPoints[i] = Vector3.zero;
+                m_LaserBentPoints[i] = Vector3.zero;
+            }
+
+            var render = GetRender();
+            if (render != null)
+            {
+                // 两点同点 = 零长度直线，不可见；等 UpdateLaserBeam 立即重建
+                render.SetBeamPoints(m_LaserBentPoints, 2);
+            }
         }
 
 
 
-        private List<PropertyEntity> BuildTriggerTrackingTargets(int triggerTrajectory, int triggerTrackingRange, int triggerCount)
+        private List<PropertyEntity> BuildTriggerTrackingTargets(int triggerTrajectory, int triggerTrackingRange, int triggerCount, out int distinctTargetCount)
         {
+            distinctTargetCount = 0;
             if (triggerTrajectory != 2 || triggerCount <= 0)
             {
                 return null;
@@ -1531,6 +2125,8 @@ namespace GameDll
             {
                 return null;
             }
+
+            distinctTargetCount = candidates.Count;
 
             var assignedTargets = new List<PropertyEntity>(triggerCount);
             var extraAssignedCounts = new Dictionary<int, int>();
@@ -1549,7 +2145,42 @@ namespace GameDll
             return assignedTargets;
         }
 
-        private Vector3 BuildTriggerLaunchForward(int triggerTrajectory, int triggerIndex, int triggerCount, float yawOffset)
+        private float ResolveTriggerLaunchYawStep(int triggerCount, int distinctTargetCount)
+        {
+            if (triggerCount <= 1)
+            {
+                return 0f;
+            }
+
+            BattleConst.ClampValues();
+            // SpawnYawSpread 是单侧总扇面角，换算成相邻两颗的间隔角，再用最小间隔兜底。
+            float yawStep = BattleConst.SpawnYawSpread * 2f / (triggerCount - 1);
+            yawStep = Mathf.Max(BattleConst.SpawnMinYawSeparation, yawStep);
+            // 目标越少，子弹最终都收拢到同一个点，需要把扇面进一步放大才看得出散开。
+            if (distinctTargetCount <= 1)
+            {
+                yawStep *= BattleConst.SpawnSingleTargetSpreadScale;
+            }
+
+            return yawStep;
+        }
+
+        private float BuildTriggerLaunchVolleyYawOffset(int triggerTrajectory, float yawStep)
+        {
+            if (triggerTrajectory != 2 || yawStep <= 0f)
+            {
+                return 0f;
+            }
+
+            BattleConst.ClampValues();
+            // 用低差异序列给每一轮一个小于一个间隔角的错位，
+            // 让后一轮的子弹插进前一轮的空隙，而不是压在同一条线上。
+            float phase = Mathf.Repeat(s_TrackingTriggerVolleyIndex * TrackingTriggerVolleyGoldenRatioConjugate, 1f);
+            s_TrackingTriggerVolleyIndex++;
+            return (phase - 0.5f) * yawStep * BattleConst.SpawnVolleyYawOffsetRatio;
+        }
+
+        private Vector3 BuildTriggerLaunchForward(int triggerTrajectory, int triggerIndex, int triggerCount, float yawStep, float yawOffset)
         {
             var baseForward = GetForward();
             if (triggerTrajectory != 2 || triggerCount <= 1 || baseForward == Vector3.zero)
@@ -1559,10 +2190,9 @@ namespace GameDll
 
             BattleConst.ClampValues();
             float normalizedIndex = triggerCount > 1 ? (triggerIndex / (float)(triggerCount - 1)) * 2f - 1f : 0f;
-            float yawStep = Mathf.Max(
-                m_DefaultTrackingLaunchMinYawSeparation,
-                BattleConst.SpawnYawSpread * 2f / (triggerCount - 1));
-            float yaw = (triggerIndex - (triggerCount - 1) * 0.5f) * yawStep + yawOffset;
+            float yaw = (triggerIndex - (triggerCount - 1) * 0.5f) * yawStep
+                + yawOffset
+                + Random.Range(-BattleConst.SpawnYawJitter, BattleConst.SpawnYawJitter);
             float pitch = Mathf.Lerp(
                     BattleConst.SpawnUpwardSpreadMax,
                     BattleConst.SpawnUpwardSpreadMin,
@@ -1576,17 +2206,6 @@ namespace GameDll
             }
 
             return (Quaternion.AngleAxis(pitch, pitchAxis.normalized) * yawForward).normalized;
-        }
-
-        private float BuildTriggerLaunchYawOffset(int triggerTrajectory, int triggerCount)
-        {
-            if (triggerTrajectory != 2 || triggerCount <= 1)
-            {
-                return 0f;
-            }
-
-            BattleConst.ClampValues();
-            return Random.Range(-BattleConst.SpawnYawJitter, BattleConst.SpawnYawJitter);
         }
 
         private bool TryPickTriggerTrackingTarget(
@@ -1721,6 +2340,8 @@ namespace GameDll
                     return m_ParabolicTrajectory;
                 case 2:
                     return m_TrackingTrajectory;
+                case 3:
+                    return m_LaserTrajectory;
                 default:
                     return m_LinearTrajectory;
             }
@@ -1731,6 +2352,7 @@ namespace GameDll
             m_LinearTrajectory.OnReset(this);
             m_ParabolicTrajectory.OnReset(this);
             m_TrackingTrajectory.OnReset(this);
+            m_LaserTrajectory.OnReset(this);
             m_TrajectoryController = null;
         }
 
@@ -2117,7 +2739,21 @@ namespace GameDll
 
         private void HandleHit(PropertyEntity defender, Vector3 damageNumberWorldPos)
         {
+            HandleHit(defender, damageNumberWorldPos, defender.ReadHitPoint());
+        }
+
+        // hitEffectPos：击中点特效的世界位置。普通子弹默认取怪物命中节点；
+        // 激光传视觉接触点（逻辑交点做完整弯折变换），否则特效会浮在弯折后单位的上方
+        private void HandleHit(PropertyEntity defender, Vector3 damageNumberWorldPos, Vector3 hitEffectPos)
+        {
             int defenderId = defender.ReadId();
+            // 激光（持续光束）：受击特效必须逐帧跟着最新的接触点，这里只登记本帧接触，
+            // 由 SyncLaserContactEffects 统一创建/移动/回收；普通子弹仍走下面的一次性受击特效。
+            if (m_Trajectory == 3)
+            {
+                RecordLaserContact(defenderId, hitEffectPos);
+            }
+
             if (HasAlreadyAffectedEntity(defenderId))
             {
                 return;
@@ -2126,9 +2762,9 @@ namespace GameDll
 
             BattleManager.GetBattleTool().AddDefenderBuff(m_HurtInfo, defender);
 
-            if (m_HitTargetBuffId > 0)
+            if (m_HitTargetBuffIds != null && m_HitTargetBuffIds.Count > 0)
             {
-                BattleManager.GetBattleTool().AddBuff(m_HurtInfo.m_Attacker, defender, m_HitTargetBuffId);
+                BattleManager.GetBattleTool().AddBuffs(m_HurtInfo.m_Attacker, defender, m_HitTargetBuffIds, m_HurtInfo.m_RawSkillDamageCfg);
             }
 
             m_HurtInfo.SetDamageNumberWorldPos(damageNumberWorldPos);
@@ -2140,7 +2776,10 @@ namespace GameDll
             }
             DamageCal.CalSickHP(m_HurtInfo.m_Attacker, m_HurtInfo.m_SickHP);
             m_HurtInfo.m_SickHP = 0;
-            PlayHitEffect(defender.ReadHitPoint());
+            if (m_Trajectory != 3)
+            {
+                PlayHitEffect(hitEffectPos);
+            }
             PlayHitSound();
 
             if (m_Trajectory == 2 && defender == m_MainDefender)
@@ -2236,9 +2875,9 @@ namespace GameDll
 
                     BattleManager.GetBattleTool().AddDefenderBuff(m_HurtInfo, enemy);
 
-                    if (m_HitTargetBuffId > 0)
+                    if (m_HitTargetBuffIds != null && m_HitTargetBuffIds.Count > 0)
                     {
-                        BattleManager.GetBattleTool().AddBuff(m_HurtInfo.m_Attacker, enemy, m_HitTargetBuffId);
+                        BattleManager.GetBattleTool().AddBuffs(m_HurtInfo.m_Attacker, enemy, m_HitTargetBuffIds, m_HurtInfo.m_RawSkillDamageCfg);
                     }
 
                     m_HurtInfo.SetDamageNumberWorldPos(enemyHitPoint);
@@ -2309,6 +2948,7 @@ namespace GameDll
             m_BulletState = BulletState.Finish;
             SetPosition(hitPoint);
             GetRender().BulletBoom(hitPoint, GetRender().GetForward());
+            PlayHitSound();
             OnFinish();
         }
 
@@ -2402,6 +3042,8 @@ namespace GameDll
         public override void PoolObj()
         {
             m_DamagedEntityIds.Clear();
+            ReleaseAllLaserContactEffects();
+            ReleaseLaserEndHitEffect();
             ClearTriggerSpawnPositionOverride();
             m_TriggerChainVisitedConfigIds = null;
             ResetTrajectoryControllers();

@@ -51,29 +51,8 @@
     "com.unity.modules.video": "1.0.0",
     "com.unity.modules.vr": "1.0.0",
     "com.unity.modules.wind": "1.0.0",
-    "com.unity.modules.xr": "1.0.0"
+    "com.unity.modules.xr": "1.0.0",
+    "com.youdoogame.framework": "https://gitlab.youdoogo.com/shared/youdoogame-unity-sdk.git#v1.0.7"
   },
-  "scopedRegistries": [
-    {
-      "name": "Game Package Registry by Google",
-      "url": "https://unityregistry-pa.googleapis.com",
-      "scopes": [
-        "com.google"
-      ]
-    },
-    {
-      "name": "NPMJS",
-      "url": "https://registry.npmjs.org/",
-      "scopes": [
-        "com.taptap"
-      ]
-    },
-    {
-      "name": "package.openupm.com",
-      "url": "https://package.openupm.com",
-      "scopes": [
-        "com.google.external-dependency-manager"
-      ]
-    }
-  ]
+  "scopedRegistries": []
 }

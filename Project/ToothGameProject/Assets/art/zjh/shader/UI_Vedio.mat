@@ -36,6 +36,7 @@ Material:
     m_Floats:
     - _Clip: 0.266
     - _ColorMask: 15
+    - _Opacity: 1
     - _Stencil: 0
     - _StencilComp: 8
     - _StencilOp: 0

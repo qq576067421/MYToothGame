@@ -1,4 +1,5 @@
 ﻿using MonoBean;
+using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -45,6 +46,10 @@ namespace GameHot
             model.m_Request = request;
             model.m_OnConfirm = onConfirm;
             model.m_OnCancel = onCancel;
+            if (m_View != null)
+            {
+                SyncSelectionVisualWithRequest();
+            }
         }
 
         protected override void OnInitComponent()
@@ -56,15 +61,41 @@ namespace GameHot
             RenderAPI.AddButtonClick(m_View.m_btnPlayer1, OnClickPlayer1);
             RenderAPI.AddButtonClick(m_View.m_btnPlayer2, OnClickPlayer2);
             RenderAPI.AddButtonClick(m_View.m_btnPlayer3, OnClickPlayer3);
+
+            OnInitLanguage();
         }
         protected override void OnOpen()
         {
             RenderEvent.Event.OnUpdateSelectionVisuals += OnUpdateSelectionVisuals;
+            SyncSelectionVisualWithRequest();
         }
         protected override void OnClose()
         {
             RenderEvent.Event.OnUpdateSelectionVisuals -= OnUpdateSelectionVisuals;
         }
+
+        public void SyncSelectionVisualWithRequest()
+        {
+            var model = GetModel<tower_defend_player_count_model>();
+            int playerCount = model.m_Request != null
+                ? Mathf.Clamp(model.m_Request.ReadPreparePlayerCount(), 1, 4)
+                : 1;
+            int col = playerCount - 1;
+            var playerButtons = new ActiveButtons();
+            playerButtons.buttons.Add(m_View.m_btnPlayer0);
+            playerButtons.buttons.Add(m_View.m_btnPlayer1);
+            playerButtons.buttons.Add(m_View.m_btnPlayer2);
+            playerButtons.buttons.Add(m_View.m_btnPlayer3);
+            __SetActiveButtons(new List<ActiveButtons> { playerButtons }, 0, col);
+
+            if (UIManager.GetCurrentActiveWindow() == this)
+            {
+                RenderAPI.SetCurrentCol(col);
+            }
+
+            SetBtnPlayerChoose(col);
+        }
+
         private void OnUpdateSelectionVisuals()
         {
             var active = UIManager.GetCurrentActiveWindow();
@@ -73,8 +104,19 @@ namespace GameHot
                 return;
             }
             AudioManager.GetInstance().Play2D(4);
-            int colIndex = RenderAPI.GetCurrentCol();
-            SetBtnPlayerChoose(colIndex);
+            SetBtnPlayerChoose(RenderAPI.GetCurrentCol());
+        }
+
+        private void OnInitLanguage()
+        {
+            RenderAPI.SetTextLan(m_View.m_one_txt, "td_lobby_player_count_one");
+            RenderAPI.SetTextLan(m_View.m_one_txt_new1, "td_lobby_player_count_one");
+            RenderAPI.SetTextLan(m_View.m_two_txt, "td_lobby_player_count_two");
+            RenderAPI.SetTextLan(m_View.m_two_txt_new1, "td_lobby_player_count_two");
+            RenderAPI.SetTextLan(m_View.m_three_txt, "td_lobby_player_count_three");
+            RenderAPI.SetTextLan(m_View.m_three_txt_new1, "td_lobby_player_count_three");
+            RenderAPI.SetTextLan(m_View.m_four_txt, "td_lobby_player_count_four");
+            RenderAPI.SetTextLan(m_View.m_four_txt_new1, "td_lobby_player_count_four");
         }
         private void SetBtnPlayerChoose(int index)
         {
@@ -127,6 +169,9 @@ namespace GameHot
                 tip_wnd.GetInstance().OnShowTip(error);
                 return;
             }
+
+            // 请求是人数选择的唯一数据源；界面状态从实际生效的人数回读。
+            SyncSelectionVisualWithRequest();
 
             if (model.m_OnConfirm == null)
             {

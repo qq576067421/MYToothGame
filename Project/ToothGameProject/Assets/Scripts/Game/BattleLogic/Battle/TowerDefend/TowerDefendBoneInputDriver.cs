@@ -3,15 +3,36 @@ using UnityEngine;
 
 namespace GameDll
 {
+    public static class TowerDefendBoneAttackTuning
+    {
+        // 同一角色双手共享的最短普攻间隔，单位为秒。
+        public static float m_MinAttackIntervalSecond = 0.25f;
+        // 动画速度提升的平滑时间，单位为秒。
+        public const float m_AnimationAccelerationSecond = 0.1f;
+        // 动画速度恢复的平滑时间，单位为秒。
+        public const float m_AnimationRecoverySecond = 0.25f;
+        // 无新普攻输入后开始恢复动画速度的等待时间，单位为秒。
+        public const float m_AnimationRecoveryDelaySecond = 0.5f;
+        // 普攻动画衔接的混合时间，单位为秒。
+        public const float m_AnimationBlendSecond = 0.05f;
+
+        public static float ReadMinAttackInterval()
+        {
+            return Mathf.Max(0.01f, m_MinAttackIntervalSecond);
+        }
+    }
+
     public class TowerDefendBoneInputDriver
     {
         private const int m_BoneInputDebugIntervalFrames = 60;
-
+        // 过滤平滑回正产生的极小残值，低于最大转角的 1% 视为已经停止转身。
+        private const float m_NormalAttackSuppressedTurnStrength = 0.01f;
         private readonly BoneParserConfig m_Config = new BoneParserConfig();
         private readonly IBoneParserRuntime m_BoneParserRuntime;
         private readonly BoneParserFrameAdapter m_FrameAdapter = new BoneParserFrameAdapter();
         private readonly List<BoneParserSeatDefinition> m_SeatDefinitions = new List<BoneParserSeatDefinition>();
         private readonly int[] m_LastDebugLogFrames = new int[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly bool[] m_IsTurningBySeat = new bool[TowerDefendSeatLayout.MaxSupportedPlayerCount];
 
         private TowerDefendBattleScene m_Scene;
         private IBoneFrameSource m_FrameSource;
@@ -30,6 +51,7 @@ namespace GameDll
             m_HasSeatDefinitions = false;
             m_SeatDefinitions.Clear();
             ResetDebugLogFrames();
+            ResetTurningStates();
             m_BoneParserRuntime.Reset();
             LogRuntimeOnce();
         }
@@ -60,9 +82,11 @@ namespace GameDll
             var frameResult = m_BoneParserRuntime.Update(parserFrame, m_SeatDefinitions);
             if (frameResult == null)
             {
+                ResetTurningStates();
                 return;
             }
 
+            ResetTurningStates();
             int resultCount = frameResult.m_PlayerResults.Count;
             for (int i = 0; i < resultCount && i < m_SeatDefinitions.Count; i++)
             {
@@ -103,6 +127,7 @@ namespace GameDll
                     continue;
                 }
 
+                m_IsTurningBySeat[seatId] = Mathf.Abs(playerResult.m_TurnStrength) > m_NormalAttackSuppressedTurnStrength;
                 DispatchActionEvents(playerResult, seatId, faceForward, moveDirection);
             }
         }
@@ -115,6 +140,7 @@ namespace GameDll
             m_HasSeatDefinitions = false;
             m_SeatDefinitions.Clear();
             ResetDebugLogFrames();
+            ResetTurningStates();
             m_BoneParserRuntime.Shutdown();
             RenderEvent.Event.OnTowerDefendBoneDebugInfosCleared();
         }
@@ -132,10 +158,7 @@ namespace GameDll
 
         private void ApplyRuntimeConfig()
         {
-            m_Config.m_MaxTurnAngleDegrees = BoneTurnTuning.ReadClampedMaxAngle();
-            m_Config.m_InvertTurnDirection = BoneTurnTuning.ReadClampedInvertDirection();
-            m_Config.m_RotationAmplifyFactor = BoneTurnTuning.ReadClampedRotationAmplifyFactor();
-            m_Config.m_ShoulderTurnJitterDeadZone = BoneTurnTuning.ReadClampedShoulderTurnJitterDeadZone();
+            BoneTurnTuning.ApplyTo(m_Config);
             BoneGestureTuning.ApplyTo(m_Config);
         }
 
@@ -146,6 +169,7 @@ namespace GameDll
             {
                 m_HasSeatDefinitions = false;
                 m_SeatDefinitions.Clear();
+                ResetTurningStates();
                 m_BoneParserRuntime.Reset();
                 return false;
             }
@@ -196,6 +220,7 @@ namespace GameDll
             }
 
             ResetDebugLogFrames();
+            ResetTurningStates();
             m_BoneParserRuntime.Reset();
         }
 
@@ -204,6 +229,14 @@ namespace GameDll
             for (int seatId = 0; seatId < TowerDefendSeatLayout.MaxSupportedPlayerCount; seatId++)
             {
                 m_LastDebugLogFrames[seatId] = -m_BoneInputDebugIntervalFrames;
+            }
+        }
+
+        private void ResetTurningStates()
+        {
+            for (int seatId = 0; seatId < m_IsTurningBySeat.Length; seatId++)
+            {
+                m_IsTurningBySeat[seatId] = false;
             }
         }
 
@@ -317,25 +350,50 @@ namespace GameDll
             }
 
             int eventCount = playerResult.m_ActionEvents.Count;
+            bool hasActiveSkillEvent = false;
             for (int i = 0; i < eventCount; i++)
             {
                 var actionEvent = playerResult.m_ActionEvents[i];
-                if (actionEvent == null)
+                if (actionEvent != null && actionEvent.m_ConsumerType == BoneActionConsumerType.动作槽位 &&
+                    actionEvent.m_ConsumerValue > 0)
                 {
-                    continue;
+                    hasActiveSkillEvent = true;
+                    break;
                 }
+            }
 
-                var consumeResultType = TryConsumeActionEvent(actionEvent, seatId, faceForward, moveDirection);
-                if (!actionEvent.m_RequiresConsumeResult)
+            // 先处理技能。即使能量不足，该帧普攻也不能先出手再为技能补足条件。
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int i = 0; i < eventCount; i++)
                 {
-                    continue;
+                    var actionEvent = playerResult.m_ActionEvents[i];
+                    if (actionEvent == null)
+                    {
+                        continue;
+                    }
+                    bool isActiveSkillEvent = actionEvent.m_ConsumerType == BoneActionConsumerType.动作槽位 &&
+                        actionEvent.m_ConsumerValue > 0;
+                    if (isActiveSkillEvent != (pass == 0))
+                    {
+                        continue;
+                    }
+
+                    bool blockNormalAttack = hasActiveSkillEvent &&
+                        actionEvent.m_ConsumerType == BoneActionConsumerType.动作槽位 &&
+                        actionEvent.m_ConsumerValue == 0;
+                    var consumeResultType = blockNormalAttack
+                        ? BoneActionConsumeResultType.拒绝阻断
+                        : TryConsumeActionEvent(actionEvent, seatId, faceForward, moveDirection);
+                    if (actionEvent.m_RequiresConsumeResult)
+                    {
+                        m_BoneParserRuntime.ApplyActionConsumeResult(new BoneActionConsumeResult
+                        {
+                            m_ActionEventId = actionEvent.m_ActionEventId,
+                            m_ResultType = consumeResultType,
+                        });
+                    }
                 }
-
-                m_BoneParserRuntime.ApplyActionConsumeResult(new BoneActionConsumeResult
-                {
-                    m_ActionEventId = actionEvent.m_ActionEventId,
-                    m_ResultType = consumeResultType,
-                });
             }
         }
 
@@ -358,19 +416,22 @@ namespace GameDll
             if ((actionEvent.m_RuntimeFlags & BoneActionRuntimeFlags.可消费) == 0)
             {
                 return actionEvent.m_RequiresConsumeResult
-                    ? BoneActionConsumeResultType.拒绝可重试
+                    ? BoneActionConsumeResultType.拒绝阻断
                     : BoneActionConsumeResultType.忽略;
             }
 
-            var battleLogic = CBattleLogic.GetInstance();
-            if (battleLogic == null)
+            var battle = BattleManager.GetBattle() as TowerDefendBattle;
+            var spawer = battle != null ? battle.ReadBattleSpawer() as TowerDefendBattleSpawer : null;
+            if (spawer == null)
             {
                 return actionEvent.m_RequiresConsumeResult
                     ? BoneActionConsumeResultType.拒绝阻断
                     : BoneActionConsumeResultType.忽略;
             }
 
-            bool handled = battleLogic.TryPlayerActionBySeat(seatId, actionEvent.m_ConsumerValue, faceForward, moveDirection);
+            bool boneNormalAttack = actionEvent.m_ConsumerValue == 0;
+            bool handled = spawer.TryGuardHeroBoneActionBySeat(seatId, actionEvent.m_ConsumerValue,
+                faceForward, moveDirection, boneNormalAttack);
             if (handled)
             {
                 return BoneActionConsumeResultType.接受;
@@ -415,14 +476,27 @@ namespace GameDll
             {
                 var definition = m_SeatDefinitions[i];
                 var hero = battle.ReadGuardHeroBySeat(definition.m_BindingId);
-                RefreshSeatActionBindings(definition, battle, hero);
+                bool suppressNormalAttack = ReadIsNormalAttackSuppressedByTurn(definition.m_BindingId);
+                RefreshSeatActionBindings(definition, battle, hero, suppressNormalAttack);
             }
+        }
+
+        private bool ReadIsNormalAttackSuppressedByTurn(int seatId)
+        {
+            if (!BoneTurnTuning.ReadBlockNormalAttackWhileTurning() || !TowerDefendSeatLayout.IsValidSeatId(seatId))
+            {
+                return false;
+            }
+
+            // 动作绑定必须在本帧骨骼解析前提供，因此这里使用上一帧已经确认的转向状态。
+            return m_IsTurningBySeat[seatId];
         }
 
         private static void RefreshSeatActionBindings(
             BoneParserSeatDefinition definition,
             TowerDefendBattle battle,
-            PropertyEntity hero)
+            PropertyEntity hero,
+            bool suppressNormalAttack)
         {
             if (definition == null)
             {
@@ -448,7 +522,7 @@ namespace GameDll
             for (int i = 0; i < skillCount; i++)
             {
                 var skill = skills[i];
-                if (!TryBuildSkillActionBinding(definition, battle, hero, skill))
+                if (!TryBuildSkillActionBinding(definition, battle, hero, skill, suppressNormalAttack))
                 {
                     continue;
                 }
@@ -461,7 +535,8 @@ namespace GameDll
             BoneParserSeatDefinition definition,
             TowerDefendBattle battle,
             PropertyEntity hero,
-            Skill skill)
+            Skill skill,
+            bool suppressNormalAttack)
         {
             if (definition == null || skill == null)
             {
@@ -493,7 +568,7 @@ namespace GameDll
                 return false;
             }
 
-            BoneActionRuntimeFlags runtimeFlags = ResolveActionRuntimeFlags(battle, hero, skill, slot);
+            BoneActionRuntimeFlags runtimeFlags = ResolveActionRuntimeFlags(battle, hero, skill, slot, suppressNormalAttack);
             UpsertActionBinding(definition, gestureType, phaseMask, slot, runtimeFlags, requiresConsumeResult);
             return true;
         }
@@ -502,9 +577,15 @@ namespace GameDll
             TowerDefendBattle battle,
             PropertyEntity hero,
             Skill skill,
-            int slot)
+            int slot,
+            bool suppressNormalAttack)
         {
-            BoneActionRuntimeFlags runtimeFlags = BoneActionRuntimeFlags.可识别;
+            BoneActionRuntimeFlags runtimeFlags = BoneActionRuntimeFlags.无;
+            if (slot != 0 || !suppressNormalAttack)
+            {
+                runtimeFlags |= BoneActionRuntimeFlags.可识别;
+            }
+
             if (ReadCanConsumeSkillAction(battle, hero, skill, slot))
             {
                 runtimeFlags |= BoneActionRuntimeFlags.可消费;
@@ -519,37 +600,10 @@ namespace GameDll
             Skill skill,
             int slot)
         {
-            if (!BattleManager.ReadIsEntityValide(hero) || skill == null || slot < 0)
-            {
-                return false;
-            }
-
-            if (battle != null && battle.ReadIsUpgradeChallengePreActive())
-            {
-                return slot == 0;
-            }
-
-            if (battle != null && battle.ReadIsUpgradeChallengeActive())
-            {
-                return slot == 0 &&
-                    battle.CanAddUpgradeChallengeScore(hero.ReadBattlePlayerId()) &&
-                    BattleManager.IsCanUseSkill_WillNextUseSkill(hero, slot, null);
-            }
-
-            if (battle != null && battle.ReadHasPendingMonsterRestore())
-            {
-                return false;
-            }
-
-            if (slot > 0 &&
-                battle != null &&
-                battle.RequiresPlayerSkillEnergy(hero, skill) &&
-                !battle.CanPlayerQueueActiveSkill(hero.ReadBattlePlayerId()))
-            {
-                return false;
-            }
-
-            return BattleManager.IsCanUseSkill_WillNextUseSkill(hero, slot, null);
+            var spawer = battle != null ? battle.ReadBattleSpawer() as TowerDefendBattleSpawer : null;
+            bool boneNormalAttack = slot == 0;
+            return spawer != null && slot >= 0 &&
+                spawer.CanConsumeGuardHeroBoneAction(hero, skill, boneNormalAttack);
         }
 
         private static void UpsertActionBinding(

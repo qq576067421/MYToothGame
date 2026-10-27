@@ -17,16 +17,95 @@ namespace GameDll
     public class RenderEff
     {
         public int m_CfgId;
-        //默认缓存60秒
-        public float m_CacheMaxTime = 60.0f;
+        // 回池后最多保留10秒，避免战斗高峰产生的特效对象长时间占用内存。
+        public float m_CacheMaxTime = 10.0f;
         private t_effectBean m_Cfg;
-        private string m_SoundOverride;
         public Vector3 m_Position;
         public Vector3 m_Rot;
         public Vector3 m_Dir;
         public Vector3 m_Scale;
         private bool m_IsLocal;
         private bool m_UseDir;
+        private ParticleSystem[] m_ParticleSystems;
+        private float[] m_ParticleBaseSpeeds;
+        private float m_ParticleSpeed = 1f;
+        internal bool m_WaitForParticleFinish;
+        internal float m_ParticleFinishWaitStartTime;
+        private bool m_WaitForPoolDeactivate;
+
+        public void SetParticleSpeed(float speed)
+        {
+            speed = Mathf.Max(0.001f, speed);
+            bool changed = !Mathf.Approximately(m_ParticleSpeed, speed);
+            m_ParticleSpeed = speed;
+            if (m_Eff == null)
+            {
+                return;
+            }
+            if (m_ParticleSystems == null)
+            {
+                m_ParticleSystems = m_Eff.GetComponentsInChildren<ParticleSystem>(true);
+                m_ParticleBaseSpeeds = new float[m_ParticleSystems.Length];
+                for (int i = 0; i < m_ParticleSystems.Length; i++)
+                {
+                    m_ParticleBaseSpeeds[i] = m_ParticleSystems[i].main.simulationSpeed;
+                }
+                changed = true;
+            }
+            if (!changed)
+            {
+                return;
+            }
+            for (int i = 0; i < m_ParticleSystems.Length; i++)
+            {
+                if (m_ParticleSystems[i] == null) continue;
+                var main = m_ParticleSystems[i].main;
+                main.simulationSpeed = m_ParticleBaseSpeeds[i] * speed;
+            }
+        }
+
+        internal bool StopParticleEmission(Transform tailParent)
+        {
+            if (m_Eff == null)
+            {
+                return false;
+            }
+            SetParticleSpeed(m_ParticleSpeed);
+            if (m_ParticleSystems.Length == 0)
+            {
+                return false;
+            }
+            foreach (var particle in m_ParticleSystems)
+            {
+                if (particle != null)
+                {
+                    particle.Stop(false, ParticleSystemStopBehavior.StopEmitting);
+                }
+            }
+            // 收尾期间不再挂在角色上，也不能提前入池复用；已发出的粒子自然消失。
+            m_ParentResource = null;
+            m_Parent = tailParent;
+            m_Eff.transform.SetParent(tailParent, true);
+            m_WaitForParticleFinish = true;
+            m_ParticleFinishWaitStartTime = Time.realtimeSinceStartup;
+            return true;
+        }
+
+        internal bool HasLivingParticles()
+        {
+            if (m_Eff == null || m_ParticleSystems == null)
+            {
+                return false;
+            }
+            foreach (var particle in m_ParticleSystems)
+            {
+                if (particle != null && particle.gameObject.activeInHierarchy && particle.IsAlive(false))
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
 
         private bool m_Active = true;
         public virtual void SetActive(bool active)
@@ -34,9 +113,11 @@ namespace GameDll
             m_Active = active;
             if(m_Eff != null)
             {
-                if(m_Holder == null || m_Holder.m_RenderPoolStyle == RenderPoolStyle.Active)
+                bool usePlayStop = m_Holder != null && m_Holder.m_RenderPoolStyle == RenderPoolStyle.PlayStop;
+                if (active)
                 {
-                    m_Eff.SetActive(active);
+                    m_WaitForPoolDeactivate = false;
+                    m_Eff.SetActive(true);
                 }
                 if(m_Holder != null)
                 {
@@ -58,8 +139,10 @@ namespace GameDll
                         }
                     }
                 }
-
-
+                if (!active && !usePlayStop)
+                {
+                    m_Eff.SetActive(false);
+                }
             }
         }
         public virtual bool IsActive()
@@ -221,6 +304,7 @@ namespace GameDll
             m_StartTime = 0;
             m_Delay = 0;
             m_UserData = null;
+            m_WaitForPoolDeactivate = false;
             m_Destroy = true;
             if(m_ABId != null)
             {
@@ -235,8 +319,6 @@ namespace GameDll
         public void LoadEff(int cfg)
         {
             m_CfgId = cfg;
-            m_SoundOverride = null;
-            m_LoadErrorPath = null;
             t_effectBean bean = t_effectBean.GetConfig(m_CfgId);
             if(bean == null)
             {
@@ -250,35 +332,10 @@ namespace GameDll
 
 
         }
-
-        private string m_LoadErrorPath;
-        public void LoadEff(string abName, string assetName, string sound = null)
-        {
-            m_Cfg = null;
-            m_CfgId = 0;
-            m_SoundOverride = sound;
-            m_LoadErrorPath = abName;
-            m_DuringTime = 2.0f;
-            m_ABId = LCL.UIRes.LoadPrefabAsync(typeof(GameObject), abName, assetName, OnLoadRes);
-        }
-
         private void PlaySound(Transform trans)
         {
             if (trans == null)
             {
-                return;
-            }
-
-            if (!string.IsNullOrWhiteSpace(m_SoundOverride) && m_SoundOverride != "0")
-            {
-                if (int.TryParse(m_SoundOverride, out var soundId) && soundId > 0)
-                {
-                    AudioManager.GetInstance().Play3D(soundId, trans.position);
-                }
-                else
-                {
-                    Debug.LogWarning("特效声音必须配置声音表编号，当前值：" + m_SoundOverride);
-                }
                 return;
             }
 
@@ -303,14 +360,24 @@ namespace GameDll
             }
             if(uol.m_Obj == null || uol.m_Obj.Equals(null))
             {
-                string errPath = m_Cfg != null ? m_Cfg.t_abname : m_LoadErrorPath;
-                UDebug.LogError("特效资源加载失败，路径是：" + errPath);
+                UDebug.LogError("特效资源加载失败，路径是：" + m_Cfg.t_abname);
                 return;
             }
             m_Eff = (GameObject)GameObject.Instantiate(uol.m_Obj);
             if(m_Eff != null)
             {
                 m_Holder = m_Eff.GetComponent<EffectHolder>();
+                // 加载完成前本轮攻击可能已经结束，不能先播放一次再隐藏。
+                if (m_IsPooled)
+                {
+                    Pool(m_Parent);
+                    RenderEffManager.GetInstance().TrackDelayedDeactivate(this);
+                    return;
+                }
+                if (!Mathf.Approximately(m_ParticleSpeed, 1f))
+                {
+                    SetParticleSpeed(m_ParticleSpeed);
+                }
                 if(m_UseDir)
                 {
                     ShowEffDir(m_IsLocal, m_Position, m_Dir, m_Scale);
@@ -319,10 +386,6 @@ namespace GameDll
                 {
                     ShowEff(m_IsLocal, m_Position, m_Rot, m_Scale);
                 }
-                if(m_IsPooled)
-                {
-                    Pool(m_Parent);
-                }
             }
 
         }
@@ -330,6 +393,13 @@ namespace GameDll
         public void Pool(Transform poolParent)
         {
             OnLoadedCall = null;
+            m_WaitForParticleFinish = false;
+            m_ParticleFinishWaitStartTime = 0f;
+            m_WaitForPoolDeactivate = false;
+            if (!Mathf.Approximately(m_ParticleSpeed, 1f))
+            {
+                SetParticleSpeed(1f);
+            }
             m_StartTime = 0;
             m_Delay = 0;
             m_LastPoolTime = Time.realtimeSinceStartup; // 记录进入对象池的时间
@@ -342,7 +412,37 @@ namespace GameDll
             {
                 SetActive(m_Active);
                 m_Eff.transform.SetParent(m_Parent, true);
+                m_WaitForPoolDeactivate = m_Holder != null &&
+                                          m_Holder.m_RenderPoolStyle == RenderPoolStyle.PlayStop &&
+                                          m_Eff.activeSelf;
             }
+        }
+
+        internal void CancelPoolDeactivate()
+        {
+            m_WaitForPoolDeactivate = false;
+        }
+
+        internal bool IsWaitingForPoolDeactivate()
+        {
+            return m_WaitForPoolDeactivate;
+        }
+
+        internal bool TryDeactivatePooledObject(float currentTime, float delay)
+        {
+            if (!m_WaitForPoolDeactivate || !m_IsPooled || m_Destroy || m_Eff == null)
+            {
+                m_WaitForPoolDeactivate = false;
+                return true;
+            }
+            if (currentTime - m_LastPoolTime < delay)
+            {
+                return false;
+            }
+
+            m_Eff.SetActive(false);
+            m_WaitForPoolDeactivate = false;
+            return true;
         }
         /// <summary>
         /// 检查是否超过缓存时间
@@ -441,6 +541,8 @@ namespace GameDll
     //只是起到表现作用的特效管理器
     public class RenderEffManager
     {
+        // PlayStop允许短时间内直接重新播放，连续闲置达到该时间后仍会强制隐藏根对象。
+        private const float m_PlayStopDeactivateDelay = 5.0f;
         private static RenderEffManager m_Instance;
         public static RenderEffManager GetInstance()
         {
@@ -455,6 +557,7 @@ namespace GameDll
         private Transform m_RenderEffParent;
 
         private List<RenderEff> m_AutoPoolEffs = new List<RenderEff>();
+        private List<RenderEff> m_DelayedDeactivateEffs = new List<RenderEff>();
         private float m_CleanupInterval = 5.0f; // 清理间隔（秒）
         private float m_LastCleanupTime = 0; // 上次清理时间
         public Transform GetRenderEffParent()
@@ -484,6 +587,7 @@ namespace GameDll
                 }
             }
             m_AutoPoolEffs.Clear();
+            m_DelayedDeactivateEffs.Clear();
         }
         public RenderEff CreateRenderEff(int cfgId)
         {
@@ -506,6 +610,8 @@ namespace GameDll
 
                         list.RemoveAt(i);
                         eff.m_IsPooled = false;
+                        eff.CancelPoolDeactivate();
+                        m_DelayedDeactivateEffs.Remove(eff);
                         eff.SetParent(m_RenderEffParent);
                         return eff;
                     }
@@ -519,23 +625,31 @@ namespace GameDll
             new_eff.SetParent(m_RenderEffParent);
             return new_eff;
         }
-        public RenderEff CreateRenderEff(string abName, string sound = null)
-        {
-            var new_eff = new RenderEff();
-            new_eff.m_IsPooled = false;
-            new_eff.LoadEff(abName, Tool.GetAssetName(abName), sound);
-            new_eff.SetParent(m_RenderEffParent);
-            return new_eff;
-        }
-
         public void SetAutoPool(RenderEff eff)
         {
-            if(eff == null)
+            if(eff == null || eff.m_IsPooled || m_AutoPoolEffs.Contains(eff))
             {
                 return;
             }
             m_AutoPoolEffs.Add(eff);
         }
+
+        public void StopEmissionAndAutoPool(RenderEff eff)
+        {
+            if (eff == null || eff.m_IsPooled)
+            {
+                return;
+            }
+            if (eff.StopParticleEmission(m_RenderEffParent))
+            {
+                SetAutoPool(eff);
+            }
+            else
+            {
+                PoolRenderEff(eff);
+            }
+        }
+
         public void PoolRenderEff(RenderEff effInterface)
         {
             var eff = (RenderEff)effInterface;
@@ -543,11 +657,14 @@ namespace GameDll
             {
                 return;
             }
+            // 手动结束必须同时取消旧的自动回收，避免对象复用后被上一轮回收。
+            m_AutoPoolEffs.Remove(eff);
             if(eff.m_IsPooled)
             {
                 return;
             }
             eff.Pool(m_RenderEffParent);
+            TrackDelayedDeactivate(eff);
             if(m_PooledEffects.ContainsKey(eff.m_CfgId))
             {
                 m_PooledEffects[eff.m_CfgId].Add(eff);
@@ -560,14 +677,46 @@ namespace GameDll
             }
         }
 
+        internal void TrackDelayedDeactivate(RenderEff eff)
+        {
+            if (eff != null && eff.IsWaitingForPoolDeactivate() && !m_DelayedDeactivateEffs.Contains(eff))
+            {
+                m_DelayedDeactivateEffs.Add(eff);
+            }
+        }
+
         public void Update()
         {
+            float currentTime = Time.realtimeSinceStartup;
+            for (int i = m_DelayedDeactivateEffs.Count - 1; i >= 0; --i)
+            {
+                var eff = m_DelayedDeactivateEffs[i];
+                if (eff == null || eff.TryDeactivatePooledObject(currentTime, m_PlayStopDeactivateDelay))
+                {
+                    m_DelayedDeactivateEffs.RemoveAt(i);
+                }
+            }
+
             // 处理自动回池的特效
             int count = m_AutoPoolEffs.Count;
             for(int i = count - 1; i >= 0; --i)
             {
                 var eff = (RenderEff)m_AutoPoolEffs[i];
-                if(eff != null && eff.GetDelay() > 0)
+                if (eff == null || eff.m_IsPooled)
+                {
+                    m_AutoPoolEffs.RemoveAt(i);
+                    continue;
+                }
+                if (eff.m_WaitForParticleFinish)
+                {
+                    // 异常粒子不能无限阻塞回池；五秒与 PlayStop 的最终隐藏保底保持一致。
+                    if (!eff.HasLivingParticles() || currentTime - eff.m_ParticleFinishWaitStartTime >= m_PlayStopDeactivateDelay)
+                    {
+                        PoolRenderEff(eff);
+                    }
+                    continue;
+                }
+                if(eff.GetDelay() > 0)
                 {
                     if( Time.realtimeSinceStartup - eff.m_StartTime <= eff.GetDelay())
                     {
@@ -586,10 +735,9 @@ namespace GameDll
                     //一般自动释放的都必须配置持续时间，如果没有配置持续时间，默认3秒
                     eff.SetDuringTime(3.0f);
                 }
-                if (eff == null || Time.realtimeSinceStartup - (eff.m_StartTime + eff.GetDelay()) > eff.m_DuringTime)
+                if (Time.realtimeSinceStartup - (eff.m_StartTime + eff.GetDelay()) > eff.m_DuringTime)
                 {
                     PoolRenderEff(eff);
-                    m_AutoPoolEffs.RemoveAt(i);
                 }
             }
 
@@ -688,6 +836,7 @@ namespace GameDll
                 }
             }
             m_PooledEffects.Clear();
+            m_DelayedDeactivateEffs.Clear();
         }
 
         /// <summary>
@@ -701,6 +850,7 @@ namespace GameDll
                 foreach (var eff in list)
                 {
                     eff.Destroy();
+                    m_DelayedDeactivateEffs.Remove(eff);
                 }
                 m_PooledEffects.Remove(cfgId);
             }

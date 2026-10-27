@@ -48,9 +48,9 @@ namespace CompanyInternalTools.BoneParserLib
     // t_gesture 填下面 BoneGestureType 枚举值的数字，不填枚举名；不要填写 未知、姿势开始、姿势结束、流程开始、流程结束。
     // t_gesture_phase 填 BoneGesturePhase 枚举值的数字：1 表示开始，2 表示持续，3 表示结束，4 表示触发。
     // 姿势手势编号在 1001 到 1006，表示玩家保持某个姿势，可使用开始、持续、结束阶段。
-    // 流程手势编号在 2001 到 2011，表示玩家完成一套动作；技能触发通常填写触发阶段。
-    // 当前技能表可直接使用：普攻填 t_gesture=2001、t_gesture_phase=4；技能填流程手势编号、t_gesture_phase=4。
-    // 双手过头蓄力_流程 和 双手下压释放_流程 是流程内部阶段，不直接给技能描述表使用。
+    // 流程手势编号在 2001 到 2016，表示玩家完成一套动作；技能触发通常填写触发阶段。
+    // 当前配表：双手上下挥动_流程填 2001/4；双手举过鼻尖释放_流程填 2004/4。前者仅上挥触发、下放复位，后者举手即触发且放下才重置。
+    // 2002 和 2003 是保留的旧编号，不再对外识别，也不能用于技能描述表。
     // 新增可配手势时，需要新增对应识别器并注册到 BoneGestureRecognizerRegistry，支持阶段和消费结果要求由识别器定义。
     // 如果 t_gesture 或 t_gesture_phase 填错，战斗初始化绑定时会打印错误日志，该技能不会响应骨骼手势。
     public enum BoneGestureType
@@ -65,10 +65,10 @@ namespace CompanyInternalTools.BoneParserLib
         蹲下_姿势 = 1006,
         姿势结束 = 1999,
         流程开始 = 2000,
-        左右交替挥击_流程 = 2001,
+        双手上下挥动_流程 = 2001,
         双手过头蓄力_流程 = 2002,
         双手下压释放_流程 = 2003,
-        双手过头下压释放_流程 = 2004,
+        双手举过鼻尖释放_流程 = 2004,
         双手交叉抱胸快速展开_流程 = 2005,
         单手举过头下拉_流程 = 2006,
         双手叉腰后上举_流程 = 2007,
@@ -76,6 +76,11 @@ namespace CompanyInternalTools.BoneParserLib
         双手胸前合拢后上推_流程 = 2009,
         双手左右展开保持_流程 = 2010,
         左右交替大幅挥击_流程 = 2011,
+        向左弯腰_流程 = 2012,
+        向右弯腰_流程 = 2013,
+        跳起来_流程 = 2014,
+        蹲下去_流程 = 2015,
+        单手外侧下方向中间上方挥手_流程 = 2016,
         流程结束 = 2999,
     }
 
@@ -101,6 +106,14 @@ namespace CompanyInternalTools.BoneParserLib
         未知 = 0,
         姿势 = 1,
         流程 = 2,
+    }
+
+    public enum BoneGestureTriggerHand
+    {
+        未知 = 0,
+        左手 = 1,
+        右手 = 2,
+        双手 = 3,
     }
 
     public enum BoneActionConsumerType
@@ -422,6 +435,7 @@ namespace CompanyInternalTools.BoneParserLib
     {
         public BoneGestureType m_GestureType = BoneGestureType.未知;
         public BoneGesturePhase m_Phase = BoneGesturePhase.触发;
+        public BoneGestureTriggerHand m_TriggerHand = BoneGestureTriggerHand.未知;
         public int m_SlotIndex;
         public int m_BindingId;
         public int m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
@@ -434,6 +448,7 @@ namespace CompanyInternalTools.BoneParserLib
         public int m_ActionId;
         public BoneGestureType m_GestureType = BoneGestureType.未知;
         public BoneGesturePhase m_Phase = BoneGesturePhase.触发;
+        public BoneGestureTriggerHand m_TriggerHand = BoneGestureTriggerHand.未知;
         public int m_SlotIndex;
         public int m_BindingId;
         public int m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
@@ -502,44 +517,34 @@ namespace CompanyInternalTools.BoneParserLib
         public float m_MinJointScore = 0.20f;
         public int m_MaxMissingFrameCount = 18;
 
-        public float m_RotationSmoothFactor = 6f;
+        public float m_ShoulderAngleTurnMaxOutputAngleDegrees = 45f;
+        public bool m_ShoulderAngleTurnInvertDirection = true;
+        public float m_ShoulderAngleTurnSmoothTimeSeconds = 0.12f;
+        public float m_ShoulderAngleTurnFullInputDegrees = 20f;
+        public float m_ShoulderAngleTurnInputJitterDegrees = 0.75f;
+        public float m_ShoulderAngleTurnMaxSpeedDegreesPerSecond = 180f;
+        public float m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio = 0.25f;
+        public float m_TurnUpdateDeltaTimeSeconds = 1f / 30f;
+
         public float m_KeypointConfidenceThreshold = 0.30f;
         public float m_ShoulderWidthEpsilon = 0.0001f;
-        public float m_MaxShoulderWidthUpdateConfidence = 0.70f;
-        public float m_MaxTurnAngleDegrees = 35f;
-        public bool m_InvertTurnDirection;
-        public float m_RotationAmplifyFactor = 1.0f;
-        public float m_AimCenterEnterRatio = 0.12f;
-        public float m_AimCenterExitRatio = 0.07f;
-        public float m_AimResponseCurveExponent = 1.35f;
-        public float m_ShoulderTurnJitterDeadZone = 0.0f;
-        public int m_AimPredictMissingFrames = 6;
-        public int m_AimHoldMissingFrames = 18;
         public int m_AimReconnectStableFrames = 3;
-        public float m_AimPredictVelocityDamping = 0.88f;
-        public float m_AimReconnectBlendFactor = 10f;
-        public float m_AimReturnToForwardSeconds = 0.35f;
 
         public float m_GestureKeypointMinConfidence = 0.40f;
-        public float m_AlternatingSwingSpeedRatioPerSecond = 1.20f;
-        public float m_AlternatingSwingMinVerticalDistanceRatio = 0.20f;
-        public float m_AlternatingSwingDirectionNoiseRatio = 0.015f;
-        public int m_AlternatingSwingMinDirectionalFrames = 2;
-        public float m_AlternatingSwingCooldownSeconds = 0.45f;
-        public int m_AlternatingSwingWindowFrames = 24;
+        public float m_UpDownSwingMinUpwardSpeedRatioPerSecond = 0.60f;
+        public float m_UpDownSwingStartMaxHeightRatio = 1.00f;
+        public float m_UpDownSwingStartMinHeightRatio = 0.00f;
+        public float m_UpDownSwingMinStrokeDistanceRatio = 0.15f;
+        public float m_UpDownSwingMaxLateralRatio = 0.75f;
+        public float m_UpDownSwingPairingWindowSeconds = 2.00f;
         public float m_LargeAlternatingSwingSpeedRatioPerSecond = 1.20f;
         public float m_LargeAlternatingSwingDirectionNoiseRatio = 0.015f;
         public int m_LargeAlternatingSwingMinDirectionalFrames = 2;
         public float m_LargeAlternatingSwingCooldownSeconds = 0.45f;
         public int m_LargeAlternatingSwingWindowFrames = 24;
         public float m_LargeAlternatingSwingMinTorsoDistanceRatio = 0.50f;
-        public int m_OverheadPressReadyFrames = 5;
-        public float m_OverheadPressHeadMarginRatio = 0.12f;
-        public float m_OverheadPressReleaseSpeedRatio = 2.80f;
-        public float m_OverheadPressMinReleaseDistanceRatio = 0.35f;
-        public float m_OverheadPressReleaseEndBelowHeadRatio = 0.15f;
-        public int m_OverheadPressReleaseWindowFrames = 8;
-        public float m_OverheadPressCooldownSeconds = 0.70f;
+        public float m_HandsAboveNoseEnterMarginRatio = 0.02f;
+        public float m_HandsAboveNoseExitMarginRatio = 0.10f;
         public int m_CrossChestExpandReadyFrames = 3;
         public float m_CrossChestExpandSpeedRatioPerSecond = 2.20f;
         public float m_CrossChestExpandMinDistanceRatio = 0.30f;
@@ -576,6 +581,43 @@ namespace CompanyInternalTools.BoneParserLib
         public int m_HandsExpandHoldFrames = 3;
         public int m_HandsExpandReleaseWindowFrames = 18;
         public float m_HandsExpandCooldownSeconds = 0.60f;
+
+        public int m_LeftLeanReadyFrames = 3;
+        public float m_LeftLeanTriggerOffsetRatio = 0.22f;
+        public float m_LeftLeanReturnToNeutralRatio = 0.08f;
+        public float m_LeftLeanMinSpeedRatioPerSecond = 0.35f;
+        public float m_LeftLeanCooldownSeconds = 0.25f;
+        public int m_RightLeanReadyFrames = 3;
+        public float m_RightLeanTriggerOffsetRatio = 0.22f;
+        public float m_RightLeanReturnToNeutralRatio = 0.08f;
+        public float m_RightLeanMinSpeedRatioPerSecond = 0.35f;
+        public float m_RightLeanCooldownSeconds = 0.25f;
+        public int m_JumpReadyFrames = 4;
+        public float m_JumpReadyMaxVerticalSpeedRatioPerSecond = 0.30f;
+        public float m_JumpMinShoulderRiseRatio = 0.18f;
+        public float m_JumpMinHipRiseRatio = 0.18f;
+        public float m_JumpMinAnkleRiseRatio = 0.12f;
+        public float m_JumpMinUpwardSpeedRatioPerSecond = 0.80f;
+        public float m_JumpCooldownSeconds = 0.60f;
+        public int m_CrouchDownReadyFrames = 4;
+        public float m_CrouchDownReadyMaxVerticalSpeedRatioPerSecond = 0.30f;
+        public float m_CrouchDownMinShoulderDropRatio = 0.20f;
+        public float m_CrouchDownMinHipDropRatio = 0.22f;
+        public float m_CrouchDownMinLegCompressionRatio = 0.18f;
+        public float m_CrouchDownMinDownwardSpeedRatioPerSecond = 0.70f;
+        public float m_CrouchDownCooldownSeconds = 0.55f;
+        // 蹲下确认保持帧数：下降条件首次满足后，身体需保持在髋部下降阈值以下至少
+        // 这么多帧才真正触发；起跳前的反向下压会很快反弹回去，凑不满保持帧。
+        // 小于等于 1 表示满足条件立即触发（旧行为）。
+        public int m_CrouchDownConfirmHoldFrames = 8;
+        public float m_SingleHandSideSweepStartAboveHipToleranceRatio = 0.65f;
+        public float m_SingleHandSideSweepStartBelowHipToleranceRatio = 0.30f;
+        public float m_SingleHandSideSweepStartMovementDistanceRatio = 0.05f;
+        public float m_SingleHandSideSweepElbowHeightToleranceRatio = 0.08f;
+        public int m_SingleHandSideSweepWristMissingToleranceFrames = 2;
+        public float m_SingleHandSideSweepMaxDurationSeconds = 1.50f;
+        public int m_SingleHandSideSweepElbowMissingToleranceFrames = 2;
+        public float m_SingleHandSideSweepMinTriggerIntervalSeconds = 0f;
 
         public float m_PoseRaiseMarginRatio = 0.05f;
         public float m_PoseCrossChestCenterRatio = 0.70f;

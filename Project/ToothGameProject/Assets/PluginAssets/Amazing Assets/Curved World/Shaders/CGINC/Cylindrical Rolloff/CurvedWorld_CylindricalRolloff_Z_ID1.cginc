@@ -7,6 +7,10 @@
 uniform float3 CurvedWorld_CylindricalRolloff_Z_ID1_PivotPoint;
 uniform float CurvedWorld_CylindricalRolloff_Z_ID1_BendSize;    
 uniform float CurvedWorld_CylindricalRolloff_Z_ID1_BendOffset;
+
+// Per-material bend switch (default 0 keeps bending). Set to 1 via MaterialPropertyBlock
+// for visuals that must stay straight in the bent world (e.g. player1 laser & aim line).
+uniform float _CurvedWorldBendOff;
   
                  
 #include "../../Core/Core.cginc"                           
@@ -19,6 +23,11 @@ uniform float CurvedWorld_CylindricalRolloff_Z_ID1_BendOffset;
 ////////////////////////////////////////////////////////////////////////////////
 void CurvedWorld_CylindricalRolloff_Z_ID1(inout float4 vertexOS)
 {
+    if (_CurvedWorldBendOff > 0.5)
+    {
+        return;
+    }
+
     CurvedWorld_CylindricalRolloff_Z(vertexOS, 
 	                        CurvedWorld_CylindricalRolloff_Z_ID1_PivotPoint,
 							CurvedWorld_CylindricalRolloff_Z_ID1_BendSize,
@@ -27,6 +36,11 @@ void CurvedWorld_CylindricalRolloff_Z_ID1(inout float4 vertexOS)
 
 void CurvedWorld_CylindricalRolloff_Z_ID1(inout float4 vertexOS, inout float3 normalOS, float4 tangent)
 {
+    if (_CurvedWorldBendOff > 0.5)
+    {
+        return;
+    }
+
     CurvedWorld_CylindricalRolloff_Z(vertexOS, 
                             normalOS, 
                             tangent,

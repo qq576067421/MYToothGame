@@ -1,0 +1,50 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d6002577a49646247a7c4be3dfd74eaf, type: 3}
+  m_Name: MatchSessionUiVisualProfile
+  m_EditorClassIdentifier: 
+  states:
+  - State: 0
+    LabelKey: "\u7B49\u5F85\u8BC6\u522B"
+    Color: {r: 0.42, g: 0.58, b: 0.72, a: 1}
+    ShowProgress: 0
+    ShowPersonId: 1
+  - State: 1
+    LabelKey: "\u8BC6\u522B\u4E2D"
+    Color: {r: 1, g: 0.72, b: 0.16, a: 1}
+    ShowProgress: 1
+    ShowPersonId: 1
+  - State: 2
+    LabelKey: "\u7B49\u5F85\u4EBA\u8138"
+    Color: {r: 0.24, g: 0.78, b: 1, a: 1}
+    ShowProgress: 0
+    ShowPersonId: 1
+  - State: 3
+    LabelKey: "\u7B49\u5F85\u51C6\u5907\u52A8\u4F5C"
+    Color: {r: 0.55, g: 0.62, b: 1, a: 1}
+    ShowProgress: 1
+    ShowPersonId: 1
+  - State: 4
+    LabelKey: "\u5DF2\u7ED1\u5B9A"
+    Color: {r: 0.22, g: 0.95, b: 0.6, a: 1}
+    ShowProgress: 0
+    ShowPersonId: 1
+  - State: 5
+    LabelKey: "\u6682\u65F6\u4E22\u5931"
+    Color: {r: 1, g: 0.54, b: 0.16, a: 1}
+    ShowProgress: 0
+    ShowPersonId: 1
+  - State: 6
+    LabelKey: "\u91CD\u65B0\u8BC6\u522B"
+    Color: {r: 0.95, g: 0.28, b: 0.65, a: 1}
+    ShowProgress: 1
+    ShowPersonId: 1

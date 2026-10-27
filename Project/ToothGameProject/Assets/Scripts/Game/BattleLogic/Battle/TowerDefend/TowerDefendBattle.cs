@@ -59,6 +59,7 @@ namespace GameDll
         private int m_Stage;
         private int m_BaseHealth;
         private int m_BaseMaxHealth;
+        private readonly Dictionary<long, TowerDefendTalentBonus> m_TalentBonusByPlayerId = new Dictionary<long, TowerDefendTalentBonus>();
         private long m_TeamExpCurrent;
         private long m_TeamExpMax;
         private bool m_IsUpgradeChallengeReady;
@@ -232,6 +233,14 @@ namespace GameDll
                 solution.m_UseParabolic,
                 projectileSpeed,
                 gravity);
+
+            if (bulletCfg != null && bulletCfg.t_trajectory == 3)
+            {
+                // 激光按视觉位置瞄准：目标点加上 Curve World 弯折偏移（往下），
+                // 直线激光与瞄准线在画面上正好落在被弯下去的单位/棒棒糖身上
+                target.m_HitPoint = CurveWorldVisualUtility.ApplyVisualOffset(target.m_HitPoint);
+            }
+
             if (!target.m_TargetIsUpgradeChallenge &&
                 TryReadGuardHeroSeatId(attacker, out var recoveringSeatId) &&
                 m_PostUpgradeChallengeAimRecoveringSeats.Contains(recoveringSeatId))
@@ -259,6 +268,13 @@ namespace GameDll
                     out var resolvedFlightTime))
             {
                 return true;
+            }
+
+            if (bulletCfg.t_trajectory == 3)
+            {
+                // 激光：向下最多 5 度（角色姿态、瞄准线、光束三处同口径，统一在这里收口）。
+                // 角色2激光的刻意口径：允许光束被压平，命中以瞄准线的视觉接触为准（见 BulletObj 命中段）。
+                resolvedLaunchForward = TowerDefendAimAssistLine.ClampLaserForwardPitch(resolvedLaunchForward);
             }
 
             if (solution.m_UseParabolic)
@@ -694,12 +710,15 @@ namespace GameDll
                     entity == attacker ||
                     entity.ReadHurtGroup() == attacker.ReadHurtGroup() ||
                     !entity.ReadCanBeTarget() ||
+                    entity.ReadIsInBorn() ||
                     (!entity.ReadIsSmallMonster() && !entity.ReadIsBoss()))
                 {
                     return true;
                 }
 
                 // 小怪和 boss 的自动吸附统一读取根节点 hit 节点，只修正自动吸附和俯仰，不改真实命中判定。
+                // 出生（从地面钻出）阶段的怪物不可被子弹命中，必须跳过，
+                // 否则吸附会把俯仰拉向它还没冒出地面的低点，瞄准线和激光表现为对着地上。
                 if (!entity.TryReadAutoAimPoint(out var hitPoint))
                 {
                     return true;
@@ -711,14 +730,17 @@ namespace GameDll
                     return true;
                 }
 
-                // 在满足横向吸附阈值后，优先选择更靠近我方的目标，也就是世界坐标 z 更大的目标。
-                // 这样前后两排怪都可吸附时，不会因为后排目标恰好更贴近射线，就把辅助瞄准线的 Y 来回拉跳。
+                // 在满足横向吸附阈值后，优先选择更靠近角色的目标，也就是沿瞄准射线距离更近的目标。
+                // 不能按世界坐标 z 排序：怪物可能从 z 相反的一侧进场（ResolveMonsterAdvanceZDirection
+                // 支持双向路径），此时 z 更大的反而是刚出生、离角色更远的目标；且 CurveWorld 会把
+                // 更远的单位在画面上向下弯折（视觉像在地面以下），用 z 排序就会优先吸附一个
+                // “视野里像在地下的更远目标”，而把真正靠近角色的怪晾在一边。
                 if (!foundTarget ||
-                    hitPoint.z > bestTargetZ + 0.0001f ||
-                    (Mathf.Abs(hitPoint.z - bestTargetZ) <= 0.0001f &&
+                    alongRayDistance < bestAlongRayDistance - 0.0001f ||
+                    (Mathf.Abs(alongRayDistance - bestAlongRayDistance) <= 0.0001f &&
                      (horizontalOffsetToRay < bestHorizontalOffsetToRay - 0.0001f ||
                       (Mathf.Abs(horizontalOffsetToRay - bestHorizontalOffsetToRay) <= 0.0001f &&
-                       alongRayDistance < bestAlongRayDistance))))
+                       hitPoint.z > bestTargetZ + 0.0001f))))
                 {
                     foundTarget = true;
                     bestTargetZ = hitPoint.z;
@@ -918,7 +940,7 @@ namespace GameDll
             return false;
         }
 
-        private bool TryResolveCurrentAutoAimReferenceForward(PropertyEntity attacker, out Vector3 forward)
+        public bool TryResolveCurrentAutoAimReferenceForward(PropertyEntity attacker, out Vector3 forward)
         {
             forward = Vector3.zero;
             if (!BattleManager.ReadIsEntityValide(attacker))
@@ -1392,6 +1414,7 @@ namespace GameDll
 
             InitPlayers(info.m_Players);
             NormalizePlayerRuntimeData();
+            InitTalentBonuses();
             m_TeamExpMax = ResolveTeamExpMaxForCurrentProgress();
 
 
@@ -1722,6 +1745,11 @@ namespace GameDll
             return m_BattleSpawer != null && m_BattleSpawer.GM_TrySpawnBossNow();
         }
 
+        public bool GM_TrySetCurrentWave(int wave)
+        {
+            return m_BattleSpawer != null && m_BattleSpawer.GM_TrySetCurrentWave(wave);
+        }
+
         public void GM_ForceBaseHealthToZero()
         {
             if (m_BaseHealth <= 0)
@@ -1814,7 +1842,10 @@ namespace GameDll
                 return true;
             }
 
-            return skill.ReadSlot() != playerHero.ReadTowerDefendAutoSkillSlot();
+            // 被动技能与程序触发的动作技能都不是玩家手动技能，不占共享能量
+            int skillSlot = skill.ReadSlot();
+            return skillSlot != playerHero.ReadTowerDefendAutoSkillSlot() &&
+                !playerHero.IsTowerDefendAutoActionSkillSlot(skillSlot);
         }
 
         // 增加团队经验并检查是否触发升级挑战就绪条件。
@@ -2272,6 +2303,38 @@ namespace GameDll
             NotifyPlayerSkillEnergyFullStateChangedIfNeed(player, wasFull);
         }
 
+        private void InitTalentBonuses()
+        {
+            m_TalentBonusByPlayerId.Clear();
+            int maxBaseHealthAdd = 0;
+            int playerCount = m_BattlePlayers.Count;
+            for (int i = 0; i < playerCount; i++)
+            {
+                var player = m_BattlePlayers[i];
+                if (player == null)
+                {
+                    continue;
+                }
+
+                var bonus = TowerDefendTalentBonus.Build(player.m_Talents, player.m_TalentBranches);
+                m_TalentBonusByPlayerId[player.m_ID] = bonus;
+                maxBaseHealthAdd = Mathf.Max(maxBaseHealthAdd, bonus.m_BaseHealthAdd);
+            }
+
+            // 基地为全队共享，同一天赋只取最大值，避免多人重复叠加。
+            if (maxBaseHealthAdd > 0)
+            {
+                m_BaseMaxHealth += maxBaseHealthAdd;
+                m_BaseHealth = Mathf.Min(m_BaseMaxHealth, m_BaseHealth + maxBaseHealthAdd);
+            }
+        }
+
+        public TowerDefendTalentBonus ReadPlayerTalentBonus(long playerId)
+        {
+            TowerDefendTalentBonus bonus;
+            return m_TalentBonusByPlayerId.TryGetValue(playerId, out bonus) ? bonus : null;
+        }
+
         private void UpdatePlayerSkillEnergy(float dt)
         {
             if (dt <= 0 || IsUpgradeChallengeCombatBlocked())
@@ -2306,7 +2369,10 @@ namespace GameDll
                     continue;
                 }
 
-                var rechargePermille = Mathf.RoundToInt(m_SkillEnergyRechargePermillePerSecond * dt);
+                var talentBonus = ReadPlayerTalentBonus(player.m_ID);
+                var rechargePerSecond = m_SkillEnergyRechargePermillePerSecond +
+                    (talentBonus != null ? talentBonus.m_ChargeSpeedAddPermillePerSecond : 0);
+                var rechargePermille = Mathf.RoundToInt(rechargePerSecond * dt);
                 if (rechargePermille <= 0)
                 {
                     rechargePermille = 1;
@@ -2513,12 +2579,26 @@ namespace GameDll
                 return null;
             }
 
+            // 被动槽与程序触发的动作技能槽都不属于玩家的手动技能，选择时都要排除
             int autoSkillSlot = ResolvePlayerAutoSkillSlot(heroEntity);
+            ResolvePlayerAutoActionSkillSlots(heroEntity, out int autoActionFirstSlot, out int autoActionLastSlot);
             int skillCount = skills.Count;
             for (int i = 0; i < skillCount; i++)
             {
                 var skill = skills[i];
-                if (skill != null && skill.ReadSlot() > 0 && skill.ReadSlot() != autoSkillSlot)
+                if (skill == null)
+                {
+                    continue;
+                }
+
+                int slot = skill.ReadSlot();
+                if (slot <= 0)
+                {
+                    continue;
+                }
+
+                bool isAutoActionSlot = slot >= autoActionFirstSlot && slot <= autoActionLastSlot;
+                if (slot != autoSkillSlot && !isAutoActionSlot)
                 {
                     return skill;
                 }
@@ -2590,6 +2670,51 @@ namespace GameDll
         {
             var playerHero = heroEntity as PlayerHero;
             return playerHero != null ? playerHero.ReadTowerDefendAutoSkillSlot() : -1;
+        }
+
+        private  void ResolvePlayerAutoActionSkillSlots(PropertyEntity heroEntity, out int firstSlot, out int lastSlot)
+        {
+            firstSlot = -1;
+            lastSlot = -1;
+
+            var playerHero = heroEntity as PlayerHero;
+            if (playerHero != null)
+            {
+                playerHero.TryGetTowerDefendAutoActionSkillSlots(out firstSlot, out lastSlot);
+            }
+        }
+
+        // 巅峰天赋：无尽模式下每消灭一波怪物，为已解锁该天赋的玩家角色累加攻击力。
+        public void NotifyTalentWaveCleared(int wave)
+        {
+            if (wave <= 0 || ReadGameMode() != BattleGameMode.Endless)
+            {
+                return;
+            }
+
+            int playerCount = m_BattlePlayers.Count;
+            for (int i = 0; i < playerCount; i++)
+            {
+                var player = m_BattlePlayers[i];
+                if (player == null)
+                {
+                    continue;
+                }
+
+                var bonus = ReadPlayerTalentBonus(player.m_ID);
+                if (bonus == null || bonus.m_PeakAtkPerWave <= 0)
+                {
+                    continue;
+                }
+
+                var hero = FindGuardHeroEntity(player.m_ID);
+                if (hero == null)
+                {
+                    continue;
+                }
+
+                hero.GetBuffManager().AddTalentProperty((int)PropertyType.atk, bonus.m_PeakAtkPerWave);
+            }
         }
 
         private PropertyEntity FindGuardHeroEntity(long playerId)
@@ -3365,14 +3490,17 @@ namespace GameDll
 
             if (Input.GetKeyDown(normalAttackKey))
             {
+                // 键盘与真机体感走同一入口：施法中可打断重开、普攻走骨骼节奏（0.25s 最小间隔、
+                // 不检查技能 CD、动画随输入频率加速）。旧的 WillNext 直连记录因 defender 为空
+                // 永远不会被消费，会把施法期间的点击全部吞掉，只能等当前技能完整结束。
                 var faceDir = ReadManualAimForwardBySeat(seatId);
-                m_BattleSpawer.TryGuardHeroActionBySeat(seatId, 0, faceDir, Vector3.zero);
+                m_BattleSpawer.TryGuardHeroBoneActionBySeat(seatId, 0, faceDir, Vector3.zero, true);
             }
 
             if (Input.GetKeyDown(skillKey))
             {
                 var faceDir = ReadManualAimForwardBySeat(seatId);
-                m_BattleSpawer.TryGuardHeroActionBySeat(seatId, 1, faceDir, Vector3.zero);
+                m_BattleSpawer.TryGuardHeroBoneActionBySeat(seatId, 1, faceDir, Vector3.zero, false);
             }
         }
 

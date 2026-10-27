@@ -64,6 +64,11 @@ namespace GameDll
             m_AudioSource.gameObject.SetActive(true);
             m_AudioSource.spatialBlend = request.m_Is3D ? 1f : 0f;
             m_AudioSource.transform.position = request.m_Position;
+            if (request.m_ForceLoop)
+            {
+                // 请求级循环覆盖：忽略预制件原始 loop 设置；停止回收路径的 RestoreOriginalAudioState 会恢复原值
+                m_AudioSource.loop = true;
+            }
         }
 
         /// <summary>停止播放、解除请求绑定，并记录实例进入缓存的时间和保留时长。</summary>

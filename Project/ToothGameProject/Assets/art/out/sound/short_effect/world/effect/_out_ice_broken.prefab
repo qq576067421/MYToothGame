@@ -24,6 +24,11 @@ PrefabInstance:
       propertyPath: panLevelCustomCurve.m_Curve.Array.data[0].value
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
+        type: 3}
+      propertyPath: reverbZoneMixCustomCurve.m_Curve.Array.data[0].value
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6415141289833566812, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: m_RootOrder

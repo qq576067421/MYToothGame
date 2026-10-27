@@ -4,19 +4,19 @@ using UnityEngine;
 namespace GameDll
 {
     /// <summary>
-    /// 管理由播放请求触发的声音总线压低状态，并把每条总线的最终压低系数交给 <see cref="AudioBusController"/>。
+    /// 管理由播放请求或外部流程触发的声音总线压低状态，并把每条总线的最终压低系数交给 <see cref="AudioBusController"/>。
     /// </summary>
     /// <remarks>
-    /// <para>每个播放请求最多对应一份压低状态。声音开始播放时激活，暂停、停止、完成或释放时进入恢复阶段。</para>
+    /// <para>每个压低来源最多对应一份状态。来源生效时激活，来源停止时进入恢复阶段。</para>
     /// <para>多个请求同时影响同一总线时采用最低的当前音量，而不是相乘，从而避免重复压低导致意外静音。</para>
     /// <para>所有时间都使用不受 <see cref="Time.timeScale"/> 影响的帧间隔推进。</para>
     /// </remarks>
     internal sealed class AudioDuckingController
     {
-        /// <summary>保存单个播放请求的压低目标和当前过渡进度。</summary>
+        /// <summary>保存单个压低来源的目标和当前过渡进度。</summary>
         private sealed class AudioDuckState
         {
-            public long m_RequestId;
+            public long m_SourceId;
             public AudioBusMask m_TargetBuses;
             public float m_TargetVolume;
             public float m_AttackSeconds;
@@ -43,14 +43,14 @@ namespace GameDll
         }
 
         /// <summary>
-        /// 激活或更新指定播放请求的声音压低状态。
+        /// 激活或更新指定来源的声音压低状态。
         /// </summary>
-        /// <param name="requestId">播放请求的唯一编号。</param>
+        /// <param name="sourceId">压低来源的唯一编号。</param>
         /// <param name="options">需要应用的压低目标和过渡时间。</param>
         /// <remarks>参数不产生实际压低效果时，已有状态会进入恢复阶段，新状态不会创建。</remarks>
-        public void Start(long requestId, AudioDuckOptions options)
+        public void Start(long sourceId, AudioDuckOptions options)
         {
-            var state = FindState(requestId);
+            var state = FindState(sourceId);
             if (!options.IsEnabled())
             {
                 if (state != null)
@@ -61,7 +61,7 @@ namespace GameDll
             }
             if (state == null)
             {
-                state = new AudioDuckState { m_RequestId = requestId };
+                state = new AudioDuckState { m_SourceId = sourceId };
                 m_States.Add(state);
             }
             state.m_TargetBuses = options.m_TargetBuses;
@@ -72,12 +72,12 @@ namespace GameDll
         }
 
         /// <summary>
-        /// 停止指定播放请求继续压低声音，并按其恢复时间回到原音量。
+        /// 停止指定来源继续压低声音，并按其恢复时间回到原音量。
         /// </summary>
-        /// <param name="requestId">播放请求的唯一编号。</param>
-        public void Stop(long requestId)
+        /// <param name="sourceId">压低来源的唯一编号。</param>
+        public void Stop(long sourceId)
         {
-            var state = FindState(requestId);
+            var state = FindState(sourceId);
             if (state != null)
             {
                 state.m_IsActive = false;
@@ -168,14 +168,14 @@ namespace GameDll
             return m_DefaultRelease;
         }
 
-        /// <summary>查找指定播放请求现有的压低状态。</summary>
-        /// <param name="requestId">播放请求的唯一编号。</param>
+        /// <summary>查找指定来源现有的压低状态。</summary>
+        /// <param name="sourceId">压低来源的唯一编号。</param>
         /// <returns>找到的状态；不存在时返回 <see langword="null"/>。</returns>
-        private AudioDuckState FindState(long requestId)
+        private AudioDuckState FindState(long sourceId)
         {
             for (int i = 0; i < m_States.Count; i++)
             {
-                if (m_States[i].m_RequestId == requestId)
+                if (m_States[i].m_SourceId == sourceId)
                 {
                     return m_States[i];
                 }

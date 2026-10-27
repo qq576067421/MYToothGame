@@ -119,6 +119,42 @@
             return base.TryIntersectSegment(segmentStart, segmentEnd, extraRadius, out hitT, out hitPoint);
         }
 
+        // 表现（视觉）口径：喊话实体的画面形体同样是逻辑形体完整弯折后的结果，端点弯折后再求交
+        public override bool TryIntersectVisualSegment(
+            Vector3 segmentStart,
+            Vector3 segmentEnd,
+            float extraRadius,
+            out float hitT,
+            out Vector3 hitPoint)
+        {
+            extraRadius = Mathf.Max(0.0f, extraRadius);
+
+            if (TryReadRootCapsule(out var capsuleStart, out var capsuleEnd, out var capsuleRadius))
+            {
+                return BattleManager.TryIntersectSegmentCapsule(
+                    segmentStart,
+                    segmentEnd,
+                    CurveWorldVisualUtility.ApplyVisualOffset(capsuleStart),
+                    CurveWorldVisualUtility.ApplyVisualOffset(capsuleEnd),
+                    capsuleRadius + extraRadius,
+                    out hitT,
+                    out hitPoint);
+            }
+
+            if (TryReadRootSphere(out var sphereCenter, out var sphereRadius))
+            {
+                return BattleManager.TryIntersectSegmentSphere(
+                    segmentStart,
+                    segmentEnd,
+                    CurveWorldVisualUtility.ApplyVisualOffset(sphereCenter),
+                    sphereRadius + extraRadius,
+                    out hitT,
+                    out hitPoint);
+            }
+
+            return base.TryIntersectVisualSegment(segmentStart, segmentEnd, extraRadius, out hitT, out hitPoint);
+        }
+
         public override void CreateRender(UResource obj, ResourceType resourceType)
         {
             if (m_Bean == null)

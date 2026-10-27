@@ -142,6 +142,11 @@ namespace GameDll
             return m_MonsterSpawer != null && m_MonsterSpawer.GM_TrySpawnBossNow();
         }
 
+        public bool GM_TrySetCurrentWave(int wave)
+        {
+            return m_MonsterSpawer != null && m_MonsterSpawer.GM_TrySetCurrentWave(wave);
+        }
+
         public void TrySummonMonstersFromEntity(PropertyEntity sourceEntity, int targetCount)
         {
             if (m_MonsterSpawer == null || sourceEntity == null || targetCount <= 0)
@@ -232,6 +237,7 @@ namespace GameDll
                 ent.SetCanWarningFollow(false);
                 ent.InitHp();
                 ent.InitHPPercent(player.m_HPPercent);
+                ent.ApplyTalentBonus(m_Battle.ReadPlayerTalentBonus(player.m_ID));
                 ent.SetAngularSpeed(720);
                 ent.SetVisiable(true);
                 objMgr.AddPropertyEntity(ent);
@@ -349,6 +355,13 @@ namespace GameDll
                     continue;
                 }
 
+                // 自动动作持续技能因条件失效结束后，若玩家还在连续攻击且普攻也是持续型，
+                // 在当前技能真正结束的这一帧自动释放普攻，不等玩家再点一次。
+                if (hero is PlayerHero playerHero && TryAutoContinueNormalAttack(playerHero))
+                {
+                    continue;
+                }
+
                 var skillMgr = hero.GetSkillManager();
                 int skillCount = skillMgr != null ? skillMgr.GetSkillCount() : 0;
                 bool handled = false;
@@ -368,6 +381,54 @@ namespace GameDll
 
                 TryAutoCastGuardHeroSkill(hero, 0);
             }
+        }
+
+        // 自动动作持续技能因条件失效结束后：若当前技能已真正结束、玩家仍在连续攻击，
+        // 且普攻本身是持续型（如激光），自动释放普攻，接上持续释放。
+        private bool TryAutoContinueNormalAttack(PlayerHero hero)
+        {
+            if (hero == null ||
+                !hero.TryPeekAutoNormalAttackContinue(
+                    PlayerHero.AutoNormalAttackContinueMaxAgeSeconds, out _))
+            {
+                return false;
+            }
+
+            var skillManager = hero.GetSkillManager();
+            if (skillManager == null || skillManager.GetCurrentSkill() != null)
+            {
+                // 触发条件失效的技能还没真正结束，等它结束后的下一帧再接。
+                return false;
+            }
+
+            if (!hero.ReadIsNormalAttackInputActive(PlayerHero.NormalAttackInputActiveWindowSeconds))
+            {
+                hero.ClearAutoNormalAttackContinue();
+                return false;
+            }
+
+            var normalSkill = skillManager.ReadSkillBySlot(0);
+            if (!(normalSkill is CommonBulletSkill normalBullet) || !normalBullet.ReadIsContinuousBulletCast())
+            {
+                hero.ClearAutoNormalAttackContinue();
+                return false;
+            }
+
+            if (!BattleManager.IsCanUseSkillDirect(hero, 0))
+            {
+                return false;
+            }
+
+            var forward = hero.ReadForward();
+            if (forward.sqrMagnitude <= 0.0001f)
+            {
+                forward = Vector3.forward;
+            }
+
+            hero.ClearAutoNormalAttackContinue();
+            MarkManualControl(hero);
+            BattleManager.AttackDir(0, hero, forward, Vector3.zero);
+            return true;
         }
 
         private bool TryAutoCastGuardHeroSkill(PropertyEntity hero, int slot)
@@ -431,12 +492,122 @@ namespace GameDll
             return true;
         }
 
+        // 程序触发的动作技能（t_auto_action_skill_id）以"强化普攻"方式生效：
+        // 自身条件满足后，玩家的下一次普攻替换为该技能的完整施法（带动作，与手动施放同链路）。
+        private bool TryCastAutoActionSkillInsteadOfNormalAttack(PropertyEntity hero, Vector3 faceForward, Vector3 moveDir)
+        {
+            var playerHero = hero as PlayerHero;
+            if (playerHero == null || m_GMDisableAutoSkill)
+            {
+                return false;
+            }
+
+            if (!playerHero.TryResolveAutoActionSkillForNormalAttack(out int autoActionSlot))
+            {
+                return false;
+            }
+
+            BattleManager.AttackDir(autoActionSlot, hero, faceForward, moveDir);
+            return true;
+        }
+
+        public bool CanConsumeGuardHeroBoneAction(PropertyEntity hero, Skill skill, bool boneNormalAttack)
+        {
+            if (m_Battle == null || m_Battle.GM_IsPause() ||
+                !BattleManager.ReadIsEntityValide(hero) || hero.ReadIsBeingControlled() ||
+                hero.ReadIsFreeze() || skill == null)
+            {
+                return false;
+            }
+
+            int slot = skill.ReadSlot();
+            if (m_Battle.ReadIsUpgradeChallengePreActive())
+            {
+                return slot == 0;
+            }
+            if (m_Battle.ReadIsUpgradeChallengeActive())
+            {
+                return slot == 0 && m_Battle.CanAddUpgradeChallengeScore(hero.ReadBattlePlayerId()) &&
+                    BattleManager.IsCanUseBoneSkillDirect(hero, slot, boneNormalAttack);
+            }
+            if (m_Battle.ReadHasPendingMonsterRestore())
+            {
+                return false;
+            }
+            if (slot > 0 && m_Battle.RequiresPlayerSkillEnergy(hero, skill) &&
+                !m_Battle.CanPlayerQueueActiveSkill(hero.ReadBattlePlayerId()))
+            {
+                return false;
+            }
+            return BattleManager.IsCanUseBoneSkillDirect(hero, slot, boneNormalAttack);
+        }
+
+        public bool TryGuardHeroBoneActionBySeat(int seatId, int slot, Vector3 faceForward,
+            Vector3 moveDir, bool boneNormalAttack)
+        {
+            var hero = ReadGuardHeroBySeat(seatId);
+            var skillManager = hero != null ? hero.GetSkillManager() : null;
+            var skill = skillManager != null ? skillManager.ReadSkillBySlot(slot) : null;
+
+            if (slot == 0 && hero is PlayerHero attackInputHero)
+            {
+                attackInputHero.MarkNormalAttackInput();
+            }
+
+            // 自动动作技能替换普攻后的持续释放：先顺延技能自己的发弹窗口。
+            // 这里必须在 CanConsumeHeroBoneAction 之前处理，否则当前技能槽位不是 0 时会被拦掉，
+            // 连点普攻只能等窗口结束再重新施放，表现就会断开。
+            if (slot == 0 && hero is PlayerHero boneAutoActionHero)
+            {
+                var boneCurrentSkill = skillManager != null ? skillManager.GetCurrentSkill() : null;
+                if (boneAutoActionHero.IsAutoActionNormalAttackSkill(boneCurrentSkill) &&
+                    boneCurrentSkill is CommonBulletSkill boneAutoActionSkill &&
+                    boneAutoActionSkill.TryRenewKeepShoot())
+                {
+                    MarkManualControl(hero);
+                    return true;
+                }
+            }
+
+            if (!CanConsumeGuardHeroBoneAction(hero, skill, boneNormalAttack))
+            {
+                return false;
+            }
+            if (m_Battle.ReadIsUpgradeChallengePreActive())
+            {
+                return TryHandleUpgradeChallengePreActiveAction(hero, faceForward);
+            }
+
+            if (faceForward.sqrMagnitude <= 0.0001f)
+            {
+                faceForward = hero.ReadForward();
+            }
+            if (faceForward.sqrMagnitude <= 0.0001f)
+            {
+                faceForward = Vector3.forward;
+            }
+            faceForward.Normalize();
+            moveDir.y = 0f;
+
+            if (!BattleManager.TryAttackBoneDir(slot, hero, faceForward, moveDir, boneNormalAttack))
+            {
+                return false;
+            }
+            MarkManualControl(hero);
+            return true;
+        }
+
         public bool TryGuardHeroActionBySeat(int seatId, int slot, Vector3 faceForward, Vector3 moveDir)
         {
             var hero = ReadGuardHeroBySeat(seatId);
             if (!BattleManager.ReadIsEntityValide(hero))
             {
                 return false;
+            }
+
+            if (slot == 0 && hero is PlayerHero seatAttackInputHero)
+            {
+                seatAttackInputHero.MarkNormalAttackInput();
             }
 
             var rawFaceForward = faceForward;
@@ -486,8 +657,34 @@ namespace GameDll
 
             MarkManualControl(hero);
 
+            // 激光持续发弹期间的普攻点击：直接顺延发弹窗口续射，不走 WillNext 排队。
+            // 键盘等直连入口的 WillNext 记录因 defender 为空永远不会被消费（TryWillNextUseSkill 会丢弃），
+            // 施法期间的点击会被吞掉，只能等窗口结束重开施法，导致连点时光束在宽限外断开。
+            var currentSkill = hero.GetSkillManager().GetCurrentSkill();
+            if (slot == 0 && currentSkill == skill && skill is CommonBulletSkill laserKeepSkill &&
+                laserKeepSkill.TryRenewLaserKeepShoot())
+            {
+                return true;
+            }
+
+            // 自动动作技能替换普攻后同样要满足“持续释放”：连点/长按普攻时
+            // 顺延该技能自己的发弹窗口，而不是重新施放。
+            if (slot == 0 && hero is PlayerHero autoActionHero &&
+                autoActionHero.IsAutoActionNormalAttackSkill(currentSkill) &&
+                currentSkill is CommonBulletSkill autoActionSkill &&
+                autoActionSkill.TryRenewKeepShoot())
+            {
+                return true;
+            }
+
             var canCastNow = BattleManager.IsCanUseSkill_WillNextUseSkill(hero, slot, null);
             if (!canCastNow)
+            {
+                return true;
+            }
+
+            // 普攻确认可发起后，若动作技能条件满足则本次普攻替换为动作技能的施放
+            if (TryCastAutoActionSkillInsteadOfNormalAttack(hero, faceForward, moveDir))
             {
                 return true;
             }
@@ -502,6 +699,11 @@ namespace GameDll
             if (hero == null || m_Battle == null)
             {
                 return false;
+            }
+
+            if (hero is PlayerHero upgradeAttackInputHero)
+            {
+                upgradeAttackInputHero.MarkNormalAttackInput();
             }
 
             var playerId = hero.ReadBattlePlayerId();
@@ -524,7 +726,29 @@ namespace GameDll
             moveDir.y = 0f;
 
             MarkManualControl(hero);
-            // 升级挑战积分必须建立在“本次普攻可真实释放”的前提下，避免手势连点刷分。
+
+            // 激光持续发弹期间的普攻点击同样直接续射（与常规路径一致），
+            // 避免键盘入口 WillNext（defender 为空不被消费）吞点击导致光束断开。
+            var skillManager = hero.GetSkillManager();
+            var normalSkill = skillManager != null ? skillManager.ReadSkillBySlot(0) : null;
+            if (normalSkill != null && skillManager.GetCurrentSkill() == normalSkill &&
+                normalSkill is CommonBulletSkill laserKeepSkill &&
+                laserKeepSkill.TryRenewLaserKeepShoot())
+            {
+                return true;
+            }
+
+            // 自动动作技能替换普攻后的持续释放：与常规普攻入口一致。
+            var upgradeCurrentSkill = skillManager.GetCurrentSkill();
+            if (hero is PlayerHero upgradeAutoActionHero &&
+                upgradeAutoActionHero.IsAutoActionNormalAttackSkill(upgradeCurrentSkill) &&
+                upgradeCurrentSkill is CommonBulletSkill upgradeAutoActionSkill &&
+                upgradeAutoActionSkill.TryRenewKeepShoot())
+            {
+                return true;
+            }
+
+            // 升级挑战积分必须建立在”本次普攻可真实释放”的前提下，避免手势连点刷分。
             if (!BattleManager.IsCanUseSkill_WillNextUseSkill(hero, 0, null))
             {
                 if (hero != null && BattleManager.ReadIsEntityValide(hero))
@@ -558,6 +782,12 @@ namespace GameDll
                         }
                     }
                 }
+                return true;
+            }
+
+            // 动作技能条件满足时，本次普攻输入替换为动作技能的施放（升级挑战阶段同样生效）
+            if (TryCastAutoActionSkillInsteadOfNormalAttack(hero, castFaceForward, moveDir))
+            {
                 return true;
             }
 
@@ -649,6 +879,7 @@ namespace GameDll
                     {
                         runtime.m_IsCasting = false;
                         runtime.m_NextCastTime = runtime.m_CastResolveTime + runtime.m_Cooldown;
+                        TrySummonBossClonesOnCastResolved(boss);
                     }
 
                     continue;
@@ -769,6 +1000,33 @@ namespace GameDll
             return Mathf.Max(1.0f, skillBean.t_cooldown / 1000.0f);
         }
 
+        private void TrySummonBossClonesOnCastResolved(MasterHero boss)
+        {
+            if (boss == null || m_MonsterSpawer == null)
+            {
+                return;
+            }
+
+            // 分身不再分身，只有本体施放技能时才触发召唤。
+            if (m_MonsterSpawer.ReadIsSummonClone(boss.ReadId()))
+            {
+                return;
+            }
+
+            if (!TryResolveBossActiveSkill(boss, out _, out var skillBean) || skillBean == null)
+            {
+                return;
+            }
+
+            var summonCount = (int)skillBean.t_summon;
+            if (summonCount <= 0)
+            {
+                return;
+            }
+
+            m_MonsterSpawer.SpawnSummonedBossClones(boss, summonCount);
+        }
+
         private bool TryStartBossSkillCast(MasterHero boss, TowerDefendBossSkillRuntimeData runtime, float now)
         {
             if (boss == null || runtime == null || !BattleManager.IsCanUseSkillDirect(boss, 1))
@@ -781,19 +1039,14 @@ namespace GameDll
                 return false;
             }
 
-            var target = SelectBossSkillPrimaryTarget(boss, skill);
-            var forward = boss.ReadForward();
-            if (forward.sqrMagnitude <= 0.0001f && BattleManager.ReadIsEntityValide(target))
-            {
-                forward = target.GetPosition() - boss.GetPosition();
-            }
-            forward.y = 0f;
-            if (forward.sqrMagnitude <= 0.0001f)
-            {
-                forward = Vector3.forward;
-            }
-            forward.Normalize();
+            // 施放前先随机锁定一个施法距离内的守卫英雄，本次施放围绕它来摆朝向和落点
+            var target = SelectRandomAliveHeroInDist(boss.GetPosition(), boss.GetSkillCastDist(skill));
+            var forward = ResolveBossSkillLaunchForward(boss, target);
+
             BattleManager.AttackDir(1, boss, forward, Vector3.zero);
+            // 朝向只决定出膛方向，真正把目标带进发弹的是技能上的出生目标；
+            // 不写回的话子弹会退回“飞行中按负载最低/最近自己再挑一个”的逻辑，随机挑选就白做了。
+            skill.SetDefender(target);
 
             runtime.m_IsCasting = true;
             runtime.m_CastResolveTime = now + ResolveBossSkillCastPrepareSec(boss, skill);
@@ -801,82 +1054,25 @@ namespace GameDll
             return true;
         }
 
-        private PropertyEntity SelectBossSkillPrimaryTarget(MasterHero boss, Skill skill)
+        private Vector3 ResolveBossSkillLaunchForward(MasterHero boss, PropertyEntity target)
         {
-            if (boss == null || skill == null)
+            var forward = Vector3.zero;
+            if (BattleManager.ReadIsEntityValide(target))
             {
-                return null;
+                forward = target.GetPosition() - boss.GetPosition();
+            }
+            if (forward.sqrMagnitude <= 0.0001f)
+            {
+                forward = boss.ReadForward();
             }
 
-            var aliveHeroes = CollectAliveHeroesByHpPercentAsc();
-            if (aliveHeroes.Count <= 0)
+            forward.y = 0f;
+            if (forward.sqrMagnitude <= 0.0001f)
             {
-                return null;
+                forward = Vector3.forward;
             }
-
-            var castDistance = boss.GetSkillCastDist(skill);
-            var bossPosition = boss.GetPosition();
-            PropertyEntity nearest = null;
-            float nearestDistance = float.MaxValue;
-            int heroCount = aliveHeroes.Count;
-            for (int i = 0; i < heroCount; i++)
-            {
-                var hero = aliveHeroes[i];
-                if (!BattleManager.ReadIsEntityValide(hero))
-                {
-                    continue;
-                }
-
-                float distance = Vector3.Distance(bossPosition, hero.GetPosition());
-                if (distance > castDistance || distance >= nearestDistance)
-                {
-                    continue;
-                }
-
-                nearest = hero;
-                nearestDistance = distance;
-            }
-
-            return nearest;
-        }
-
-        private List<PropertyEntity> CollectAliveHeroesByHpPercentAsc()
-        {
-            var aliveHeroes = new List<PropertyEntity>();
-            int heroCount = m_GuradHeroes.Count;
-            for (int i = 0; i < heroCount; i++)
-            {
-                var hero = m_GuradHeroes[i];
-                if (BattleManager.ReadIsEntityValide(hero))
-                {
-                    aliveHeroes.Add(hero);
-                }
-            }
-
-            aliveHeroes.Sort((a, b) =>
-            {
-                float hpA = ReadHpPercent(a);
-                float hpB = ReadHpPercent(b);
-                return hpA.CompareTo(hpB);
-            });
-
-            return aliveHeroes;
-        }
-
-        private float ReadHpPercent(PropertyEntity entity)
-        {
-            if (entity == null)
-            {
-                return 1f;
-            }
-
-            var maxHp = entity.GetMaxHP();
-            if (maxHp <= 0)
-            {
-                return 1f;
-            }
-
-            return Mathf.Clamp01(entity.ReadHP() / (float)maxHp);
+            forward.Normalize();
+            return forward;
         }
 
         private float ResolveBossSkillCastPrepareSec(MasterHero boss, Skill skill)
@@ -912,20 +1108,28 @@ namespace GameDll
             return Mathf.Max(0.1f, castPointSec);
         }
 
-        private PropertyEntity SelectRandomAliveHero()
+        // 在存活守卫英雄里随机挑一个目标；maxDistance 非正数时视为不限距离。
+        private PropertyEntity SelectRandomAliveHeroInDist(Vector3 origin, float maxDistance)
         {
             m_TargetCandidates.Clear();
             int heroCount = m_GuradHeroes.Count;
             for (int i = 0; i < heroCount; i++)
             {
                 var hero = m_GuradHeroes[i];
-                if (BattleManager.ReadIsEntityValide(hero))
+                if (!BattleManager.ReadIsEntityValide(hero))
                 {
-                    m_TargetCandidates.Add(hero);
+                    continue;
                 }
+
+                if (maxDistance > 0f && Vector3.Distance(origin, hero.GetPosition()) > maxDistance)
+                {
+                    continue;
+                }
+
+                m_TargetCandidates.Add(hero);
             }
 
-            if (m_TargetCandidates.Count == 0)
+            if (m_TargetCandidates.Count <= 0)
             {
                 return null;
             }

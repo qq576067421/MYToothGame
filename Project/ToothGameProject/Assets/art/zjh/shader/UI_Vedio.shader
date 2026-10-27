@@ -18,6 +18,7 @@ Shader "DG/UI_Vedio"
         [Toggle(UNITY_UI_ALPHACLIP)] _UseUIAlphaClip ("Use Alpha Clip", Float) = 0
 
         _Clip( "Clip", Range( 0, 1 ) ) = 0.9
+        _Opacity( "Opacity", Range( 0, 1 ) ) = 1
         [HideInInspector] _texcoord( "", 2D ) = "white" {}
 
     }
@@ -102,6 +103,7 @@ Shader "DG/UI_Vedio"
             float _UIMaskSoftnessY;
 
             uniform float _Clip;
+            uniform float _Opacity;
 
 
             v2f vert(appdata_t v )
@@ -142,7 +144,8 @@ Shader "DG/UI_Vedio"
                 float2 uv_MainTex = IN.texcoord.xy * _MainTex_ST.xy + _MainTex_ST.zw;
                 float4 tex2DNode5 = tex2D( _MainTex, uv_MainTex );
                 float4 temp_output_8_0 = ( ( tex2DNode5 + _TextureSampleAdd ) * IN.color );
-                float4 appendResult153 = (float4((temp_output_8_0).rgb , step( ( tex2DNode5.g * ( 1.0 - tex2DNode5.r ) * ( 1.0 - tex2DNode5.b ) ) , _Clip )));
+                // 叠加界面顶点透明度，使 CanvasGroup 动画可以控制视频渐显和渐隐。
+                float4 appendResult153 = (float4((temp_output_8_0).rgb , ( step( ( tex2DNode5.g * ( 1.0 - tex2DNode5.r ) * ( 1.0 - tex2DNode5.b ) ) , _Clip ) * _Opacity * IN.color.a ) ));
                 
 
                 half4 color = appendResult153;
@@ -181,6 +184,8 @@ Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, 
 Node;AmplifyShaderEditor.SimpleMultiplyOpNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;162;3712,-64;Inherit;False;3;3;0;FLOAT;0;False;1;FLOAT;0;False;2;FLOAT;0;False;1;FLOAT;0
 Node;AmplifyShaderEditor.SwizzleNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;136;3760,-400;Inherit;False;FLOAT3;0;1;2;3;1;0;COLOR;0,0,0,0;False;1;FLOAT3;0
 Node;AmplifyShaderEditor.StepOpNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;152;3888,-32;Inherit;False;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0
+Node;AmplifyShaderEditor.RangedFloatNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;163;3712,208;Inherit;False;Property;_Opacity;Opacity;1;0;Create;True;0;0;0;False;0;False;1;0;0;1;0;1;FLOAT;0
+Node;AmplifyShaderEditor.SimpleMultiplyOpNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;164;4096,-32;Inherit;False;3;3;0;FLOAT;0;False;1;FLOAT;0;False;2;FLOAT;0;False;1;FLOAT;0
 Node;AmplifyShaderEditor.DynamicAppendNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;153;3935.479,-188.8887;Inherit;False;FLOAT4;4;0;FLOAT3;0,0,0;False;1;FLOAT;0;False;2;FLOAT;0;False;3;FLOAT;0;False;1;FLOAT4;0
 Node;AmplifyShaderEditor.SwizzleNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;154;3680,-208;Inherit;False;FLOAT;1;1;2;3;1;0;COLOR;0,0,0,0;False;1;FLOAT;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode, AmplifyShaderEditor, Version=0.0.0.0, Culture=neutral, PublicKeyToken=null;0;4470.103,-334.2029;Float;False;True;-1;2;AmplifyShaderEditor.MaterialInspector;0;10;DG/UI_Vedio;5056123faa0c79b47ab6ad7e8bf059a4;True;Default;0;0;;2;False;True;2;5;False;;10;False;;0;1;False;;0;False;;False;False;False;False;False;False;False;False;False;False;False;False;True;2;False;;False;True;True;True;True;True;0;True;_ColorMask;False;False;False;False;False;False;False;True;True;0;True;_Stencil;255;True;_StencilReadMask;255;True;_StencilWriteMask;0;True;_StencilComp;0;True;_StencilOp;1;False;;1;False;;7;False;;1;False;;1;False;;1;False;;False;True;2;False;;True;0;True;unity_GUIZTestMode;False;False;True;5;Queue=Transparent=Queue=0;IgnoreProjector=True;RenderType=Transparent=RenderType;PreviewType=Plane;CanUseSpriteAtlas=True;False;False;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;3;False;0;;0;0;Standard;0;0;1;True;False;;False;0
@@ -197,9 +202,12 @@ WireConnection;162;2;161;0
 WireConnection;136;0;8;0
 WireConnection;152;0;162;0
 WireConnection;152;1;151;0
+WireConnection;164;0;152;0
+WireConnection;164;1;163;0
+WireConnection;164;2;2;4
 WireConnection;153;0;136;0
-WireConnection;153;3;152;0
+WireConnection;153;3;164;0
 WireConnection;154;0;8;0
 WireConnection;0;0;153;0
 ASEEND*/
-//CHKSM=273204F1D9562A34BFC02BDBA255D770C5C9DA8A
+//CHKSM=4B9D8C1B375495FB2D5A6F9E155954E064D0D899

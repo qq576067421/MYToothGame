@@ -143,7 +143,7 @@ public class BuildPlayer
 
     static void BuildPlayerImp(BuildParams param)
     {
-        int gameId = 169;
+        int gameId = 1050;
         var oldScripting = PlayerSettings.GetScriptingBackend(param.targetGroup);
         PlayerSettings.SetScriptingBackend(param.targetGroup, param.isMono ? ScriptingImplementation.Mono2x : ScriptingImplementation.IL2CPP);
         string scriptBackend = PlayerSettings.GetScriptingBackend(param.targetGroup).ToString();

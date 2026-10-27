@@ -34,7 +34,8 @@ public class ProjectileMover : MonoBehaviour
     public float m_FlashShowTime = 0.1f;
     private float m_FlashShow = 0;
 
-    public bool m_MainParticleUseConfig = true;
+    [Tooltip("这个参数不要随意勾选，如果勾选了，当粒子大于1000以上的会比较卡")]
+    public bool m_MainParticleUseConfig = false;
     public ParticleSystem m_MainParticleSystem;
     public List<TrailRenderer> m_MainTrails;
     //仅仅是特效
@@ -65,6 +66,11 @@ public class ProjectileMover : MonoBehaviour
         {
             m_FlashPS = m_FlashEff.GetComponentInChildren<ParticleSystem>();
             m_FlashPS.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+        }
+        // 附属特效移出子弹层级后再收集，避免把命中或枪口特效的拖尾误当成子弹拖尾。
+        if (m_MainTrails == null || m_MainTrails.Count == 0)
+        {
+            m_MainTrails = new List<TrailRenderer>(GetComponentsInChildren<TrailRenderer>(true));
         }
         m_Pooled = true;
     }
@@ -124,8 +130,20 @@ public class ProjectileMover : MonoBehaviour
         m_Pooled = false;
         m_DelayHideProjectileLeftTime = 0f;
         m_DeactivateGameObjectAfterStop = false;
+        m_HitShow = 0f;
+        m_FlashShow = 0f;
         StopAndClearParticle(m_MainParticleSystem);
         StopAndClearParticle(m_EffParticleSystem);
+        StopAndClearParticle(m_HitPS);
+        StopAndClearParticle(m_FlashPS);
+        if (m_HitEff != null)
+        {
+            m_HitEff.transform.position = HiddenPosition;
+        }
+        if (m_FlashEff != null)
+        {
+            m_FlashEff.transform.position = HiddenPosition;
+        }
         SetTrailState(false, false, true);
     }
 
@@ -138,12 +156,21 @@ public class ProjectileMover : MonoBehaviour
         StopAndClearParticle(m_EffParticleSystem);
         SetTrailState(false, false, true);
         transform.position = HiddenPosition;
-        if (m_DeactivateGameObjectAfterStop && gameObject.activeSelf)
+        TryDeactivateProjectileRoot();
+    }
+
+    private void TryDeactivateProjectileRoot()
+    {
+        // 命中和枪口特效已移到全局节点，但显示计时仍由本组件维护，必须等它们收尾后才能停用本对象。
+        if (!m_DeactivateGameObjectAfterStop || !m_Pooled || m_DelayHideProjectileLeftTime > 0f || m_HitShow > 0f || m_FlashShow > 0f)
+        {
+            return;
+        }
+        m_DeactivateGameObjectAfterStop = false;
+        if (gameObject.activeSelf)
         {
             gameObject.SetActive(false);
         }
-
-        m_DeactivateGameObjectAfterStop = false;
     }
 
     private void Update()
@@ -157,10 +184,7 @@ public class ProjectileMover : MonoBehaviour
                 {
                     m_FlashEff.transform.position = HiddenPosition;
                 }
-                if(m_FlashPS != null && !m_FlashPS.isStopped)
-                {
-                    m_FlashPS.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-                }
+                StopAndClearParticle(m_FlashPS);
             }
         }
 
@@ -173,10 +197,7 @@ public class ProjectileMover : MonoBehaviour
                 {
                     m_HitEff.transform.position = HiddenPosition;
                 }
-                if(m_HitPS != null && !m_HitPS.isStopped)
-                {
-                    m_HitPS.Stop(true, ParticleSystemStopBehavior.StopEmitting);
-                }
+                StopAndClearParticle(m_HitPS);
             }
         }
         bool NeedFollow = false;
@@ -209,6 +230,7 @@ public class ProjectileMover : MonoBehaviour
                 Follow();
             }
         }
+        TryDeactivateProjectileRoot();
     }
 
     private void Follow()
@@ -220,7 +242,8 @@ public class ProjectileMover : MonoBehaviour
         var mainModule = m_MainParticleSystem.main;
         if (m_MainParticles == null)
         {
-            m_MainParticles = new ParticleSystem.Particle[mainModule.maxParticles];
+            int particleCapacity = m_MainParticleUseConfig ? mainModule.maxParticles : 1;
+            m_MainParticles = new ParticleSystem.Particle[particleCapacity];
         }
         var followPos = m_FollowTargetPosition;
         int particleCount = m_MainParticleSystem.GetParticles(m_MainParticles);
@@ -297,7 +320,8 @@ public class ProjectileMover : MonoBehaviour
 
             if (m_MainParticles == null)
             {
-                m_MainParticles = new ParticleSystem.Particle[m_MainParticleSystem.main.maxParticles];
+                int particleCapacity = m_MainParticleUseConfig ? m_MainParticleSystem.main.maxParticles : 1;
+                m_MainParticles = new ParticleSystem.Particle[particleCapacity];
             }
 
             SetTrailState(true, true, true);
@@ -337,7 +361,7 @@ public class ProjectileMover : MonoBehaviour
 
     public bool ReadCanReuseFromPool()
     {
-        return m_Pooled && m_DelayHideProjectileLeftTime <= 0f && m_EmitCoroutine == null;
+        return m_Pooled && m_DelayHideProjectileLeftTime <= 0f && m_HitShow <= 0f && m_FlashShow <= 0f && m_EmitCoroutine == null;
     }
 
     public void ForceStopForReuse()
@@ -348,14 +372,15 @@ public class ProjectileMover : MonoBehaviour
 
     public void DestroyMover()
     {
+        StopEmitCoroutine();
         if(m_HitEff != null)
         {
-            GameObject.Destroy(m_HitEff, m_HitShowTime);
+            GameObject.Destroy(m_HitEff);
             m_HitEff = null;
         }
         if(m_FlashEff != null)
         {
-            GameObject.Destroy(m_FlashEff, m_FlashShowTime);
+            GameObject.Destroy(m_FlashEff);
             m_FlashEff = null;
         }
     }
@@ -367,18 +392,16 @@ public class ProjectileMover : MonoBehaviour
         m_DelayHideProjectileLeftTime = m_DelayHideProjectileTime;
         if(m_MainParticleSystem != null && m_MainParticles != null)
         {
-            m_MainParticleSystem.GetParticles(m_MainParticles);
-            int p_count = m_MainParticles.Length;
+            int p_count = m_MainParticleSystem.GetParticles(m_MainParticles);
             for(int i =0; i < p_count; ++i)
             {
                 var p = m_MainParticles[i];
                 p.velocity = Vector3.zero;
                 m_MainParticles[i] = p;
             }
-            m_MainParticleSystem.SetParticles(m_MainParticles);
+            m_MainParticleSystem.SetParticles(m_MainParticles, p_count);
         }
         m_Pooled = true;
-        Quaternion rot = Quaternion.FromToRotation(Vector3.up, normal);
         Vector3 pos = hitPos + normal * m_HitOffset;
 
         if (m_HitEff != null)

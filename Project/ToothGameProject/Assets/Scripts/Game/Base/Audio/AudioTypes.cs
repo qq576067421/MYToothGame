@@ -522,8 +522,10 @@ namespace GameDll
         public AudioPauseReason m_PauseReasons;
         /// <summary>该请求使用的资源缓存记录。</summary>
         public AudioCacheEntry m_CacheEntry;
-        /// <summary>该请求当前占用的 <see cref="AudioSource"/> 运行时实例。</summary>
+        /// <summary>该播放请求当前占用的 <see cref="AudioSource"/> 运行时实例。</summary>
         public AudioSourceInstance m_Instance;
+        /// <summary>是否忽略预制件原始 loop 设置，强制按循环播放；停止回收时由实例恢复原始值。</summary>
+        public bool m_ForceLoop;
     }
 
     /// <summary>

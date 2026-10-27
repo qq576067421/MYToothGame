@@ -29,6 +29,7 @@ namespace GameHot
     public class tower_defend_battle_hud_wnd : WindowBase
     {
         private const string m_LanTdHudWave = "td_hud_wave";
+        private const string m_LanTdHudEndlessWave = "td_hud_endless_wave";
         private const string m_LanTdHudBase = "td_hud_base";
         private const string m_LanTdHudBattleEnd = "td_hud_battle_end";
         private const string m_LanTdHudPrepare = "td_hud_prepare";
@@ -94,12 +95,12 @@ namespace GameHot
         private Slider m_Fill_Slowly;
         private CanvasGroup m_baseHitCanvasGroup;
         private const int m_BattleHeadCameraViewCount = m_MaxHudPlayerCount + 1;
-        private AndroidTextureBridgeBase m_BattleHeadTextureBridge;
-        private CameraTextureView[] m_BattleHeadCameraViews;
+        private RawImage[] m_BattleHeadCameraViews;
+        private BattleHeadUvSmoother[] m_BattleHeadCameraSmoothCalculations;
+        private bool m_UseFrameworkBattleCamera;
         private readonly Rect[] m_BattleHeadTextureRects = new Rect[m_MaxHudPlayerCount];
         private readonly BattleHeadCameraTracker[] m_BattleHeadCameraTrackers = new BattleHeadCameraTracker[m_MaxHudPlayerCount];
         private BattleBoneParseData m_BattleHeadBoneParseData;
-        private bool m_BattleHeadTextureBridgeCreatedRuntime;
         private FrameUpdate m_BattleHeadFrameUpdate;
         private int m_BattleHeadLastBoneFrameSerial = -1;
         private BattleHeadDisplayMode m_BattleHeadDisplayMode = BattleHeadDisplayMode.Head;
@@ -162,6 +163,7 @@ namespace GameHot
             RenderEvent.Event.OnFinishUpgradeChallenge += OnFinishUpgradeChallenge;
             RenderEvent.Event.OnAddTeamExp += OnAddTeamExp;
             RenderEvent.Event.OnBossHealthChanged += OnBossHealthChanged;
+            RenderEvent.Event.OnShieldChanged += OnShieldChanged;
             RenderEvent.Event.OnLollipopHealthChanged += OnLollipopHealthChanged;
             RenderEvent.Event.OnTowerDefendMonsterDeathStarsEffect += SetStarsEffect;
             RenderEvent.Event.ShowRewardCoin += ShowRewardCoin;
@@ -262,7 +264,7 @@ namespace GameHot
 
             for (int i = 0; i < m_BattleHeadCameraViews.Length; i++)
             {
-                ConfigureBattleHeadCameraView(m_BattleHeadCameraViews[i], resetSmoothState);
+                ConfigureBattleHeadCameraView(i, resetSmoothState);
             }
         }
 
@@ -276,7 +278,11 @@ namespace GameHot
 
             for (int i = 0; i < m_BattleHeadCameraViews.Length; i++)
             {
-                m_BattleHeadCameraViews[i]?.ResetSmoothState();
+                if (m_BattleHeadCameraSmoothCalculations != null &&
+                    i < m_BattleHeadCameraSmoothCalculations.Length)
+                {
+                    m_BattleHeadCameraSmoothCalculations[i]?.ResetSmoothState();
+                }
             }
         }
 
@@ -302,20 +308,38 @@ namespace GameHot
             }
         }
 
-        private void ConfigureBattleHeadCameraView(CameraTextureView cameraView, bool resetSmoothState)
+        private void ConfigureBattleHeadCameraView(int index, bool resetSmoothState)
         {
-            if (cameraView == null)
+            if (m_BattleHeadCameraViews == null ||
+                index < 0 ||
+                index >= m_BattleHeadCameraViews.Length ||
+                m_BattleHeadCameraViews[index] == null)
             {
                 return;
             }
 
-            var smoothCalculation = new BattleCameraTextureViewSmoothCalculation();
+            if (m_BattleHeadCameraSmoothCalculations == null ||
+                m_BattleHeadCameraSmoothCalculations.Length != m_BattleHeadCameraViews.Length)
+            {
+                m_BattleHeadCameraSmoothCalculations =
+                    new BattleHeadUvSmoother[m_BattleHeadCameraViews.Length];
+            }
+
+            var smoothCalculation = m_BattleHeadCameraSmoothCalculations[index];
+            if (smoothCalculation == null)
+            {
+                smoothCalculation = new BattleHeadUvSmoother();
+                m_BattleHeadCameraSmoothCalculations[index] = smoothCalculation;
+            }
+
             smoothCalculation.SetPositionSmoothingEnabled(m_BattleHeadFollowMode == BattleHeadFollowMode.ContinuousSmooth);
-            cameraView.SetSmoothCalculator(smoothCalculation);
-            cameraView.SetSmoothConfig(m_BattleHeadSmoothSpeed, m_BattleHeadInputFilterSpeed, m_BattleHeadInputDeadzone);
+            smoothCalculation.SetSmoothConfig(
+                m_BattleHeadSmoothSpeed,
+                m_BattleHeadInputFilterSpeed,
+                m_BattleHeadInputDeadzone);
             if (resetSmoothState)
             {
-                cameraView.ResetSmoothState();
+                smoothCalculation.ResetSmoothState();
             }
         }
 
@@ -332,17 +356,20 @@ namespace GameHot
                 return false;
             }
 
-            m_BattleHeadTextureBridge = EnsureBattleHeadTextureBridge();
-            if (m_BattleHeadTextureBridge == null)
+            var frameworkAdapter = GameProductUiAdapter.Instance;
+            if (frameworkAdapter == null || !frameworkAdapter.isActiveAndEnabled)
             {
+                Debug.LogWarning("[新SDK整合] battle portrait unavailable: framework camera adapter is missing.");
                 return false;
             }
+
+            m_UseFrameworkBattleCamera = true;
+            GameProductUiAdapter.EnterBattleCamera("battle-hud-open");
 
             if (m_BattleHeadCameraViews == null || m_BattleHeadCameraViews.Length != m_BattleHeadCameraViewCount)
             {
                 DestroyBattleHeadCameraViews();
                 m_BattleHeadCameraViews = CreateBattleHeadCameraViews();
-                m_BattleHeadTextureBridge.SetCameraViews(m_BattleHeadCameraViews);
             }
 
             RefreshBattleHeadTextureViewBinding();
@@ -379,44 +406,9 @@ namespace GameHot
             TryRefreshBattleHeadCameraRegions();
         }
 
-        private AndroidTextureBridgeBase EnsureBattleHeadTextureBridge()
+        private RawImage[] CreateBattleHeadCameraViews()
         {
-            if (m_View == null || m_View.m_PlayerSlots == null)
-            {
-                return null;
-            }
-
-            var playerSlotsObject = m_View.m_PlayerSlots.gameObject;
-            var bridges = playerSlotsObject.GetComponents<AndroidTextureBridgeBase>();
-            for (int i = 0; i < bridges.Length; i++)
-            {
-                var bridge = bridges[i];
-                if (bridge != null && bridge.enabled)
-                {
-                    m_BattleHeadTextureBridgeCreatedRuntime = false;
-                    return bridge;
-                }
-            }
-
-            // 桥接挂在 PlayerSlots 上，显示节点再移动到各自 headView，避免依赖独立头像显示节点。
-            switch (SystemInfo.graphicsDeviceType)
-            {
-                case UnityEngine.Rendering.GraphicsDeviceType.Vulkan:
-                    m_BattleHeadTextureBridgeCreatedRuntime = true;
-                    return playerSlotsObject.AddComponent<AndroidTextureBridgeVulkan>();
-                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLES2:
-                case UnityEngine.Rendering.GraphicsDeviceType.OpenGLES3:
-                    m_BattleHeadTextureBridgeCreatedRuntime = true;
-                    return playerSlotsObject.AddComponent<AndroidTextureBridgeOpenglES>();
-                default:
-                    Debug.LogWarning("tower_defend_battle_hud_wnd: 当前图形后端不支持战斗头像显示 " + SystemInfo.graphicsDeviceType);
-                    return null;
-            }
-        }
-
-        private CameraTextureView[] CreateBattleHeadCameraViews()
-        {
-            var views = new CameraTextureView[m_BattleHeadCameraViewCount];
+            var views = new RawImage[m_BattleHeadCameraViewCount];
             if (m_View == null || m_View.m_PlayerSlots == null)
             {
                 return views;
@@ -429,8 +421,7 @@ namespace GameHot
                 var go = new GameObject("battle_head_camera_view_" + i,
                     typeof(RectTransform),
                     typeof(CanvasRenderer),
-                    typeof(RawImage),
-                typeof(CameraTextureView));
+                    typeof(RawImage));
                 go.layer = layer;
                 go.transform.SetParent(parent, false);
                 ResetBattleHeadCameraViewTransform(go.transform);
@@ -443,9 +434,15 @@ namespace GameHot
                 }
 
                 go.SetActive(false);
-                var cameraView = go.GetComponent<CameraTextureView>();
-                ConfigureBattleHeadCameraView(cameraView, true);
-                views[i] = cameraView;
+                views[i] = go.GetComponent<RawImage>();
+            }
+
+            m_BattleHeadCameraSmoothCalculations =
+                new BattleHeadUvSmoother[views.Length];
+            m_BattleHeadCameraViews = views;
+            for (int i = 0; i < views.Length; i++)
+            {
+                ConfigureBattleHeadCameraView(i, true);
             }
 
             return views;
@@ -456,19 +453,12 @@ namespace GameHot
             StopBattleHeadTextureRefresh();
             ResetBattleHeadTrackingState();
             DestroyBattleHeadCameraViews();
-            if (m_BattleHeadTextureBridge != null)
+            if (m_UseFrameworkBattleCamera)
             {
-                m_BattleHeadTextureBridge.SetCameraViews(null);
+                GameProductUiAdapter.ExitBattleCamera("battle-hud-close");
             }
-
-            if (m_BattleHeadTextureBridgeCreatedRuntime && m_BattleHeadTextureBridge != null)
-            {
-                UnityEngine.Object.Destroy(m_BattleHeadTextureBridge);
-            }
-
-            m_BattleHeadTextureBridge = null;
             m_BattleHeadBoneParseData = null;
-            m_BattleHeadTextureBridgeCreatedRuntime = false;
+            m_UseFrameworkBattleCamera = false;
         }
 
         private void ClearBattleHeadCameraViews()
@@ -486,7 +476,9 @@ namespace GameHot
                     continue;
                 }
 
-                cameraView.Clear();
+                cameraView.texture = null;
+                cameraView.uvRect = new Rect(0f, 0f, 1f, 1f);
+                cameraView.color = Color.clear;
                 cameraView.gameObject.SetActive(false);
             }
         }
@@ -506,28 +498,29 @@ namespace GameHot
                     continue;
                 }
 
-                cameraView.Clear();
+                cameraView.texture = null;
+                cameraView.color = Color.clear;
                 UnityEngine.Object.Destroy(cameraView.gameObject);
             }
 
             m_BattleHeadCameraViews = null;
+            m_BattleHeadCameraSmoothCalculations = null;
         }
 
         private void RefreshBattleHeadTextureViewBinding()
         {
-            if (!ShouldUseBattleHeadTextureView() || m_BattleHeadTextureBridge == null)
+            if (!ShouldUseBattleHeadTextureView() || !m_UseFrameworkBattleCamera)
             {
                 return;
             }
 
-            int cameraViewCount = m_BattleHeadTextureBridge.GetCameraViewCount();
+            int cameraViewCount = m_BattleHeadCameraViews != null ? m_BattleHeadCameraViews.Length : 0;
             if (cameraViewCount <= 0)
             {
                 return;
             }
 
-            bool isPartitionView = PlayerMatchView.Instance != null &&
-                                   PlayerMatchView.Instance.PlayerMatchViewMode == PlayerMatchViewMode.PartitionView;
+            bool isPartitionView = true;
             var battle = ReadCurrentBattle();
             var boundIndices = new HashSet<int>();
             for (int seatId = 0; seatId < m_MaxHudPlayerCount; seatId++)
@@ -555,7 +548,7 @@ namespace GameHot
                 }
 
                 int cameraViewIndex = ResolveBattleHeadCameraViewIndex(sdkSlotIndex, cameraViewCount, isPartitionView);
-                var cameraView = m_BattleHeadTextureBridge.GetCameraView(cameraViewIndex);
+                var cameraView = GetBattleHeadCameraView(cameraViewIndex);
                 if (cameraView == null)
                 {
                     continue;
@@ -572,18 +565,20 @@ namespace GameHot
                     continue;
                 }
 
-                var cameraView = m_BattleHeadTextureBridge.GetCameraView(i);
+                var cameraView = GetBattleHeadCameraView(i);
                 if (cameraView == null)
                 {
                     continue;
                 }
 
-                cameraView.Clear();
+                cameraView.texture = null;
+                cameraView.uvRect = new Rect(0f, 0f, 1f, 1f);
+                cameraView.color = Color.clear;
                 cameraView.gameObject.SetActive(false);
             }
         }
 
-        private static void AttachBattleHeadCameraView(CameraTextureView cameraView, Transform headView)
+        private static void AttachBattleHeadCameraView(RawImage cameraView, Transform headView)
         {
             if (cameraView == null || headView == null)
             {
@@ -592,6 +587,13 @@ namespace GameHot
 
             cameraView.transform.SetParent(headView, false);
             ResetBattleHeadCameraViewTransform(cameraView.transform);
+        }
+
+        private RawImage GetBattleHeadCameraView(int index)
+        {
+            return m_BattleHeadCameraViews != null && index >= 0 && index < m_BattleHeadCameraViews.Length
+                ? m_BattleHeadCameraViews[index]
+                : null;
         }
 
         private static void ResetBattleHeadCameraViewTransform(Transform target)
@@ -627,8 +629,7 @@ namespace GameHot
                 return 0;
             }
 
-            // AndroidTextureBridgeBase 在分屏模式下约定 cameraViews[0] 是主图，
-            // cameraViews[1] 才对应 SDK 槽位0，因此这里必须用 SDK 槽位而不是战斗座位。
+            // 分屏视图索引0保留给主图，视图索引1才对应SDK槽位0。
             return Mathf.Clamp(sdkSlotIndex + 1, 0, cameraViewCount - 1);
         }
 
@@ -652,7 +653,20 @@ namespace GameHot
 
         private bool TryRefreshBattleHeadCameraRegions()
         {
-            if (!ShouldUseBattleHeadTextureView() || m_BattleHeadTextureBridge == null || !m_BattleHeadTextureBridge.IsTextureReady())
+            if (!ShouldUseBattleHeadTextureView())
+            {
+                return false;
+            }
+
+            Texture cameraTexture = null;
+            if (!m_UseFrameworkBattleCamera)
+            {
+                return false;
+            }
+
+            if (m_BattleHeadCameraViews == null ||
+                !GameProductUiAdapter.TryGetCameraImageTexture(out cameraTexture) ||
+                cameraTexture == null)
             {
                 return false;
             }
@@ -662,8 +676,100 @@ namespace GameHot
                 return false;
             }
 
-            m_BattleHeadTextureBridge.SetCameraViewRects(m_BattleHeadTextureRects);
+            ApplyBattleHeadTextureToFrameworkViews(cameraTexture);
+
             return true;
+        }
+
+        private void ApplyBattleHeadTextureToFrameworkViews(Texture cameraTexture)
+        {
+            if (m_BattleHeadCameraViews == null || m_BattleHeadCameraViews.Length == 0 || cameraTexture == null)
+            {
+                return;
+            }
+
+            bool isPartitionView = true;
+            if (isPartitionView)
+            {
+                var mainView = m_BattleHeadCameraViews[0];
+                if (mainView != null)
+                {
+                    mainView.texture = null;
+                    mainView.uvRect = new Rect(0f, 0f, 1f, 1f);
+                    mainView.color = Color.clear;
+                    mainView.gameObject.SetActive(false);
+                }
+
+                for (int i = 1; i < m_BattleHeadCameraViews.Length; i++)
+                {
+                    var cameraView = m_BattleHeadCameraViews[i];
+                    int rectIndex = i - 1;
+                    if (cameraView == null)
+                    {
+                        continue;
+                    }
+
+                    if (rectIndex >= m_BattleHeadTextureRects.Length ||
+                        m_BattleHeadTextureRects[rectIndex].width <= 0.0001f ||
+                        m_BattleHeadTextureRects[rectIndex].height <= 0.0001f)
+                    {
+                        cameraView.texture = null;
+                        cameraView.color = Color.clear;
+                        cameraView.gameObject.SetActive(false);
+                        continue;
+                    }
+
+                    cameraView.gameObject.SetActive(true);
+                    ApplyBattleHeadImageRect(cameraView, rectIndex, cameraTexture, m_BattleHeadTextureRects[rectIndex]);
+                }
+
+                return;
+            }
+
+            var singleView = m_BattleHeadCameraViews[0];
+            if (singleView != null)
+            {
+                singleView.gameObject.SetActive(true);
+                Rect rect = m_BattleHeadTextureRects.Length > 0
+                    ? m_BattleHeadTextureRects[0]
+                    : new Rect(0f, 0f, 1f, 1f);
+                ApplyBattleHeadImageRect(singleView, 0, cameraTexture, rect.width > 0.0001f && rect.height > 0.0001f
+                    ? rect
+                    : new Rect(0f, 0f, 1f, 1f));
+            }
+
+            for (int i = 1; i < m_BattleHeadCameraViews.Length; i++)
+            {
+                if (m_BattleHeadCameraViews[i] != null)
+                {
+                    m_BattleHeadCameraViews[i].texture = null;
+                    m_BattleHeadCameraViews[i].color = Color.clear;
+                    m_BattleHeadCameraViews[i].gameObject.SetActive(false);
+                }
+            }
+        }
+
+        private void ApplyBattleHeadImageRect(RawImage view, int viewIndex, Texture texture, Rect region)
+        {
+            if (view == null || texture == null)
+            {
+                return;
+            }
+
+            view.texture = texture;
+            view.color = Color.white;
+            var rectTransform = view.rectTransform;
+            float aspect = rectTransform != null && rectTransform.rect.height > 0f
+                ? rectTransform.rect.width / rectTransform.rect.height
+                : 1f;
+            ConfigureBattleHeadCameraView(viewIndex, false);
+            var calculator = m_BattleHeadCameraSmoothCalculations != null &&
+                             viewIndex >= 0 && viewIndex < m_BattleHeadCameraSmoothCalculations.Length
+                ? m_BattleHeadCameraSmoothCalculations[viewIndex]
+                : null;
+            view.uvRect = calculator != null
+                ? calculator.CalculateUvRect(region, aspect, texture.width, texture.height)
+                : region;
         }
 
         private bool BuildBattleHeadCameraRects(Rect[] rects)
@@ -794,72 +900,65 @@ namespace GameHot
 
         private bool TryBuildBattleHeadCameraRectsFromMatchView(Rect[] rects)
         {
-            var matchView = PlayerMatchView.Instance;
-            if (matchView == null)
+            var snapshot = GameProductUiAdapter.Instance != null
+                ? GameProductUiAdapter.Instance.UiSnapshot
+                : null;
+            if (snapshot == null)
             {
-                rects[0] = new Rect(0f, 0f, 1f, 1f);
-                return true;
+                return false;
             }
 
-            if (matchView.PlayerMatchViewMode == PlayerMatchViewMode.PartitionView)
+            var battle = ReadCurrentBattle();
+            int maxSlots = Mathf.Min(m_MaxHudPlayerCount, rects.Length);
+            bool hasValidRect = false;
+            for (int seatIndex = 0; seatIndex < maxSlots; seatIndex++)
             {
-                float[,] personPlayerRectf = matchView.PersonPlayerDrawRectf;
-                int rowCount = personPlayerRectf != null ? personPlayerRectf.GetLength(0) : 0;
-                int maxSlots = Mathf.Min(m_MaxHudPlayerCount, rects.Length);
-                var battle = ReadCurrentBattle();
-                bool hasValidRect = false;
-                for (int seatIndex = 0; seatIndex < maxSlots; seatIndex++)
+                if (battle == null || battle.ReadPlayerBySeat(seatIndex) == null ||
+                    !TryResolveBattleHeadSdkSlotIndex(seatIndex, out int sdkSlotIndex) ||
+                    sdkSlotIndex < 0 || sdkSlotIndex >= rects.Length)
                 {
-                    if (battle == null || battle.ReadPlayerBySeat(seatIndex) == null)
+                    continue;
+                }
+
+                for (int slotIndex = 0; slotIndex < snapshot.Slots.Count; slotIndex++)
+                {
+                    var slot = snapshot.Slots[slotIndex];
+                    if (slot.SlotIndex != sdkSlotIndex || !slot.HasObservation)
                     {
                         continue;
                     }
 
-                    int sdkSlotIndex;
-                    if (!TryResolveBattleHeadSdkSlotIndex(seatIndex, out sdkSlotIndex) ||
-                        sdkSlotIndex < 0 ||
-                        sdkSlotIndex >= maxSlots ||
-                        sdkSlotIndex >= rowCount)
-                    {
-                        continue;
-                    }
-
-                    float left = personPlayerRectf[sdkSlotIndex, 0];
-                    float top = personPlayerRectf[sdkSlotIndex, 1];
-                    float right = personPlayerRectf[sdkSlotIndex, 2];
-                    float bottom = personPlayerRectf[sdkSlotIndex, 3];
+                    float left = slot.Bounds.Left;
+                    float top = slot.Bounds.Top;
+                    float right = slot.Bounds.Right;
+                    float bottom = slot.Bounds.Bottom;
                     if (!IsValidBattleHeadPersonRect(left, top, right, bottom))
                     {
-                        continue;
+                        break;
                     }
 
                     rects[sdkSlotIndex] = new Rect(left, top, right - left, bottom - top);
                     hasValidRect = true;
+                    break;
                 }
-
-                return hasValidRect;
             }
 
-            Rect fullRect = matchView.CheckCameraTextureViewManager()
-                ? matchView.CalculationResult()
-                : new Rect(0f, 0f, 1f, 1f);
-            rects[0] = IsValidBattleHeadRect(fullRect) ? fullRect : new Rect(0f, 0f, 1f, 1f);
-            return true;
+            return hasValidRect;
         }
 
         private bool TryBuildBattleHeadPersonRect(BonePersonData person, out Rect rect)
         {
             rect = default;
-            if (person == null || person.m_PersonId == YouDooSDKConstants.PersonIdNull || person.m_Body == null)
+            if (person == null || person.m_PersonId == BoneTrackedLayout.m_InvalidPersonId || person.m_Body == null)
             {
                 return false;
             }
 
             // 三种显示模式都使用同一份骨骼数据，只改变显示区域，避免创建额外纹理。
             var joints = person.m_Body.m_Joints;
-            if (TryReadBattleHeadJoint(joints, YouDooSDKConstants.KeyPointIndex.Nose, out var nose) &&
-                TryReadBattleHeadJoint(joints, YouDooSDKConstants.KeyPointIndex.Leftshoulder, out var leftShoulder) &&
-                TryReadBattleHeadJoint(joints, YouDooSDKConstants.KeyPointIndex.Rightshoulder, out var rightShoulder))
+            if (TryReadBattleHeadJoint(joints, BoneBodyJointType.鼻尖, out var nose) &&
+                TryReadBattleHeadJoint(joints, BoneBodyJointType.左肩, out var leftShoulder) &&
+                TryReadBattleHeadJoint(joints, BoneBodyJointType.右肩, out var rightShoulder))
             {
                 float shoulderWidth = Mathf.Abs(leftShoulder.m_X - rightShoulder.m_X);
                 if (shoulderWidth > m_BattleHeadMinShoulderWidth &&
@@ -896,8 +995,8 @@ namespace GameHot
             switch (m_BattleHeadDisplayMode)
             {
                 case BattleHeadDisplayMode.FullBody:
-                    if (!TryReadBattleHeadJoint(joints, YouDooSDKConstants.KeyPointIndex.Leftankle, out var leftAnkle) ||
-                        !TryReadBattleHeadJoint(joints, YouDooSDKConstants.KeyPointIndex.Rightankle, out var rightAnkle))
+                    if (!TryReadBattleHeadJoint(joints, BoneBodyJointType.左脚踝, out var leftAnkle) ||
+                        !TryReadBattleHeadJoint(joints, BoneBodyJointType.右脚踝, out var rightAnkle))
                     {
                         rect = default;
                         return false;
@@ -916,8 +1015,8 @@ namespace GameHot
                     break;
                 case BattleHeadDisplayMode.UpperBody:
                 default:
-                    if (TryReadBattleHeadJoint(joints, YouDooSDKConstants.KeyPointIndex.Lefthip, out var leftHip) &&
-                        TryReadBattleHeadJoint(joints, YouDooSDKConstants.KeyPointIndex.Righthip, out var rightHip))
+                    if (TryReadBattleHeadJoint(joints, BoneBodyJointType.左髋, out var leftHip) &&
+                        TryReadBattleHeadJoint(joints, BoneBodyJointType.右髋, out var rightHip))
                     {
                         bottom = (leftHip.m_Y + rightHip.m_Y) * 0.5f + 0.2f * shoulderWidth;
                     }
@@ -960,7 +1059,7 @@ namespace GameHot
             return TryMakeBattleHeadPersonRect(left, top, right, bottom, out rect);
         }
 
-        private static bool TryReadBattleHeadJoint(BoneJointData[] joints, YouDooSDKConstants.KeyPointIndex keyPointIndex, out BoneJointData joint)
+        private static bool TryReadBattleHeadJoint(BoneJointData[] joints, BoneBodyJointType keyPointIndex, out BoneJointData joint)
         {
             int index = (int)keyPointIndex;
             joint = null;
@@ -1053,6 +1152,7 @@ namespace GameHot
             RenderEvent.Event.OnFinishUpgradeChallenge -= OnFinishUpgradeChallenge;
             RenderEvent.Event.OnAddTeamExp -= OnAddTeamExp;
             RenderEvent.Event.OnBossHealthChanged -= OnBossHealthChanged;
+            RenderEvent.Event.OnShieldChanged -= OnShieldChanged;
             RenderEvent.Event.OnLollipopHealthChanged -= OnLollipopHealthChanged;
             RenderEvent.Event.OnTowerDefendMonsterDeathStarsEffect -= SetStarsEffect;
             RenderEvent.Event.OnBattleResult -= OnBattleResult;
@@ -1443,10 +1543,16 @@ namespace GameHot
                 return;
             }
 
-            RenderAPI.SetText(m_View.m_txt_level_count, battle.GetStage().ToString());
-            RenderAPI.SetText(m_View.m_txt_wave, RenderAPI.GetTextByLanId(m_LanTdHudWave, battle.ReadCurrentWave(), Math.Max(1, battle.ReadMaxWave())));
             RenderAPI.SetText(m_View.m_txt_team_exp, BuildTeamExpText(battle));
             RenderAPI.SetText(m_View.m_txt_prepare, BuildPrepareText(battle));
+            RenderAPI.SetTextLan(m_View.m_txt_level_title, "td_hud_stage", battle.GetStage());
+            RenderAPI.SetTextLan(m_View.m_txt_wave,m_LanTdHudWave,battle.ReadCurrentWave(),Math.Max(1, battle.ReadMaxWave()));
+
+            if (battle.ReadGameMode() == BattleGameMode.Endless)
+            {
+                RenderAPI.SetTextLan(m_View.m_txt_level_title, "td_hud_stage_endless");
+                RenderAPI.SetTextLan(m_View.m_txt_wave, m_LanTdHudEndlessWave, battle.ReadCurrentWave());
+            }
         }
 
         private void UpdateTeamExp(TowerDefendBattle battle)
@@ -1692,7 +1798,20 @@ namespace GameHot
             light.localPosition = new Vector2(-200, light.localPosition.y);
             light.DOLocalMoveX(m_dps_player[index].m_Bridge.GetComponent<RectTransform>().rect.width, 1);
         }
+        private void OnShieldChanged(PropertyEntity entity)
+        {
+            var shield = entity.GetBuffManager().ReadTotalShieldValue();
+            var ratio = Mathf.Clamp01(shield / m_BossHealthOneBarValue);
+            float lastBaseHpValue = ResolveBossHealthBarValue(m_currHP);
+            float shieldPos = Mathf.Min(1 - ratio, lastBaseHpValue);
 
+            RectTransform baseHpRect = m_View.m_slider_base_hp.GetComponent<RectTransform>();
+            RectTransform shieldRect = m_View.m_Fill_Shield.GetComponent<RectTransform>();
+
+            m_View.m_Fill_Shield.value = ratio;
+            shieldRect.offsetMin = new Vector2(baseHpRect.sizeDelta.x * shieldPos, shieldRect.offsetMin.y);
+            shieldRect.offsetMax = new Vector2(baseHpRect.sizeDelta.x * shieldPos, shieldRect.offsetMax.y);
+        }
         private Dictionary<int, Entity> m_bossDic = new();
         float m_currHP = 0;
         float m_maxHP = 0;
@@ -1792,6 +1911,7 @@ namespace GameHot
             fillDict[(bloodIndex - 1 + fillDict.Count) % fillDict.Count].SetAsLastSibling();
             m_Fill_Slowly.transform.SetAsLastSibling();
             fillDict[bloodIndex].SetAsLastSibling();
+            m_View.m_Fill_Shield.transform.SetAsLastSibling();
             m_View.m_slider_base_hp.SetValueWithoutNotify(baseHpValue);
 
             bool isHealthSetup = !hasLastBossHealth ||

@@ -107,7 +107,7 @@ namespace GameDll
 
     public sealed class BonePersonData
     {
-        public int m_PersonId = YouDooSDKConstants.PersonIdNull;
+        public int m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
         public readonly BoneDetectPartData m_Body;
         public readonly BoneDetectPartData m_LeftHand;
         public readonly BoneDetectPartData m_RightHand;
@@ -115,15 +115,15 @@ namespace GameDll
 
         public BonePersonData()
         {
-            m_Body = new BoneDetectPartData((int)YouDooSDKConstants.KeyPointIndex.KEYPOINT_COUNT);
-            m_LeftHand = new BoneDetectPartData((int)YouDooSDKConstants.HandLandmark21.HAND_LANDMARK_COUNT);
-            m_RightHand = new BoneDetectPartData((int)YouDooSDKConstants.HandLandmark21.HAND_LANDMARK_COUNT);
-            m_Face = new BoneDetectPartData((int)YouDooSDKConstants.FaceLandmark5.FACE_LANDMARK_COUNT);
+            m_Body = new BoneDetectPartData(BoneTrackedLayout.m_BodyJointCount);
+            m_LeftHand = new BoneDetectPartData(BoneTrackedLayout.m_HandJointCount);
+            m_RightHand = new BoneDetectPartData(BoneTrackedLayout.m_HandJointCount);
+            m_Face = new BoneDetectPartData(BoneTrackedLayout.m_FaceJointCount);
         }
 
         public void Reset()
         {
-            m_PersonId = YouDooSDKConstants.PersonIdNull;
+            m_PersonId = BoneTrackedLayout.m_InvalidPersonId;
             m_Body.Reset();
             m_LeftHand.Reset();
             m_RightHand.Reset();

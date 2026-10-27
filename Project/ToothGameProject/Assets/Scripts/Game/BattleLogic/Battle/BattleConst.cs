@@ -12,21 +12,26 @@ namespace GameDll
         public const float DefaultArcUpwardAngleMax = 9.0f;
         public const float DefaultArcBlendSpeed = 1.0f;
         public const float DefaultTrackingTurnTime = 10.0f;
-        public const float DefaultSpawnYawSpread = 5.0f;
-        public const float DefaultSpawnYawJitter = 10.0f;
+        public const float DefaultSpawnYawSpread = 30.0f;
+        public const float DefaultSpawnYawJitter = 3.0f;
         public const float DefaultSpawnUpwardSpreadMin = 1.0f;
         public const float DefaultSpawnUpwardSpreadMax = 3.0f;
         public const float DefaultSpawnUpwardJitter = 5.0f;
+        public const float DefaultSpawnMinYawSeparation = 15.0f;
+        public const float DefaultSpawnSingleTargetSpreadScale = 1.5f;
+        public const float DefaultSpawnVolleyYawOffsetRatio = 1.0f;
+        public const float DefaultSpawnPendingTurnSpeed = 4.0f;
         public const bool DefaultTriggerTrackingStartHoldTimeUseRandom = true;
-        public const float DefaultTriggerTrackingStartHoldTimeMin = 0.1f;
-        public const float DefaultTriggerTrackingStartHoldTimeMax = 0.1f;
+        public const float DefaultTriggerTrackingStartHoldTimeMin = 0.15f;
+        public const float DefaultTriggerTrackingStartHoldTimeMax = 0.25f;
         public const float DefaultDamageNumberOffset = 0.3f;
-        public const float DefaultTowerDefendWaveBatchSpawnIntervalSec = 1.0f;
+        public const float DefaultTowerDefendWaveBatchSpawnIntervalSec = 2.5f;
         public const bool DefaultTowerDefendAutoAimEnabled = true;
         public const float DefaultTowerDefendAutoAimSnapMaxHorizontalDistance = 1.0f;
         public const float DefaultTowerDefendAutoAimSwitchSmoothSpeed = 8.0f;
         public const float DefaultTowerDefendAutoAimRecoverFromUpgradeSmoothSpeed = 8.0f;
         public const float DefaultTowerDefendNoTargetAimClampForwardOffset = 6.0f;
+        public const float DefaultTowerDefendLaserMaxDownPitchDegrees = 3.0f;
         public const float DefaultTowerDefendUpgradeChallengeDropSpeed = 2.0f;
         public const float DefaultUpgradeChallengeCrackLightScale = 0.01f;
         public const float DefaultUpgradeChallengeCrackMediumScale = 0.03f;
@@ -50,6 +55,10 @@ namespace GameDll
         public static float SpawnUpwardSpreadMin = DefaultSpawnUpwardSpreadMin;
         public static float SpawnUpwardSpreadMax = DefaultSpawnUpwardSpreadMax;
         public static float SpawnUpwardJitter = DefaultSpawnUpwardJitter;
+        public static float SpawnMinYawSeparation = DefaultSpawnMinYawSeparation;
+        public static float SpawnSingleTargetSpreadScale = DefaultSpawnSingleTargetSpreadScale;
+        public static float SpawnVolleyYawOffsetRatio = DefaultSpawnVolleyYawOffsetRatio;
+        public static float SpawnPendingTurnSpeed = DefaultSpawnPendingTurnSpeed;
         public static bool TriggerTrackingStartHoldTimeUseRandom = DefaultTriggerTrackingStartHoldTimeUseRandom;
         public static float TriggerTrackingStartHoldTimeMin = DefaultTriggerTrackingStartHoldTimeMin;
         public static float TriggerTrackingStartHoldTimeMax = DefaultTriggerTrackingStartHoldTimeMax;
@@ -60,6 +69,7 @@ namespace GameDll
         public static float TowerDefendAutoAimSwitchSmoothSpeed = DefaultTowerDefendAutoAimSwitchSmoothSpeed;
         public static float TowerDefendAutoAimRecoverFromUpgradeSmoothSpeed = DefaultTowerDefendAutoAimRecoverFromUpgradeSmoothSpeed;
         public static float TowerDefendNoTargetAimClampForwardOffset = DefaultTowerDefendNoTargetAimClampForwardOffset;
+        public static float TowerDefendLaserMaxDownPitchDegrees = DefaultTowerDefendLaserMaxDownPitchDegrees;
         public static float TowerDefendUpgradeChallengeDropSpeed = DefaultTowerDefendUpgradeChallengeDropSpeed;
         public static float UpgradeChallengeCrackLightScale = DefaultUpgradeChallengeCrackLightScale;
         public static float UpgradeChallengeCrackMediumScale = DefaultUpgradeChallengeCrackMediumScale;
@@ -85,6 +95,10 @@ namespace GameDll
             SpawnUpwardSpreadMin = DefaultSpawnUpwardSpreadMin;
             SpawnUpwardSpreadMax = DefaultSpawnUpwardSpreadMax;
             SpawnUpwardJitter = DefaultSpawnUpwardJitter;
+            SpawnMinYawSeparation = DefaultSpawnMinYawSeparation;
+            SpawnSingleTargetSpreadScale = DefaultSpawnSingleTargetSpreadScale;
+            SpawnVolleyYawOffsetRatio = DefaultSpawnVolleyYawOffsetRatio;
+            SpawnPendingTurnSpeed = DefaultSpawnPendingTurnSpeed;
             TriggerTrackingStartHoldTimeUseRandom = DefaultTriggerTrackingStartHoldTimeUseRandom;
             TriggerTrackingStartHoldTimeMin = DefaultTriggerTrackingStartHoldTimeMin;
             TriggerTrackingStartHoldTimeMax = DefaultTriggerTrackingStartHoldTimeMax;
@@ -95,6 +109,7 @@ namespace GameDll
             TowerDefendAutoAimSwitchSmoothSpeed = DefaultTowerDefendAutoAimSwitchSmoothSpeed;
             TowerDefendAutoAimRecoverFromUpgradeSmoothSpeed = DefaultTowerDefendAutoAimRecoverFromUpgradeSmoothSpeed;
             TowerDefendNoTargetAimClampForwardOffset = DefaultTowerDefendNoTargetAimClampForwardOffset;
+            TowerDefendLaserMaxDownPitchDegrees = DefaultTowerDefendLaserMaxDownPitchDegrees;
             TowerDefendUpgradeChallengeDropSpeed = DefaultTowerDefendUpgradeChallengeDropSpeed;
             UpgradeChallengeCrackLightScale = DefaultUpgradeChallengeCrackLightScale;
             UpgradeChallengeCrackMediumScale = DefaultUpgradeChallengeCrackMediumScale;
@@ -122,6 +137,10 @@ namespace GameDll
             SpawnUpwardSpreadMin = UnityEngine.Mathf.Max(0f, SpawnUpwardSpreadMin);
             SpawnUpwardSpreadMax = UnityEngine.Mathf.Max(SpawnUpwardSpreadMin, SpawnUpwardSpreadMax);
             SpawnUpwardJitter = UnityEngine.Mathf.Max(0f, SpawnUpwardJitter);
+            SpawnMinYawSeparation = UnityEngine.Mathf.Max(0f, SpawnMinYawSeparation);
+            SpawnSingleTargetSpreadScale = UnityEngine.Mathf.Max(0f, SpawnSingleTargetSpreadScale);
+            SpawnVolleyYawOffsetRatio = UnityEngine.Mathf.Max(0f, SpawnVolleyYawOffsetRatio);
+            SpawnPendingTurnSpeed = UnityEngine.Mathf.Max(0f, SpawnPendingTurnSpeed);
             TriggerTrackingStartHoldTimeMin = UnityEngine.Mathf.Max(0f, TriggerTrackingStartHoldTimeMin);
             TriggerTrackingStartHoldTimeMax = UnityEngine.Mathf.Max(TriggerTrackingStartHoldTimeMin, TriggerTrackingStartHoldTimeMax);
             ClampDamageNumberOffsetValues();
@@ -156,6 +175,9 @@ namespace GameDll
             TowerDefendNoTargetAimClampForwardOffset = UnityEngine.Mathf.Max(
                 0f,
                 TowerDefendNoTargetAimClampForwardOffset);
+            TowerDefendLaserMaxDownPitchDegrees = UnityEngine.Mathf.Max(
+                0f,
+                TowerDefendLaserMaxDownPitchDegrees);
         }
 
         public static void ClampTowerDefendUpgradeChallengeValues()

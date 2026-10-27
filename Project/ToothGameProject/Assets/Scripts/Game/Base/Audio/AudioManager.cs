@@ -33,6 +33,8 @@ namespace GameDll
 
         private const string m_MixerAbName = "audio_mixer/main_mixer.jpg";
         private const string m_MixerAssetName = "main_mixer";
+        // 播放请求编号从 1 开始，0 专门表示由外部流程触发的管理器声音压低状态。
+        private const long m_ExternalDuckSourceId = 0;
 
         private static AudioManager m_Instance;
 
@@ -61,6 +63,9 @@ namespace GameDll
         {
             m_PlaybackController = new AudioPlaybackController();
             m_BusController = new AudioBusController(m_PlaybackController.PauseBusRequests);
+            GameSaveService.SaveDataReady += ApplySavedVolumeSettings;
+            // 存档可能在本实例创建前就已就绪，事件不会重放，这里主动应用一次。
+            ApplySavedVolumeSettings();
             m_DuckingController = new AudioDuckingController(m_BusController);
             m_ListenerController = new AudioListenerController();
         }
@@ -69,6 +74,19 @@ namespace GameDll
         /// 获取进程内唯一的声音管理器实例。
         /// </summary>
         /// <returns>可复用的 <see cref="AudioManager"/> 实例。</returns>
+        private void ApplySavedVolumeSettings()
+        {
+            var saveService = GameSaveService.Instance;
+            if (saveService == null || !saveService.IsReady)
+            {
+                return;
+            }
+
+            m_BusController.ApplySaveVolumes(
+                saveService.Root.m_AudioBusVolumes,
+                saveService.Root.m_AudioMuted != 0);
+        }
+
         public static AudioManager GetInstance()
         {
             if (m_Instance == null)
@@ -263,6 +281,24 @@ namespace GameDll
         }
 
         /// <summary>
+        /// 在指定世界坐标循环播放一个三维声音，忽略资源原始 loop 设置。
+        /// </summary>
+        /// <param name="id"><c>t_sound</c> 配置编号。</param>
+        /// <param name="position">声音发声点的世界坐标。</param>
+        /// <returns>播放请求句柄；播放请求未创建时返回默认句柄。</returns>
+        /// <remarks>
+        /// 使用手动生命周期：业务必须持有返回句柄并在结束时调用 <see cref="StopAudio"/> 显式停止。
+        /// </remarks>
+        public AudioHandle Play3DLoop(int id, Vector3 position)
+        {
+            if (!CanPlay())
+            {
+                return default(AudioHandle);
+            }
+            return m_PlaybackController.Play(id, true, position, AudioTransitionMode.None, 0f, AudioReplayMode.CreateNew, AudioLifetime.Manual, -1f, default(AudioDuckOptions), default(AudioPlaybackCallbacks), true);
+        }
+
+        /// <summary>
         /// 使用完整策略在指定世界坐标播放一个三维声音。
         /// </summary>
         /// <param name="id"><c>t_sound</c> 配置编号。</param>
@@ -378,6 +414,54 @@ namespace GameDll
             ResumeFormalPause(AudioBus.Music);
             ResumeFormalPause(AudioBus.World);
             ResumeFormalPause(AudioBus.Voice);
+        }
+
+        /// <summary>
+        /// 按声音压低方案降低由本管理器提供的全部声音。
+        /// </summary>
+        /// <param name="targetVolume">压低后的线性音量。系统会将该值限制在 0.06309573 到 1 之间。</param>
+        /// <param name="attackSeconds">进入压低状态所用秒数；小于 0 使用声音压低功能的默认进入时间，0 表示立即完成。</param>
+        /// <param name="releaseSeconds">后续恢复原音量所用秒数；小于 0 使用声音压低功能的默认恢复时间，0 表示立即完成。</param>
+        /// <remarks>
+        /// <para>该接口只调整主混音器中的声音总线，不调整视频播放器及其他未连接这些总线的声音来源。</para>
+        /// <para>重复调用会从当前音量平滑过渡到新目标，并更新后续恢复时间。</para>
+        /// </remarks>
+        public void DuckManagedAudio(float targetVolume, float attackSeconds = -1f, float releaseSeconds = -1f)
+        {
+            DuckManagedAudio(AudioBusMask.All, targetVolume, attackSeconds, releaseSeconds);
+        }
+
+        /// <summary>
+        /// 按声音压低方案降低由本管理器提供的指定声音总线。
+        /// </summary>
+        /// <param name="targetBuses">需要压低的声音总线集合；传入 <see cref="AudioBusMask.All"/> 表示包括人声在内的全部管理器声音。</param>
+        /// <param name="targetVolume">压低后的线性音量。系统会将该值限制在 0.06309573 到 1 之间。</param>
+        /// <param name="attackSeconds">进入压低状态所用秒数；小于 0 使用声音压低功能的默认进入时间，0 表示立即完成。</param>
+        /// <param name="releaseSeconds">后续恢复原音量所用秒数；小于 0 使用声音压低功能的默认恢复时间，0 表示立即完成。</param>
+        /// <remarks>
+        /// <para>需要保留人声时，可传入 <c>AudioBusMask.All &amp; ~AudioBusMask.Voice</c>。</para>
+        /// <para>重复调用会从当前音量平滑过渡到新目标，并更新目标总线和后续恢复时间。</para>
+        /// </remarks>
+        public void DuckManagedAudio(AudioBusMask targetBuses, float targetVolume, float attackSeconds = -1f, float releaseSeconds = -1f)
+        {
+            if (m_LifecycleState != AudioManagerLifecycleState.Ready)
+            {
+                return;
+            }
+            var options = new AudioDuckOptions(targetBuses, targetVolume, attackSeconds, releaseSeconds);
+            m_DuckingController.Start(m_ExternalDuckSourceId, options);
+        }
+
+        /// <summary>
+        /// 恢复由 <see cref="DuckManagedAudio(float, float, float)"/> 压低的管理器声音。
+        /// </summary>
+        /// <remarks>
+        /// 恢复时间采用最近一次压低调用传入的恢复时间；小于 0 时已经解析为声音压低功能的默认恢复时间。
+        /// 由声音播放请求触发的其他压低状态仍会继续生效。
+        /// </remarks>
+        public void RestoreManagedAudio()
+        {
+            m_DuckingController.Stop(m_ExternalDuckSourceId);
         }
 
         /// <summary>

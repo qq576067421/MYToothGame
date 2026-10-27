@@ -45,6 +45,25 @@ MonoBehaviour:
     - ParticleImage
     - Purchasing.Common
     - RayFireAssembly
+    - Youdoo.Logging
+    - YoudooGame.Action
+    - YoudooGame.CameraImage
+    - YoudooGame.CameraImage.Tracking
+    - YoudooGame.Controller
+    - YoudooGame.Core
+    - YoudooGame.Framework
+    - YoudooGame.HandGesture
+    - YoudooGame.Headwear
+    - YoudooGame.MatchFlow
+    - YoudooGame.Platform
+    - YoudooGame.Player
+    - YoudooGame.PlayerAvatar
+    - YoudooGame.SDK.Adapter
+    - YoudooGame.SDK.Adapter.YouDoo
+    - YoudooGame.Skeleton
+    - YoudooGame.StartupPresentation
+    - YoudooGame.TrackingBinding
+    - YoudooGame.TrackingVisualization
     showAdvancedSettings: 0
   addMgrToSceneAutomatically: 0
   autoUpdateReferences: 1

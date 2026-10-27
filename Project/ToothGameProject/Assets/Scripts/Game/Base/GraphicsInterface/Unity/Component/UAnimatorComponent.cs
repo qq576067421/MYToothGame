@@ -13,7 +13,7 @@ namespace GameDll
     {
         public UResource m_Resource;
         public float m_AniSpeed = 0;
-        public Animator m_Animator = null;
+        private readonly List<Animator> m_Animators = new List<Animator>();
         public string m_AniStateName = "";
         public string m_CurAniStateName = "";
         public string m_AniEndStateName;
@@ -22,13 +22,21 @@ namespace GameDll
 
         public void LoadShowObjImp(GameObject gameObject)
         {
-
-            if (m_Animator == null)
+            if (gameObject == null)
             {
-                m_Animator = gameObject.GetComponent<Animator>();
+                return;
             }
-            
 
+            // 角色身上可能挂了多个 Animator（根节点 + 武器等子节点），全部收集起来一起驱动。
+            m_Animators.Clear();
+            var animators = gameObject.GetComponentsInChildren<Animator>(true);
+            for (int i = 0; i < animators.Length; i++)
+            {
+                if (animators[i] != null)
+                {
+                    m_Animators.Add(animators[i]);
+                }
+            }
         }
 
         //某个动画最长的播放时间
@@ -56,38 +64,64 @@ namespace GameDll
         }
         private void SetAnimationSpeedImp()
         {
-            if (m_Animator != null)
+            int count = m_Animators.Count;
+            for (int i = 0; i < count; i++)
             {
-                m_Animator.speed = m_AniSpeed;
+                var animator = m_Animators[i];
+                if (animator != null)
+                {
+                    animator.speed = m_AniSpeed;
+                }
             }
-
         }
         private void PlayAnimationImp()
         {
-            if (m_Animator != null)
+            int count = m_Animators.Count;
+            for (int i = 0; i < count; i++)
             {
-                //m_Animation. = m_bLoop ? WrapMode.Loop : WrapMode.Default;
+                var animator = m_Animators[i];
+                if (animator == null)
+                {
+                    continue;
+                }
 
                 if (m_UseTrigger)
                 {
-                    m_Animator.SetTrigger(m_AniStateName);
-                }
-                else
-                {
-                    var state = m_Animator.GetCurrentAnimatorStateInfo(0);
-                    //if (!state.IsName(m_AniStateName))
+                    if (HasTriggerParameter(animator, m_AniStateName))
                     {
-                        if (m_AniMaxTime > 0)
-                        {
-                            m_Animator.speed = state.length / m_AniMaxTime;
-                            m_AniMaxTime = 0;
-                        }
-                        m_Animator.CrossFadeInFixedTime(m_AniStateName, m_FadeTime);
+                        animator.SetTrigger(m_AniStateName);
                     }
+                    continue;
                 }
 
-                //UDebug.Log("play ani:" + m_AniName);
+                if (m_AniMaxTime > 0)
+                {
+                    var state = animator.GetCurrentAnimatorStateInfo(0);
+                    animator.speed = state.length / m_AniMaxTime;
+                }
+                animator.CrossFadeInFixedTime(m_AniStateName, m_FadeTime);
             }
+
+            if (!m_UseTrigger)
+            {
+                m_AniMaxTime = 0;
+            }
+        }
+
+        // 子节点 Animator 的状态机未必有同名 Trigger，参数不存在时 SetTrigger 会打警告，先确认再触发。
+        private static bool HasTriggerParameter(Animator animator, string paramName)
+        {
+            int count = animator.parameterCount;
+            for (int i = 0; i < count; i++)
+            {
+                var parameter = animator.GetParameter(i);
+                if (parameter.type == AnimatorControllerParameterType.Trigger && parameter.name == paramName)
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
         public void PlayAnimation(string ani, string endAni = null, float time = 1.0f, bool useTrigger = false)
         {
@@ -125,24 +159,29 @@ namespace GameDll
 
         private void ReplayCurrentAnimationImp(float normalizedTime)
         {
-            if (m_Animator == null)
+            int count = m_Animators.Count;
+            for (int i = 0; i < count; i++)
             {
-                return;
-            }
+                var animator = m_Animators[i];
+                if (animator == null)
+                {
+                    continue;
+                }
 
-            if (!string.IsNullOrEmpty(m_AniStateName) && !m_UseTrigger)
-            {
-                m_Animator.Play(m_AniStateName, 0, normalizedTime);
-                m_CurAniStateName = m_AniStateName;
-            }
-            else
-            {
-                var state = m_Animator.GetCurrentAnimatorStateInfo(0);
-                m_Animator.Play(state.fullPathHash, 0, normalizedTime);
-            }
+                if (!string.IsNullOrEmpty(m_AniStateName) && !m_UseTrigger)
+                {
+                    animator.Play(m_AniStateName, 0, normalizedTime);
+                    m_CurAniStateName = m_AniStateName;
+                }
+                else
+                {
+                    var state = animator.GetCurrentAnimatorStateInfo(0);
+                    animator.Play(state.fullPathHash, 0, normalizedTime);
+                }
 
-            m_Animator.Update(0f);
-            m_Animator.speed = m_AniSpeed;
+                animator.Update(0f);
+                animator.speed = m_AniSpeed;
+            }
         }
     }
 }

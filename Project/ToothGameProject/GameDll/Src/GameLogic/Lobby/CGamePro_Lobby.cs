@@ -2,6 +2,7 @@
 using LCL;
 using MonoBean;
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Text;
@@ -9,6 +10,7 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityUI;
 using GameDll;
+using YoudooGame.MatchFlow.Runtime;
 
 namespace GameHot
 {
@@ -54,6 +56,7 @@ namespace GameHot
         private bool m_IsBattleSelectionInitialized = false;
         private bool m_IsBattleSceneTransitionRequested = false;
         private bool m_IsBackLoginTransitionRequested = false;
+        private bool m_IsPrepareCloseTransition = false;
 
 
         // 初始化大厅流程：恢复上次选择，并把大厅默认状态和战斗入口数据准备好。
@@ -149,6 +152,19 @@ namespace GameHot
             }
 
             m_IsBattleSceneTransitionRequested = false;
+
+            // 战斗 HUD 继续使用框架相机纹理；切场景只暂停采集，保留唯一的原生纹理桥。
+            if (GameProductUiAdapter.HasLiveSession)
+            {
+                GameProductUiAdapter.HandoffCameraBeforeScene("enter-battle", EnterBattleSceneAfterLoading, false);
+                return;
+            }
+
+            EnterBattleSceneAfterLoading();
+        }
+
+        private void EnterBattleSceneAfterLoading()
+        {
             ExitLobby(true);
             LobbyPlayer.GetInstance().SetPlayerState(PlayerState.Battle);
             SetNextProc(CGameProcedure.s_ProcScene);
@@ -270,7 +286,9 @@ namespace GameHot
             }
 
             m_PendingPrepareRequest.SetPreparePlayerCount(preparePlayerCount);
+            GameFrameworkBootstrap.TrySetSessionPlayerCount(m_PendingPrepareRequest.ReadPreparePlayerCount());
             m_PendingPrepareRequest.ClearSdkSlotBindings();
+            m_PendingPrepareRequest.ClearPersonIdBindings();
             if (m_PendingPrepareRequest.m_Players == null)
             {
                 m_PendingPrepareRequest.m_Players = new List<BattleStartupPlayerData>();
@@ -312,7 +330,22 @@ namespace GameHot
                 return false;
             }
 
+            int previousPlayerCount = request.ReadPreparePlayerCount();
             request.SetPreparePlayerCount(playerCount);
+            // 会话人数是准备界面的实际数据来源：没有生效就必须回滚，
+            // 否则会出现“选人界面显示两人、实际只有一人”的错位。
+            if (GameFrameworkBootstrap.CompositionRoot != null &&
+                !GameFrameworkBootstrap.TrySetSessionPlayerCount(request.ReadPreparePlayerCount()))
+            {
+                request.SetPreparePlayerCount(previousPlayerCount);
+                GameFrameworkBootstrap.TrySetSessionPlayerCount(previousPlayerCount);
+                error = "切换人数失败：会话人数未生效，请重试。";
+                Debug.Log("[人数] 设置准备人数失败 request=" + playerCount +
+                          " 恢复为 previous=" + previousPlayerCount);
+                return false;
+            }
+
+            Debug.Log("[人数] 设置准备人数 request=" + playerCount + " previous=" + previousPlayerCount);
             request.ClearSdkSlotBindings();
             // 重新选择人数代表重新开始本次准备，具体初始角色由准备界面按席位顺序分配。
             for (int seatId = 0; seatId < TowerDefendSeatLayout.MaxSupportedPlayerCount; seatId++)
@@ -328,6 +361,7 @@ namespace GameHot
             {
                 request.m_Players.Clear();
             }
+            request.ClearPersonIdBindings();
 
             RefreshBattleStartupRequestBaseHealth(request);
             return true;
@@ -408,7 +442,7 @@ namespace GameHot
         }
 
         // 准备界面切换座位。
-        // 这里只允许编辑器调试使用，真机下座位始终由 SDK 判定。
+        // Framework 会话存在时，座位占用只能由正式会话匹配结果决定。
         public bool TogglePrepareSeat(BattleStartupRequest request, int seatId, out string error)
         {
             error = string.Empty;
@@ -430,7 +464,7 @@ namespace GameHot
                 return false;
             }
 
-            if (ShouldUseSdkPrepareSelection())
+            if (ShouldUseFrameworkPrepareSelection())
             {
                 error = RenderAPI.GetTextByLanId(m_LanTdErrorPrepareSdkSeatOnly);
                 return false;
@@ -464,20 +498,27 @@ namespace GameHot
             return true;
         }
 
-        // 用真机 SDK 当前已启用且已就位的槽位重建准备请求。
-        // 编辑器下直接保持传入请求不变。
-        public bool TrySyncPrepareRequestFromSdk(BattleStartupRequest request, out string error)
+        // 从新 SDK 的 UI 快照回写正式战斗请求，界面座位按 VisualSlotIndex 对应快照槽位。
+        public bool TrySyncPrepareRequestFromFramework(BattleStartupRequest request, out string error)
         {
             error = string.Empty;
-            if (!ShouldUseSdkPrepareSelection())
-            {
-                return true;
-            }
-
             if (request == null)
             {
                 error = RenderAPI.GetTextByLanId(m_LanTdErrorBattleRequestEmpty);
                 return false;
+            }
+
+            var editorSelectedSeatIds = new HashSet<int>();
+            if (Application.isEditor && request.m_Players != null)
+            {
+                for (int index = 0; index < request.m_Players.Count; index++)
+                {
+                    BattleStartupPlayerData selectedPlayer = request.m_Players[index];
+                    if (selectedPlayer != null)
+                    {
+                        editorSelectedSeatIds.Add(selectedPlayer.m_SeatId);
+                    }
+                }
             }
 
             if (request.m_Players == null)
@@ -489,16 +530,25 @@ namespace GameHot
                 request.m_Players.Clear();
             }
 
-            var parseDataDemo = AndroidParseDataDemo.Instance;
-            if (parseDataDemo == null)
+            request.ClearPersonIdBindings();
+
+            var adapter = GameProductUiAdapter.Instance;
+            var snapshot = adapter != null ? adapter.UiSnapshot : null;
+            if (snapshot == null)
             {
-                request.m_Players.Clear();
                 RefreshBattleStartupRequestBaseHealth(request);
                 error = RenderAPI.GetTextByLanId(m_LanTdErrorPrepareSdkBindingMissing);
                 return false;
             }
 
             int preparePlayerCount = request.ReadPreparePlayerCount();
+            if (Application.isEditor && editorSelectedSeatIds.Count != preparePlayerCount)
+            {
+                RefreshBattleStartupRequestBaseHealth(request);
+                error = RenderAPI.GetTextByLanId(m_LanTdErrorPrepareSdkBindingMissing);
+                return false;
+            }
+
             if (!request.TryValidateSdkSlotBindings(preparePlayerCount, out error))
             {
                 request.m_Players.Clear();
@@ -506,35 +556,37 @@ namespace GameHot
                 return false;
             }
 
-            // 真机下统一按 Demo 当前判定“这个槽位是否有人”的结果回写正式请求，
-            // 避免大厅再自行推断槽位占用状态。
-            var readySeatIds = parseDataDemo.GetReadySeatIds();
-            if (readySeatIds == null || readySeatIds.Count == 0)
-            {
-                request.m_Players.Clear();
-                RefreshBattleStartupRequestBaseHealth(request);
-                return true;
-            }
-
+            var usedPersonIds = new HashSet<int>();
             for (int seatId = 0; seatId < preparePlayerCount; seatId++)
             {
+                if (Application.isEditor && !editorSelectedSeatIds.Contains(seatId))
+                {
+                    continue;
+                }
+
                 int sdkSlotIndex;
                 if (!request.TryGetSdkSlotIndexForSeat(seatId, out sdkSlotIndex))
                 {
                     request.m_Players.Clear();
+                    request.ClearPersonIdBindings();
                     RefreshBattleStartupRequestBaseHealth(request);
                     error = RenderAPI.GetTextByLanId(m_LanTdErrorPrepareSdkBindingMissing);
                     return false;
                 }
 
-                if (!parseDataDemo.IsSlotEnabled(sdkSlotIndex))
+                MatchSessionUiSlotSnapshot slot;
+                if (!snapshot.TryGetSlotForVisualIndex(seatId, out slot) || !slot.IsReady)
                 {
                     continue;
                 }
 
-                if (!readySeatIds.ContainsKey(sdkSlotIndex))
+                if (!usedPersonIds.Add(slot.PersonId))
                 {
-                    continue;
+                    request.m_Players.Clear();
+                    request.ClearPersonIdBindings();
+                    RefreshBattleStartupRequestBaseHealth(request);
+                    error = RenderAPI.GetTextByLanId(m_LanTdErrorPrepareSdkBindingMissing);
+                    return false;
                 }
 
                 BattleStartupPlayerData playerData;
@@ -543,17 +595,13 @@ namespace GameHot
                 if (!TryBuildFormalBattlePlayerData(request.m_StageId, seatId, selectedRoleCfgId, out playerData, out error))
                 {
                     request.m_Players.Clear();
+                    request.ClearPersonIdBindings();
                     RefreshBattleStartupRequestBaseHealth(request);
                     return false;
                 }
 
                 request.m_Players.Add(playerData);
-            }
-
-            if (request.m_Players.Count <= 0)
-            {
-                RefreshBattleStartupRequestBaseHealth(request);
-                return true;
+                request.SetPersonIdForSeat(seatId, slot.PersonId);
             }
 
             SortRequestPlayersBySeat(request);
@@ -657,15 +705,29 @@ namespace GameHot
         {
             m_IsBattleSceneTransitionRequested = false;
             m_IsBackLoginTransitionRequested = false;
-            ExitLobby();
             m_PendingBattleRequest = null;
             m_PendingPrepareRequest = null;
-            BackLoginCommon();
+
+            Debug.Log("[返回] lobby BackLogin begin liveSession=" + GameProductUiAdapter.HasLiveSession);
             loading_wnd.OpenLoading(m_BattleLoadingMinVisibleSeconds, () =>
             {
-                SetNextProc(CGameProcedure.s_ProcLogIn);
-                CGameProcedure.s_ProcLogIn.SetStatus((int)LoginStatus.EnterLoginScene);
+                if (GameProductUiAdapter.HasLiveSession)
+                {
+                    GameProductUiAdapter.HandoffCameraBeforeScene("back-login", EnterBackLogin);
+                    return;
+                }
+
+                EnterBackLogin();
             });
+        }
+
+        private void EnterBackLogin()
+        {
+            Debug.Log("[返回] lobby EnterBackLogin");
+            ExitLobby();
+            BackLoginCommon();
+            SetNextProc(CGameProcedure.s_ProcLogIn);
+            CGameProcedure.s_ProcLogIn.SetStatus((int)LoginStatus.EnterLoginScene);
         }
         // 统一执行战斗请求的拷贝、关卡校验和基础字段校验。
         private bool TryPrepareBattleStartRequest(BattleStartupRequest request, out BattleStartupRequest sanitizedRequest, out string error)
@@ -724,6 +786,11 @@ namespace GameHot
 
         public BattleStartupRequest CreateBattleStartupRequestShell()
         {
+            if (m_SelectedGameMode == BattleGameMode.Endless)
+            {
+                return CreateEndlessBattleStartupRequestShell();
+            }
+
             if (m_SelectedStageId <= 0)
             {
                 return null;
@@ -736,9 +803,29 @@ namespace GameHot
             }
 
             var request = new BattleStartupRequest();
+            request.SetPreparePlayerCount(1);
             request.m_BattleType = BattleType.TowerDefend;
             request.m_GameMode = m_SelectedGameMode;
             request.m_StageId = m_SelectedStageId;
+            request.m_IsLocal = true;
+            RefreshBattleStartupRequestBaseHealth(request);
+            return request;
+        }
+
+        // 无尽模式没有选关概念，每场战斗固定从表第 1 行（第 1 波）开始。
+        private BattleStartupRequest CreateEndlessBattleStartupRequestShell()
+        {
+            var selectableStageIds = GetSelectableStageIds(BattleGameMode.Endless);
+            if (selectableStageIds.Count == 0)
+            {
+                return null;
+            }
+
+            var request = new BattleStartupRequest();
+            request.SetPreparePlayerCount(1);
+            request.m_BattleType = BattleType.TowerDefend;
+            request.m_GameMode = BattleGameMode.Endless;
+            request.m_StageId = selectableStageIds[0];
             request.m_IsLocal = true;
             RefreshBattleStartupRequestBaseHealth(request);
             return request;
@@ -814,9 +901,9 @@ namespace GameHot
             return null;
         }
 
-        private static bool ShouldUseSdkPrepareSelection()
+        private static bool ShouldUseFrameworkPrepareSelection()
         {
-            return Application.platform == RuntimePlatform.Android;
+            return Application.platform == RuntimePlatform.Android && GameProductUiAdapter.HasLiveSession;
         }
 
         private bool TryResolveStageRoleCfgId(int stageId, int index, out long roleCfgId, out string error)
@@ -906,6 +993,12 @@ namespace GameHot
                 m_HPPercent = 10000,
                 m_MagicPercent = 10000,
             };
+
+            // 天赋是本地共享的养成进度，开战时随玩家数据带入战斗生效：
+            // 主线列表结算普通属性，分支列表结算特殊天赋（大型节点行两者分开付费解锁）。
+            var lobbyPlayer = LobbyPlayer.GetInstance();
+            playerData.m_Talents.AddRange(lobbyPlayer.GetGiftednessMainTalentIds());
+            playerData.m_TalentBranches.AddRange(lobbyPlayer.GetGiftednessBranchTalentIds());
             return true;
         }
         // 检查战斗请求中的关卡是否对当前模式和解锁进度有效。
@@ -1120,16 +1213,19 @@ namespace GameHot
 
         protected override void OnEscape(InputAction.CallbackContext context)
         {
-            if (m_IsBackLoginTransitionRequested || m_IsBattleSceneTransitionRequested || loading_wnd.IsBlockingFlowInput())
+            if (m_IsBackLoginTransitionRequested || m_IsBattleSceneTransitionRequested ||
+                m_IsPrepareCloseTransition || loading_wnd.IsBlockingFlowInput())
             {
                 return;
             }
 
             if (TryCloseCurrentLobbyActiveWindow())
             {
+                Debug.Log("[返回] lobby escape -> close active window");
                 return;
             }
 
+            Debug.Log("[返回] lobby escape -> back login");
             m_IsBackLoginTransitionRequested = true;
             //loading_wnd.OpenLoading(m_BattleLoadingMinVisibleSeconds, BeginBackLoginAfterLoading);
             BeginBackLoginAfterLoading();
@@ -1143,6 +1239,28 @@ namespace GameHot
                 currentWindow.__GetWindowName() == nameof(lobby_main_wnd))
             {
                 return false;
+            }
+
+            // 准备界面关闭走确定性逻辑：先由 SDK 适配器暂停相机、收回视图，
+            // 再关闭窗口（旧纹理桥随窗口销毁做原生清理），最后延迟停止框架相机。
+            // 不依赖窗口关闭动画/OnClose 的时序。
+            if (currentWindow is tower_defend_prepare_wnd prepareWindow &&
+                GameProductUiAdapter.HasLiveSession)
+            {
+                if (m_IsPrepareCloseTransition)
+                {
+                    return true;
+                }
+
+                m_IsPrepareCloseTransition = true;
+                Debug.Log("[返回] prepare logical close begin");
+                GameProductUiAdapter.ClosePrepareCameraWindow("prepare-back", prepareWindow.__GetWindowObj(), () =>
+                {
+                    Debug.Log("[返回] prepare logical close -> close window");
+                    m_IsPrepareCloseTransition = false;
+                    UIManager.CloseWindow(prepareWindow);
+                });
+                return true;
             }
 
             // 遥控返回先关闭当前参与最顶层判断的业务窗口；

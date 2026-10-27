@@ -112,6 +112,12 @@ namespace GameDll
 
             return Math.Max(0, buffScale);
         }
+        public float ReadBuffDurationAddSeconds()
+        {
+            return m_BuffManager != null
+                ? Mathf.Max(0f, m_BuffManager.ReadBuffPropertyData((int)PropertyType.duration))
+                : 0f;
+        }
         public override bool ReadIsSharedByGroup()
         {
             return m_IsSharedByGroup;
@@ -251,6 +257,20 @@ namespace GameDll
         //能否使用技能
         public override AttackFailedReason CanAttack(Skill skill)
         {
+            return CheckAttackConditions(skill, true);
+        }
+
+        public AttackFailedReason CanBoneNormalAttack(Skill skill)
+        {
+            if (skill == null || skill.ReadSlot() != 0)
+            {
+                return AttackFailedReason.UnregisterSkill;
+            }
+            return CheckAttackConditions(skill, false);
+        }
+
+        private AttackFailedReason CheckAttackConditions(Skill skill, bool checkCooldown)
+        {
             if (skill == null)
             {
                 return AttackFailedReason.UnregisterSkill;
@@ -267,11 +287,28 @@ namespace GameDll
             {
                 return AttackFailedReason.SystemError;
             }
-            if (skill.ReadIsCooldown() == false)
+            if (checkCooldown && skill.ReadIsCooldown() == false)
             {
                 return AttackFailedReason.NotCoolDown;
             }
             return AttackFailedReason.Success;
+        }
+
+        private float m_LastBoneNormalAttackTime = float.NegativeInfinity;
+
+        public bool ReadIsBoneNormalAttackReady(float minInterval)
+        {
+            return BattleManager.ReadBattleTime() >= m_LastBoneNormalAttackTime + minInterval;
+        }
+
+        public float ReadBoneNormalAttackInterval()
+        {
+            return BattleManager.ReadBattleTime() - m_LastBoneNormalAttackTime;
+        }
+
+        public void MarkBoneNormalAttack()
+        {
+            m_LastBoneNormalAttackTime = BattleManager.ReadBattleTime();
         }
         public BuffManager GetBuffManager()
         {
@@ -402,6 +439,7 @@ namespace GameDll
 
         public virtual void ResetRuntimeForReuse()
         {
+            m_LastBoneNormalAttackTime = float.NegativeInfinity;
             BreakSkill();
             if (m_SkillManager != null)
             {
@@ -677,6 +715,11 @@ namespace GameDll
         public virtual void SetFreeze(bool v)
         {
             m_IsFreeze = v;
+            var currentSkill = m_SkillManager != null ? m_SkillManager.GetCurrentSkill() : null;
+            if (v && currentSkill != null && currentSkill.ReadIsBoneNormalAttack())
+            {
+                currentSkill.Stop();
+            }
             var render = GetRender();
             if (render != null)
             {
@@ -809,12 +852,31 @@ namespace GameDll
             }
 
             var buffScale = m_BuffManager.ReadBuffPropertyData((int)PropertyType.amp);
-            if (Mathf.Approximately(buffScale, 0f))
+            //amp 正数是角色增益；负数（怪物身上的受伤加深 debuff）不参与攻击方乘区，
+            //也不能夹成 0 把攻击伤害清零
+            if (buffScale <= 0f)
             {
                 return 1f;
             }
 
-            return Math.Max(0, buffScale);
+            return buffScale;
+        }
+        public override float ReadDamageTakenAmpPercent()
+        {
+            //“受到的伤害加深”只对怪物组生效：怪物身上的负数 amp 按绝对值带入伤害公式
+            //（-200 = 受到伤害加深 20%）；正数是角色增益语义，对怪物受伤无效
+            if (m_BuffManager == null || ReadGroup() != GroupId.PushGroupId)
+            {
+                return 1f;
+            }
+
+            var buffScale = m_BuffManager.ReadBuffPropertyData((int)PropertyType.amp);
+            if (buffScale >= 0f)
+            {
+                return 1f;
+            }
+
+            return 1f + Math.Abs(buffScale);
         }
         public void ChangeGroup(GroupId group)
         {
@@ -913,6 +975,13 @@ namespace GameDll
                 return;
             }
 
+            RefreshDirSkillInput(skill, face_forward, move_dir);
+            m_SkillManager.EnterSkill(skill);
+        }
+
+        // 首次施法和连射续期共用瞄准准备，刷新输入本身不重播动作或特效。
+        public void RefreshDirSkillInput(Skill skill, Vector3 face_forward, Vector3 move_dir)
+        {
             var skillBean = skill.GetSkillBean();
             var bulletCfg = skillBean != null ? t_bullet.GetConfig(skillBean.t_bullet_id, false) : null;
             var iDist = bulletCfg != null
@@ -931,7 +1000,7 @@ namespace GameDll
             var battle = BattleManager.GetBattle() as TowerDefendBattle;
             bool useTowerDefendGuardHeroNormalLaunch = false;
             if (battle != null &&
-                slot == 0 &&
+                skill.ReadSlot() == 0 &&
                 battle.TryResolveGuardHeroNormalAutoAim(this, skill, face_forward, out var autoAimSolution))
             {
                 useTowerDefendGuardHeroNormalLaunch = true;
@@ -960,8 +1029,6 @@ namespace GameDll
             skill.SetDefender(null);
             skill.SetIsDirCast(true);
             skill.SetCooldown(BattleManager.ReadBattleTime());
-
-            m_SkillManager.EnterSkill(skill);
         }
 
         public virtual bool ReadShouldSyncFacingOnAttack()

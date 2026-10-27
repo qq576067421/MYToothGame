@@ -26,7 +26,7 @@ namespace GameDll
         }
 
         // 战斗输入必须按准备界面选择的人数读取区域，不能始终使用四人固定分区。
-        // 这里的数值需要和 PlayerMatchView.SetpersonPlayerReadyPartitionRectf 的准备区保持一致。
+        // 这里的数值需要和 SPLIT_FIXED 模板中各人数的准备区域保持一致。
         public static bool TryReadPrepareUvRect(int playerCount, int slotIndex, out Rect rect)
         {
             rect = Rect.zero;

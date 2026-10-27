@@ -2,13 +2,16 @@
 ~s,
 string,string
 Id,
-td_mode_chapter,关卡模式
+td_mode_chapter,闯关模式
 td_mode_endless,无尽模式
-td_mode_tutorial,教程模式
+td_mode_giftedness,牙齿保健所
+td_mode_setting,设置
 td_lobby_entry,{0} 第{1}关 {2}人
 td_hud_default_player,玩家{0}
 td_hud_stage,关卡 {0}
+td_hud_stage_endless,无尽模式
 td_hud_wave,波次 {0}/{1}
+td_hud_endless_wave,波次 {0}
 td_hud_base,基地 {0}/{1}
 td_hud_monster,怪物 {0}
 td_hud_energy,能量 {0}%
@@ -30,8 +33,9 @@ td_hud_team_exp,升级挑战
 td_notice_level_up,升级挑战
 td_notice_elite,精英
 td_notice_boss,BOSS
+td_notice_boss2,来袭
 td_notice_theme,主题切换
-td_notice_wave,第 {0} 波
+td_notice_wave,        第        波
 td_notice_boss_skill,BOSS 技能吟唱
 td_notice_upgrade_attack,攻击棒棒糖
 td_lobby_profile,金币 {0} | 已解锁关卡 {1} | 无尽最佳 {2}
@@ -54,16 +58,21 @@ td_prepare_state_desc,所有人准备好后，按确定键开始
 td_prepare_role_fallback,角色 {0}
 td_hand_left,左手
 td_hand_right,右手
-td_pause_title,游戏暂停
-td_pause_summary,可选择继续游戏、重新开始或返回主页。
-td_result_chapter_title,恭喜
+td_pause_title,已暂停
+td_pause_continue,继续游戏
+td_pause_start_over,重新开始
+td_pause_return_lobby,返回主页
+td_pause_game_setting,游戏设置
+td_result_chapter_win_title,恭喜过关
 td_result_chapter_fail_title,闯关
+td_result_chapter_fail_title2,失败
 td_result_stage,关卡 {0}
 td_result_star,星级 {0}
 td_result_base,基地 {0}/{1}
 td_result_kill_summary,小怪 {0}  精英 {1}  Boss {2}
-td_result_kill_reward,击杀奖励 {0}
-td_result_clear_reward,通关奖励 {0}
+td_result_kill_reward,杀怪奖
+td_result_clear_reward,通关奖
+td_result_stage,关卡
 td_result_total_reward,总金币 {0}
 td_result_time,战斗时长 {0}
 td_result_unlock_stage,已解锁关卡 {0}
@@ -283,6 +292,7 @@ sdk_demo_wifi_error_tip,网络连接异常，请检查网络后重试
 sdk_demo_global_status_waiting_update,等待状态更新...
 td_result_continue_challenge,继续挑战
 td_result_retry_challenge,重新挑战
+td_result_return,返回主页
 td_prepare_wait_center,请站在画面中间
 td_prepare_face_recognizing,正在识别人脸
 td_prepare_wait_raise_hand,举手准备
@@ -309,3 +319,37 @@ td_error_battle_player_role_missing,无法构建战斗玩家数据：角色配�
 td_prepare_face_enter_area,请进入人脸识别区域
 td_prepare_face_wait_avatar_select,等待选择头像
 td_prepare_face_select_avatar,请选择头像
+td_login_start_text,开始游戏
+td_login_year_Instruction_title,适龄提示
+td_login_year_Instruction_1,     本游戏是一款玩法简单的体感协作类休闲益智游戏，适用于年满 8 周岁及以上的用户，建议未成年人在监护人的监护下使用游戏产品。
+td_login_year_Instruction_2,     本游戏通过摄像头体感操控机关，运送甜品材料至指定目标完成制作即可通关；支持 1-4人协作游玩，通关关卡即可解锁新的关卡。
+td_login_year_Instruction_3,     根据国家新闻出版署《关于防止未成年人沉迷网络游戏的通知》和《关于进一步严格管理 切实防止未成年人沉迷网络游戏的通知》要求本游戏中有用户实名认证系统，未完成实名认证用户不可进行游戏，认证为未成年人的用户将接受以下管理：结合本游戏实际情况，未满 8 周岁用户禁止游戏。8 周岁以上的未成年人用户只允许在周五、周六、周日和法定节假日的 20 时至 21 时进行游戏，游戏时长不得超过 1小时。本游戏采用订阅制，在平台充值购买会员即可游玩，未满 18 周岁的用户不能充值。
+td_login_year_Instruction_4,     本游戏以甜品制作为核心主题，游戏中的体感操作有利于锻炼玩家肢体协调性与反应能力，多人协作玩法有利于提升玩家沟通表达能力与团队协作意识，循序渐进的关卡设计可培养玩家观察力、判断力与问题解决能力。游戏采用 2D卡通 Q 版的可爱清新画面与轻松柔和的原创配乐，打造温馨治愈的游戏氛围，特别适合亲子家庭共同游玩。
+td_login_year_Instruction_5,     为了您的健康请合理控制游戏时间。
+td_login_txtadvice_title,健康游戏忠告
+td_login_txtadvice_txt_1,抵抗不良游戏，拒绝盗版游戏        适度游戏益脑，沉迷游戏伤身
+td_login_txtadvice_txt_2,注意自我保护，谨防受骗上当        合理安排时间，享受健康生活
+td_setting_language_txt,语言
+td_giftedness_atk,攻击
+td_giftedness_crit,暴击
+td_giftedness_cdmg,爆伤
+td_giftedness_dmg,伤害
+td_giftedness_base,基地健康值+{0}点
+td_giftedness_charge,角色技能充能速度+{0}点
+td_giftedness_cd,角色技能CD-{0}s
+td_giftedness_state,状态持续时间+{0}s
+td_giftedness_endless,无尽模式下，每消灭一波怪物，全体攻击力提升{0}点
+td_lobby_chapter_title,主题选择
+td_lobby_chapter_txt_jelly,果冻
+td_lobby_chapter_txt_cake,蛋糕
+td_lobby_chapter_txt_chocolate,巧克力
+td_lobby_chapter_txt_candies,糖果
+td_lobby_chapter_txt_biscuits,饼干
+td_lobby_lvchoose_desc,神秘的零食王国，他们正在密谋发起一场破坏小朋友牙齿的战争
+td_lobby_lvchoose_level,第{0}关
+td_lobby_player_count_one,单人模式
+td_lobby_player_count_two,双人模式
+td_lobby_player_count_three,三人模式
+td_lobby_player_count_four,四人模式
+td_lobby_prepare_title,所有人准备好后，即可开始
+td_lobby_prepare_cut,挥手切换角色

@@ -1,6 +1,6 @@
 ﻿//功能：tower_defend_battle_hud_wnd的窗口配置文件
 //工具作者：lichunlin
-//生成时间：08/17/2026 15:53:00
+//生成时间：10/26/2026 11:47:30
 //描述：以下文件是自动生成的，任何手动修改都会被下次自动生成覆盖。
 
 using System;
@@ -33,9 +33,6 @@ namespace GameHot
 
           //tower_defend_battle_hud_wnd/WindowContent/top/txt_prepare
           public LUITextMesh m_txt_prepare;
-
-          //tower_defend_battle_hud_wnd/WindowContent/top/bg_level_count/txt_level_count
-          public LUITextMesh m_txt_level_count;
 
           //tower_defend_battle_hud_wnd/WindowContent/top/btn_pause
           public LUIButton m_btn_pause;
@@ -166,6 +163,12 @@ namespace GameHot
           //tower_defend_battle_hud_wnd/WindowContent/baseHitEff
           public LUIImage m_baseHitEff;
 
+          //tower_defend_battle_hud_wnd/WindowContent/top/bg_level_count/txt_level_title
+          public LUITextMesh m_txt_level_title;
+
+          //tower_defend_battle_hud_wnd/WindowContent/top/slider_base_bg/slider_base_hp/Fill_Shield
+          public Slider m_Fill_Shield;
+
           public override void InitComponent(GameObject go)
           {
                m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
@@ -174,50 +177,51 @@ namespace GameHot
                m_txt_team_exp = m_Bridge.GetControl(2) as LUITextMesh;
                m_txt_base_hp = m_Bridge.GetControl(3) as LUITextMesh;
                m_txt_prepare = m_Bridge.GetControl(4) as LUITextMesh;
-               m_txt_level_count = m_Bridge.GetControl(5) as LUITextMesh;
-               m_btn_pause = m_Bridge.GetControl(6) as LUIButton;
-               m_slider_team_exp = m_Bridge.GetControl(7) as Slider;
-               m_slider_base_hp = m_Bridge.GetControl(8) as Slider;
-               m_txtmeshline_1 = m_Bridge.GetControl(9) as LUITextMesh;
-               m_slider_team_exp_root = m_Bridge.GetControl(10) as LUIImage;
-               m_team_exp = m_Bridge.GetControl(11) as LUIImage;
-               m_all_players_dps = m_Bridge.GetControl(12) as UITransform;
-               m_PlayerSlot3 = m_Bridge.GetControl(13) as ComponentBridge;
-               m_PlayerSlot2 = m_Bridge.GetControl(14) as ComponentBridge;
-               m_PlayerSlot1 = m_Bridge.GetControl(15) as ComponentBridge;
-               m_PlayerSlot0 = m_Bridge.GetControl(16) as ComponentBridge;
-               m_fightInfo = m_Bridge.GetControl(17) as UITransform;
-               m_slider_base_bg = m_Bridge.GetControl(18) as LUIImage;
-               m_luiimage_3 = m_Bridge.GetControl(19) as LUIImage;
-               m_Fill_0 = m_Bridge.GetControl(20) as LUIImage;
-               m_Fill_1 = m_Bridge.GetControl(21) as LUIImage;
-               m_Fill_2 = m_Bridge.GetControl(22) as LUIImage;
-               m_Fill_3 = m_Bridge.GetControl(23) as LUIImage;
-               m_Fill_4 = m_Bridge.GetControl(24) as LUIImage;
-               m_dps_player0 = m_Bridge.GetControl(25) as ComponentBridge;
-               m_dps_player1 = m_Bridge.GetControl(26) as ComponentBridge;
-               m_dps_player2 = m_Bridge.GetControl(27) as ComponentBridge;
-               m_dps_player3 = m_Bridge.GetControl(28) as ComponentBridge;
-               m_Fill_Slowly = m_Bridge.GetControl(29) as Slider;
-               m_top = m_Bridge.GetControl(30) as UITransform;
-               m_eff_bangbang_star = m_Bridge.GetControl(31) as UITransform;
-               m_eff_xingxing = m_Bridge.GetControl(32) as UITransform;
-               m_PlayerSlots = m_Bridge.GetControl(33) as UITransform;
-               m_showRewardCoin = m_Bridge.GetControl(34) as LUIImage;
-               m_RewardCoinParent = m_Bridge.GetControl(35) as LUIImage;
-               m_txt_lollipop_hp = m_Bridge.GetControl(36) as LUITextMesh;
-               m_lollipopFill_Slowly = m_Bridge.GetControl(37) as Slider;
-               m_slider_lollipop_hp = m_Bridge.GetControl(38) as Slider;
-               m_lollipopFill_0 = m_Bridge.GetControl(39) as LUIImage;
-               m_lollipopFill_1 = m_Bridge.GetControl(40) as LUIImage;
-               m_lollipopFill_2 = m_Bridge.GetControl(41) as LUIImage;
-               m_lollipopFill_3 = m_Bridge.GetControl(42) as LUIImage;
-               m_lollipopFill_4 = m_Bridge.GetControl(43) as LUIImage;
-               m_slider_lollipop_bg = m_Bridge.GetControl(44) as LUIImage;
-               m_baseBlood_Txt = m_Bridge.GetControl(45) as LUITextMesh;
-               m_baseBlood_Fill = m_Bridge.GetControl(46) as LUIImage;
-               m_xingxingParent = m_Bridge.GetControl(47) as LUIImage;
-               m_baseHitEff = m_Bridge.GetControl(48) as LUIImage;
+               m_btn_pause = m_Bridge.GetControl(5) as LUIButton;
+               m_slider_team_exp = m_Bridge.GetControl(6) as Slider;
+               m_slider_base_hp = m_Bridge.GetControl(7) as Slider;
+               m_txtmeshline_1 = m_Bridge.GetControl(8) as LUITextMesh;
+               m_slider_team_exp_root = m_Bridge.GetControl(9) as LUIImage;
+               m_team_exp = m_Bridge.GetControl(10) as LUIImage;
+               m_all_players_dps = m_Bridge.GetControl(11) as UITransform;
+               m_PlayerSlot3 = m_Bridge.GetControl(12) as ComponentBridge;
+               m_PlayerSlot2 = m_Bridge.GetControl(13) as ComponentBridge;
+               m_PlayerSlot1 = m_Bridge.GetControl(14) as ComponentBridge;
+               m_PlayerSlot0 = m_Bridge.GetControl(15) as ComponentBridge;
+               m_fightInfo = m_Bridge.GetControl(16) as UITransform;
+               m_slider_base_bg = m_Bridge.GetControl(17) as LUIImage;
+               m_luiimage_3 = m_Bridge.GetControl(18) as LUIImage;
+               m_Fill_0 = m_Bridge.GetControl(19) as LUIImage;
+               m_Fill_1 = m_Bridge.GetControl(20) as LUIImage;
+               m_Fill_2 = m_Bridge.GetControl(21) as LUIImage;
+               m_Fill_3 = m_Bridge.GetControl(22) as LUIImage;
+               m_Fill_4 = m_Bridge.GetControl(23) as LUIImage;
+               m_dps_player0 = m_Bridge.GetControl(24) as ComponentBridge;
+               m_dps_player1 = m_Bridge.GetControl(25) as ComponentBridge;
+               m_dps_player2 = m_Bridge.GetControl(26) as ComponentBridge;
+               m_dps_player3 = m_Bridge.GetControl(27) as ComponentBridge;
+               m_Fill_Slowly = m_Bridge.GetControl(28) as Slider;
+               m_top = m_Bridge.GetControl(29) as UITransform;
+               m_eff_bangbang_star = m_Bridge.GetControl(30) as UITransform;
+               m_eff_xingxing = m_Bridge.GetControl(31) as UITransform;
+               m_PlayerSlots = m_Bridge.GetControl(32) as UITransform;
+               m_showRewardCoin = m_Bridge.GetControl(33) as LUIImage;
+               m_RewardCoinParent = m_Bridge.GetControl(34) as LUIImage;
+               m_txt_lollipop_hp = m_Bridge.GetControl(35) as LUITextMesh;
+               m_lollipopFill_Slowly = m_Bridge.GetControl(36) as Slider;
+               m_slider_lollipop_hp = m_Bridge.GetControl(37) as Slider;
+               m_lollipopFill_0 = m_Bridge.GetControl(38) as LUIImage;
+               m_lollipopFill_1 = m_Bridge.GetControl(39) as LUIImage;
+               m_lollipopFill_2 = m_Bridge.GetControl(40) as LUIImage;
+               m_lollipopFill_3 = m_Bridge.GetControl(41) as LUIImage;
+               m_lollipopFill_4 = m_Bridge.GetControl(42) as LUIImage;
+               m_slider_lollipop_bg = m_Bridge.GetControl(43) as LUIImage;
+               m_baseBlood_Txt = m_Bridge.GetControl(44) as LUITextMesh;
+               m_baseBlood_Fill = m_Bridge.GetControl(45) as LUIImage;
+               m_xingxingParent = m_Bridge.GetControl(46) as LUIImage;
+               m_baseHitEff = m_Bridge.GetControl(47) as LUIImage;
+               m_txt_level_title = m_Bridge.GetControl(48) as LUITextMesh;
+               m_Fill_Shield = m_Bridge.GetControl(49) as Slider;
           }
           public class v_dps_player:v_base_wnd
           {

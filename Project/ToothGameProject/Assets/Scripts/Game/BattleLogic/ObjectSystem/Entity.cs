@@ -362,6 +362,15 @@
             out float hitT,
             out Vector3 hitPoint)
         {
+            hitT = float.MaxValue;
+            hitPoint = segmentEnd;
+            // 没有渲染资源的实体没有可命中的形体：碰撞体、命中节点/矩阵都依赖 render，
+            // 例如棒棒糖这类逻辑目标不在渲染链路上，直接视为不可命中，避免空引用。
+            if (GetRender() == null)
+            {
+                return false;
+            }
+
             extraRadius = Mathf.Max(0.0f, extraRadius);
             if (TryReadMonsterRootCapsule(out var capsuleStart, out var capsuleEnd, out var capsuleRadius))
             {
@@ -379,6 +388,46 @@
                 segmentStart,
                 segmentEnd,
                 ReadHitPoint(),
+                ReadRadius() + extraRadius,
+                out hitT,
+                out hitPoint);
+        }
+
+        // 表现（视觉）口径命中测试：Curve World 只改变画面位置，直线激光/瞄准线要打在被完整弯折后的形体上。
+        // 这里把逻辑碰撞体的形体端点做完整弯折变换后再求交，命中点直接是画面上的视觉位置；
+        // 不能再用“逻辑求交 + 单位命中节点的常量偏移”近似——单位移动、命中节点与碰撞体不同高/不同深时都会失准。
+        public virtual bool TryIntersectVisualSegment(
+            Vector3 segmentStart,
+            Vector3 segmentEnd,
+            float extraRadius,
+            out float hitT,
+            out Vector3 hitPoint)
+        {
+            hitT = float.MaxValue;
+            hitPoint = segmentEnd;
+            // 同 TryIntersectSegment：没有渲染资源的实体没有画面形体，直接视为不可命中
+            if (GetRender() == null)
+            {
+                return false;
+            }
+
+            extraRadius = Mathf.Max(0.0f, extraRadius);
+            if (TryReadMonsterRootCapsule(out var capsuleStart, out var capsuleEnd, out var capsuleRadius))
+            {
+                return BattleManager.TryIntersectSegmentCapsule(
+                    segmentStart,
+                    segmentEnd,
+                    CurveWorldVisualUtility.ApplyVisualOffset(capsuleStart),
+                    CurveWorldVisualUtility.ApplyVisualOffset(capsuleEnd),
+                    capsuleRadius + extraRadius,
+                    out hitT,
+                    out hitPoint);
+            }
+
+            return BattleManager.TryIntersectSegmentSphere(
+                segmentStart,
+                segmentEnd,
+                CurveWorldVisualUtility.ApplyVisualOffset(ReadHitPoint()),
                 ReadRadius() + extraRadius,
                 out hitT,
                 out hitPoint);
@@ -1104,6 +1153,10 @@
             return 0;
         }
         public virtual float ReadDamageAmpPercent()
+        {
+            return 1;
+        }
+        public virtual float ReadDamageTakenAmpPercent()
         {
             return 1;
         }

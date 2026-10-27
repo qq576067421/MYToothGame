@@ -2,13 +2,16 @@
 ~s,
 string,string
 Id,
-td_mode_chapter,td_mode_chapter
-td_mode_endless,td_mode_endless
-td_mode_tutorial,td_mode_tutorial
+td_mode_chapter,Level Mode
+td_mode_endless,Endless Mode
+td_mode_giftedness,Dental Health Center
+td_mode_setting,Setting
 td_lobby_entry,td_lobby_entry
 td_hud_default_player,td_hud_default_player
-td_hud_stage,td_hud_stage
-td_hud_wave,td_hud_wave
+td_hud_stage,Stage {0}
+td_hud_stage_endless,Infinite Mode
+td_hud_wave,wave {0}/{1}
+td_hud_endless_wave,wave {0}
 td_hud_base,td_hud_base
 td_hud_monster,td_hud_monster
 td_hud_energy,td_hud_energy
@@ -29,11 +32,12 @@ td_hud_energy_empty,td_hud_energy_empty
 td_hud_team_exp,td_hud_team_exp
 td_notice_level_up,td_notice_level_up
 td_notice_elite,td_notice_elite
-td_notice_boss,td_notice_boss
+td_notice_boss,BOSS
+td_notice_boss2,INC
 td_notice_theme,td_notice_theme
-td_notice_wave,td_notice_wave
+td_notice_wave,    The        Wave
 td_notice_boss_skill,td_notice_boss_skill
-td_notice_upgrade_attack,td_notice_upgrade_attack
+td_notice_upgrade_attack,Attack lollipops
 td_lobby_profile,td_lobby_profile
 td_lobby_stage_label,td_lobby_stage_label
 td_lobby_endless_stage_label,td_lobby_endless_stage_label
@@ -48,20 +52,26 @@ td_prepare_base,td_prepare_base
 td_prepare_player,td_prepare_player
 td_prepare_role,td_prepare_role
 td_prepare_hand,td_prepare_hand
-td_prepare_state_ready,td_prepare_state_ready
+td_prepare_state_ready,Ready
+td_prepare_state_no_ready,Not Ready
 td_prepare_role_fallback,td_prepare_role_fallback
 td_hand_left,td_hand_left
 td_hand_right,td_hand_right
-td_pause_title,td_pause_title
-td_pause_summary,td_pause_summary
-td_result_chapter_title,td_result_chapter_title
-td_result_chapter_fail_title,td_result_chapter_fail_title
+td_pause_title,Has Suspended
+td_pause_continue,Continue Game
+td_pause_start_over,Start Over
+td_pause_return_lobby,Return Home
+td_pause_game_setting,Game Settings
+td_result_chapter_win_title,Stage Clear
+td_result_chapter_fail_title,Stage
+td_result_chapter_fail_title2,Failed
 td_result_stage,td_result_stage
 td_result_star,td_result_star
 td_result_base,td_result_base
 td_result_kill_summary,td_result_kill_summary
-td_result_kill_reward,td_result_kill_reward
-td_result_clear_reward,td_result_clear_reward
+td_result_kill_reward,Kill Reward
+td_result_clear_reward,Clear Reward
+td_result_stage,Stage
 td_result_total_reward,td_result_total_reward
 td_result_time,td_result_time
 td_result_unlock_stage,td_result_unlock_stage
@@ -75,6 +85,8 @@ td_result_endless_rank_position,td_result_endless_rank_position
 td_result_endless_rank_pending,td_result_endless_rank_pending
 td_result_endless_rank_submitted,td_result_endless_rank_submitted
 td_result_endless_rank_failed,td_result_endless_rank_failed
+td_result_endless_fail,The snack army has damaged your teeth.
+td_result_endless_win,You successfully defeated the army of snacks.
 td_loading_enter_battle,td_loading_enter_battle
 td_loading_return_lobby,td_loading_return_lobby
 td_game_title,td_game_title
@@ -253,11 +265,12 @@ sdk_demo_vip_info_line,sdk_demo_vip_info_line
 sdk_demo_wifi_error_detail,sdk_demo_wifi_error_detail
 sdk_demo_wifi_error_tip,sdk_demo_wifi_error_tip
 sdk_demo_global_status_waiting_update,sdk_demo_global_status_waiting_update
-td_result_continue_challenge,td_result_continue_challenge
-td_result_retry_challenge,td_result_retry_challenge
+td_result_continue_challenge,Continue
+td_result_retry_challenge,Again
+td_result_return,Return Home
 td_prepare_wait_center,td_prepare_wait_center
 td_prepare_face_recognizing,td_prepare_face_recognizing
-td_prepare_wait_raise_hand,td_prepare_wait_raise_hand
+td_prepare_wait_raise_hand,Raise your hand and get ready.
 td_prepare_error_sdk_data_missing,td_prepare_error_sdk_data_missing
 td_prepare_error_all_ready,td_prepare_error_all_ready
 td_chapter_locked,td_chapter_locked
@@ -278,6 +291,40 @@ td_error_battle_player_map_missing,td_error_battle_player_map_missing
 td_error_stage_guard_slot_missing,td_error_stage_guard_slot_missing
 td_error_selected_role_missing,td_error_selected_role_missing
 td_error_battle_player_role_missing,td_error_battle_player_role_missing
-td_prepare_face_enter_area,td_prepare_face_enter_area
+td_prepare_face_enter_area,Please enter the facial recognition area.
 td_prepare_face_wait_avatar_select,td_prepare_face_wait_avatar_select
 td_prepare_face_select_avatar,td_prepare_face_select_avatar
+td_login_start_text,StartGame
+td_login_year_Instruction_title,Age Hint
+td_login_year_Instruction_1,     This game is a simple-sounding motion-sensing cooperative casual puzzle game. It is suitable for users aged 8 and above. It is recommended that minors use the game product under the supervision of their guardians.
+td_login_year_Instruction_2,"     This game uses the camera for body-sensing control of the mechanisms. You can complete the dessert-making process by transporting the ingredients to the designated target. It supports 1-4 players to play cooperatively. Once you clear a level, you can unlock new levels."
+td_login_year_Instruction_3,"     In accordance with the requirements of the ""Notice on Preventing Minors from Being Addicted to Online Games"" and the ""Notice on Further Strictly Managing and Effectively Preventing Minors from Being Addicted to Online Games"" issued by the National Press and Publication Administration, this game has a user real-name authentication system. Users who have not completed real-name authentication are not allowed to play the game. Users who have been authenticated as minors will be subject to the following management: Based on the actual situation of this game, users under the age of 8 are prohibited from playing. Users aged 8 and above are only allowed to play on Fridays, Saturdays, Sundays, and during the 20:00 to 21:00 period on legal holidays. The game duration shall not exceed 1 hour. This game adopts a subscription model. Users can play by purchasing a membership on the platform. Users under the age of 18 are not allowed to make payments."
+td_login_year_Instruction_4,"     This game is centered around dessert making as its core theme. The body-sensing operations in the game are beneficial for enhancing players' physical coordination and reaction abilities. The multiplayer cooperative gameplay helps improve players' communication and expression skills as well as their team collaboration awareness. The progressive level design can cultivate players' observation, judgment, and problem-solving abilities. The game features 2D cartoon-like Q-version cute and refreshing graphics and a relaxing, soft original soundtrack, creating a warm and soothing gaming atmosphere. It is particularly suitable for families with children to enjoy together."
+td_login_year_Instruction_5,"     For your health, please control your gaming time reasonably."
+td_login_txtadvice_title,Healthy Gaming Advice
+td_login_txtadvice_txt_1,"Boycott bad games and refuse pirated games.  Moderate gaming benefits the brain, while addiction harms the body."
+td_login_txtadvice_txt_2,Be aware of self-protection and guard against being deceived.  Arrange your time reasonably and enjoy a healthy life.
+td_setting_language_txt,Language
+td_giftedness_atk,Atk
+td_giftedness_crit,Crit
+td_giftedness_cdmg,Cdmg
+td_giftedness_dmg,Dmg
+td_giftedness_base,Base health value + {0} points
+td_giftedness_charge,Role skill recharge speed + {0} points
+td_giftedness_cd,Character Skill CD - {0}s
+td_giftedness_state,State duration + {0} s
+td_giftedness_endless,"In the endless mode, every time a wave of monsters is defeated, the overall attack power increases by {0} points."
+td_lobby_chapter_title,theme selection
+td_lobby_chapter_txt_jelly,Jelly
+td_lobby_chapter_txt_cake,Cake
+td_lobby_chapter_txt_chocolate,Chocolate
+td_lobby_chapter_txt_candies,Candies
+td_lobby_chapter_txt_biscuits,Biscuits
+td_lobby_lvchoose_desc,The mysterious snack kingdom is planning to launch a war that will damage children's teeth.
+td_lobby_lvchoose_level,Level {0}
+td_lobby_player_count_one,Single Player
+td_lobby_player_count_two,Two Player
+td_lobby_player_count_three,Three Player
+td_lobby_player_count_four,Four Player
+td_lobby_prepare_title,"Once everyone is ready, we can start."
+td_lobby_prepare_cut,Wave your hand to switch roles

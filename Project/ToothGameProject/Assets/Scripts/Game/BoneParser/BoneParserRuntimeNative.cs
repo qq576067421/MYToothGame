@@ -7,7 +7,7 @@ namespace GameDll
 {
     internal sealed class BoneParserRuntimeNative : IBoneParserRuntime
     {
-        private const int m_ExpectedAbiVersion = 9;
+        private const int m_ExpectedAbiVersion = 27;
         private const int m_BodyJointCount = 18;
         private const int m_MinNativeArrayCapacity = 1;
         private const int m_MaxNativeEventsPerSeat = 64;
@@ -361,43 +361,29 @@ namespace GameDll
             m_NativeConfig.m_MinBodyScore = m_Config.m_MinBodyScore;
             m_NativeConfig.m_MinJointScore = m_Config.m_MinJointScore;
             m_NativeConfig.m_MaxMissingFrameCount = m_Config.m_MaxMissingFrameCount;
-            m_NativeConfig.m_RotationSmoothFactor = m_Config.m_RotationSmoothFactor;
+            m_NativeConfig.m_ShoulderAngleTurnMaxOutputAngleDegrees = m_Config.m_ShoulderAngleTurnMaxOutputAngleDegrees;
+            m_NativeConfig.m_ShoulderAngleTurnInvertDirection = m_Config.m_ShoulderAngleTurnInvertDirection ? 1 : 0;
+            m_NativeConfig.m_ShoulderAngleTurnSmoothTimeSeconds = m_Config.m_ShoulderAngleTurnSmoothTimeSeconds;
+            m_NativeConfig.m_ShoulderAngleTurnFullInputDegrees = m_Config.m_ShoulderAngleTurnFullInputDegrees;
+            m_NativeConfig.m_ShoulderAngleTurnInputJitterDegrees = m_Config.m_ShoulderAngleTurnInputJitterDegrees;
+            m_NativeConfig.m_ShoulderAngleTurnMaxSpeedDegreesPerSecond = m_Config.m_ShoulderAngleTurnMaxSpeedDegreesPerSecond;
             m_NativeConfig.m_KeypointConfidenceThreshold = m_Config.m_KeypointConfidenceThreshold;
             m_NativeConfig.m_ShoulderWidthEpsilon = m_Config.m_ShoulderWidthEpsilon;
-            m_NativeConfig.m_MaxShoulderWidthUpdateConfidence = m_Config.m_MaxShoulderWidthUpdateConfidence;
-            m_NativeConfig.m_MaxTurnAngleDegrees = m_Config.m_MaxTurnAngleDegrees;
-            m_NativeConfig.m_InvertTurnDirection = m_Config.m_InvertTurnDirection ? 1 : 0;
-            m_NativeConfig.m_RotationAmplifyFactor = m_Config.m_RotationAmplifyFactor;
-            m_NativeConfig.m_AimCenterEnterRatio = m_Config.m_AimCenterEnterRatio;
-            m_NativeConfig.m_AimCenterExitRatio = m_Config.m_AimCenterExitRatio;
-            m_NativeConfig.m_AimResponseCurveExponent = m_Config.m_AimResponseCurveExponent;
-            m_NativeConfig.m_ShoulderTurnJitterDeadZone = m_Config.m_ShoulderTurnJitterDeadZone;
-            m_NativeConfig.m_AimPredictMissingFrames = m_Config.m_AimPredictMissingFrames;
-            m_NativeConfig.m_AimHoldMissingFrames = m_Config.m_AimHoldMissingFrames;
             m_NativeConfig.m_AimReconnectStableFrames = m_Config.m_AimReconnectStableFrames;
-            m_NativeConfig.m_AimPredictVelocityDamping = m_Config.m_AimPredictVelocityDamping;
-            m_NativeConfig.m_AimReconnectBlendFactor = m_Config.m_AimReconnectBlendFactor;
-            m_NativeConfig.m_AimReturnToForwardSeconds = m_Config.m_AimReturnToForwardSeconds;
             m_NativeConfig.m_GestureKeypointMinConfidence = m_Config.m_GestureKeypointMinConfidence;
-            m_NativeConfig.m_AlternatingSwingSpeedRatioPerSecond = m_Config.m_AlternatingSwingSpeedRatioPerSecond;
-            m_NativeConfig.m_AlternatingSwingMinVerticalDistanceRatio = m_Config.m_AlternatingSwingMinVerticalDistanceRatio;
-            m_NativeConfig.m_AlternatingSwingDirectionNoiseRatio = m_Config.m_AlternatingSwingDirectionNoiseRatio;
-            m_NativeConfig.m_AlternatingSwingMinDirectionalFrames = m_Config.m_AlternatingSwingMinDirectionalFrames;
-            m_NativeConfig.m_AlternatingSwingCooldownSeconds = m_Config.m_AlternatingSwingCooldownSeconds;
-            m_NativeConfig.m_AlternatingSwingWindowFrames = m_Config.m_AlternatingSwingWindowFrames;
+            m_NativeConfig.m_UpDownSwingMinUpwardSpeedRatioPerSecond = m_Config.m_UpDownSwingMinUpwardSpeedRatioPerSecond;
+            m_NativeConfig.m_UpDownSwingStartMaxHeightRatio = m_Config.m_UpDownSwingStartMaxHeightRatio;
+            m_NativeConfig.m_UpDownSwingStartMinHeightRatio = m_Config.m_UpDownSwingStartMinHeightRatio;
+            m_NativeConfig.m_UpDownSwingMinStrokeDistanceRatio = m_Config.m_UpDownSwingMinStrokeDistanceRatio;
+            m_NativeConfig.m_UpDownSwingMaxLateralRatio = m_Config.m_UpDownSwingMaxLateralRatio;
             m_NativeConfig.m_LargeAlternatingSwingSpeedRatioPerSecond = m_Config.m_LargeAlternatingSwingSpeedRatioPerSecond;
             m_NativeConfig.m_LargeAlternatingSwingDirectionNoiseRatio = m_Config.m_LargeAlternatingSwingDirectionNoiseRatio;
             m_NativeConfig.m_LargeAlternatingSwingMinDirectionalFrames = m_Config.m_LargeAlternatingSwingMinDirectionalFrames;
             m_NativeConfig.m_LargeAlternatingSwingCooldownSeconds = m_Config.m_LargeAlternatingSwingCooldownSeconds;
             m_NativeConfig.m_LargeAlternatingSwingWindowFrames = m_Config.m_LargeAlternatingSwingWindowFrames;
             m_NativeConfig.m_LargeAlternatingSwingMinTorsoDistanceRatio = m_Config.m_LargeAlternatingSwingMinTorsoDistanceRatio;
-            m_NativeConfig.m_OverheadPressReadyFrames = m_Config.m_OverheadPressReadyFrames;
-            m_NativeConfig.m_OverheadPressHeadMarginRatio = m_Config.m_OverheadPressHeadMarginRatio;
-            m_NativeConfig.m_OverheadPressReleaseSpeedRatio = m_Config.m_OverheadPressReleaseSpeedRatio;
-            m_NativeConfig.m_OverheadPressMinReleaseDistanceRatio = m_Config.m_OverheadPressMinReleaseDistanceRatio;
-            m_NativeConfig.m_OverheadPressReleaseEndBelowHeadRatio = m_Config.m_OverheadPressReleaseEndBelowHeadRatio;
-            m_NativeConfig.m_OverheadPressReleaseWindowFrames = m_Config.m_OverheadPressReleaseWindowFrames;
-            m_NativeConfig.m_OverheadPressCooldownSeconds = m_Config.m_OverheadPressCooldownSeconds;
+            m_NativeConfig.m_HandsAboveNoseEnterMarginRatio = m_Config.m_HandsAboveNoseEnterMarginRatio;
+            m_NativeConfig.m_HandsAboveNoseExitMarginRatio = m_Config.m_HandsAboveNoseExitMarginRatio;
             m_NativeConfig.m_CrossChestExpandReadyFrames = m_Config.m_CrossChestExpandReadyFrames;
             m_NativeConfig.m_CrossChestExpandSpeedRatioPerSecond = m_Config.m_CrossChestExpandSpeedRatioPerSecond;
             m_NativeConfig.m_CrossChestExpandMinDistanceRatio = m_Config.m_CrossChestExpandMinDistanceRatio;
@@ -434,6 +420,39 @@ namespace GameDll
             m_NativeConfig.m_HandsExpandHoldFrames = m_Config.m_HandsExpandHoldFrames;
             m_NativeConfig.m_HandsExpandReleaseWindowFrames = m_Config.m_HandsExpandReleaseWindowFrames;
             m_NativeConfig.m_HandsExpandCooldownSeconds = m_Config.m_HandsExpandCooldownSeconds;
+            m_NativeConfig.m_LeftLeanReadyFrames = m_Config.m_LeftLeanReadyFrames;
+            m_NativeConfig.m_LeftLeanTriggerOffsetRatio = m_Config.m_LeftLeanTriggerOffsetRatio;
+            m_NativeConfig.m_LeftLeanReturnToNeutralRatio = m_Config.m_LeftLeanReturnToNeutralRatio;
+            m_NativeConfig.m_LeftLeanMinSpeedRatioPerSecond = m_Config.m_LeftLeanMinSpeedRatioPerSecond;
+            m_NativeConfig.m_LeftLeanCooldownSeconds = m_Config.m_LeftLeanCooldownSeconds;
+            m_NativeConfig.m_RightLeanReadyFrames = m_Config.m_RightLeanReadyFrames;
+            m_NativeConfig.m_RightLeanTriggerOffsetRatio = m_Config.m_RightLeanTriggerOffsetRatio;
+            m_NativeConfig.m_RightLeanReturnToNeutralRatio = m_Config.m_RightLeanReturnToNeutralRatio;
+            m_NativeConfig.m_RightLeanMinSpeedRatioPerSecond = m_Config.m_RightLeanMinSpeedRatioPerSecond;
+            m_NativeConfig.m_RightLeanCooldownSeconds = m_Config.m_RightLeanCooldownSeconds;
+            m_NativeConfig.m_JumpReadyFrames = m_Config.m_JumpReadyFrames;
+            m_NativeConfig.m_JumpReadyMaxVerticalSpeedRatioPerSecond = m_Config.m_JumpReadyMaxVerticalSpeedRatioPerSecond;
+            m_NativeConfig.m_JumpMinShoulderRiseRatio = m_Config.m_JumpMinShoulderRiseRatio;
+            m_NativeConfig.m_JumpMinHipRiseRatio = m_Config.m_JumpMinHipRiseRatio;
+            m_NativeConfig.m_JumpMinAnkleRiseRatio = m_Config.m_JumpMinAnkleRiseRatio;
+            m_NativeConfig.m_JumpMinUpwardSpeedRatioPerSecond = m_Config.m_JumpMinUpwardSpeedRatioPerSecond;
+            m_NativeConfig.m_JumpCooldownSeconds = m_Config.m_JumpCooldownSeconds;
+            m_NativeConfig.m_CrouchDownReadyFrames = m_Config.m_CrouchDownReadyFrames;
+            m_NativeConfig.m_CrouchDownReadyMaxVerticalSpeedRatioPerSecond = m_Config.m_CrouchDownReadyMaxVerticalSpeedRatioPerSecond;
+            m_NativeConfig.m_CrouchDownMinShoulderDropRatio = m_Config.m_CrouchDownMinShoulderDropRatio;
+            m_NativeConfig.m_CrouchDownMinHipDropRatio = m_Config.m_CrouchDownMinHipDropRatio;
+            m_NativeConfig.m_CrouchDownMinLegCompressionRatio = m_Config.m_CrouchDownMinLegCompressionRatio;
+            m_NativeConfig.m_CrouchDownMinDownwardSpeedRatioPerSecond = m_Config.m_CrouchDownMinDownwardSpeedRatioPerSecond;
+            m_NativeConfig.m_CrouchDownCooldownSeconds = m_Config.m_CrouchDownCooldownSeconds;
+            m_NativeConfig.m_CrouchDownConfirmHoldFrames = m_Config.m_CrouchDownConfirmHoldFrames;
+            m_NativeConfig.m_SingleHandSideSweepStartAboveHipToleranceRatio = m_Config.m_SingleHandSideSweepStartAboveHipToleranceRatio;
+            m_NativeConfig.m_SingleHandSideSweepStartBelowHipToleranceRatio = m_Config.m_SingleHandSideSweepStartBelowHipToleranceRatio;
+            m_NativeConfig.m_SingleHandSideSweepStartMovementDistanceRatio = m_Config.m_SingleHandSideSweepStartMovementDistanceRatio;
+            m_NativeConfig.m_SingleHandSideSweepElbowHeightToleranceRatio = m_Config.m_SingleHandSideSweepElbowHeightToleranceRatio;
+            m_NativeConfig.m_SingleHandSideSweepWristMissingToleranceFrames = m_Config.m_SingleHandSideSweepWristMissingToleranceFrames;
+            m_NativeConfig.m_SingleHandSideSweepMaxDurationSeconds = m_Config.m_SingleHandSideSweepMaxDurationSeconds;
+            m_NativeConfig.m_SingleHandSideSweepElbowMissingToleranceFrames = m_Config.m_SingleHandSideSweepElbowMissingToleranceFrames;
+            m_NativeConfig.m_SingleHandSideSweepMinTriggerIntervalSeconds = m_Config.m_SingleHandSideSweepMinTriggerIntervalSeconds;
             m_NativeConfig.m_PoseRaiseMarginRatio = m_Config.m_PoseRaiseMarginRatio;
             m_NativeConfig.m_PoseCrossChestCenterRatio = m_Config.m_PoseCrossChestCenterRatio;
             m_NativeConfig.m_PoseCrossChestVerticalRatio = m_Config.m_PoseCrossChestVerticalRatio;
@@ -441,6 +460,10 @@ namespace GameDll
             m_NativeConfig.m_PoseHipVerticalRatio = m_Config.m_PoseHipVerticalRatio;
             m_NativeConfig.m_PoseCrouchTorsoRatio = m_Config.m_PoseCrouchTorsoRatio;
             m_NativeConfig.m_PoseStableFrames = m_Config.m_PoseStableFrames;
+            m_NativeConfig.m_UpDownSwingPairingWindowSeconds = m_Config.m_UpDownSwingPairingWindowSeconds;
+            m_NativeConfig.m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio =
+                m_Config.m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio;
+            m_NativeConfig.m_TurnUpdateDeltaTimeSeconds = m_Config.m_TurnUpdateDeltaTimeSeconds;
         }
 
         private int CopySeatDefinitionsToNative(IList<BoneParserSeatDefinition> seatDefinitions, int seatCount)
@@ -683,6 +706,7 @@ namespace GameDll
                 {
                     m_GestureType = (BoneGestureType)nativeEvent.m_GestureType,
                     m_Phase = (BoneGesturePhase)nativeEvent.m_Phase,
+                    m_TriggerHand = (BoneGestureTriggerHand)nativeEvent.m_TriggerHand,
                     m_SlotIndex = nativeEvent.m_SlotIndex,
                     m_BindingId = nativeEvent.m_BindingId,
                     m_PersonId = nativeEvent.m_PersonId,
@@ -705,6 +729,7 @@ namespace GameDll
                     m_ActionId = nativeEvent.m_ActionId,
                     m_GestureType = (BoneGestureType)nativeEvent.m_GestureType,
                     m_Phase = (BoneGesturePhase)nativeEvent.m_Phase,
+                    m_TriggerHand = (BoneGestureTriggerHand)nativeEvent.m_TriggerHand,
                     m_SlotIndex = nativeEvent.m_SlotIndex,
                     m_BindingId = nativeEvent.m_BindingId,
                     m_PersonId = nativeEvent.m_PersonId,
@@ -777,43 +802,29 @@ namespace GameDll
             public float m_MinBodyScore;
             public float m_MinJointScore;
             public int m_MaxMissingFrameCount;
-            public float m_RotationSmoothFactor;
+            public float m_ShoulderAngleTurnMaxOutputAngleDegrees;
+            public int m_ShoulderAngleTurnInvertDirection;
+            public float m_ShoulderAngleTurnSmoothTimeSeconds;
+            public float m_ShoulderAngleTurnFullInputDegrees;
+            public float m_ShoulderAngleTurnInputJitterDegrees;
+            public float m_ShoulderAngleTurnMaxSpeedDegreesPerSecond;
             public float m_KeypointConfidenceThreshold;
             public float m_ShoulderWidthEpsilon;
-            public float m_MaxShoulderWidthUpdateConfidence;
-            public float m_MaxTurnAngleDegrees;
-            public int m_InvertTurnDirection;
-            public float m_RotationAmplifyFactor;
-            public float m_AimCenterEnterRatio;
-            public float m_AimCenterExitRatio;
-            public float m_AimResponseCurveExponent;
-            public float m_ShoulderTurnJitterDeadZone;
-            public int m_AimPredictMissingFrames;
-            public int m_AimHoldMissingFrames;
             public int m_AimReconnectStableFrames;
-            public float m_AimPredictVelocityDamping;
-            public float m_AimReconnectBlendFactor;
-            public float m_AimReturnToForwardSeconds;
             public float m_GestureKeypointMinConfidence;
-            public float m_AlternatingSwingSpeedRatioPerSecond;
-            public float m_AlternatingSwingMinVerticalDistanceRatio;
-            public float m_AlternatingSwingDirectionNoiseRatio;
-            public int m_AlternatingSwingMinDirectionalFrames;
-            public float m_AlternatingSwingCooldownSeconds;
-            public int m_AlternatingSwingWindowFrames;
+            public float m_UpDownSwingMinUpwardSpeedRatioPerSecond;
+            public float m_UpDownSwingStartMaxHeightRatio;
+            public float m_UpDownSwingStartMinHeightRatio;
+            public float m_UpDownSwingMinStrokeDistanceRatio;
+            public float m_UpDownSwingMaxLateralRatio;
             public float m_LargeAlternatingSwingSpeedRatioPerSecond;
             public float m_LargeAlternatingSwingDirectionNoiseRatio;
             public int m_LargeAlternatingSwingMinDirectionalFrames;
             public float m_LargeAlternatingSwingCooldownSeconds;
             public int m_LargeAlternatingSwingWindowFrames;
             public float m_LargeAlternatingSwingMinTorsoDistanceRatio;
-            public int m_OverheadPressReadyFrames;
-            public float m_OverheadPressHeadMarginRatio;
-            public float m_OverheadPressReleaseSpeedRatio;
-            public float m_OverheadPressMinReleaseDistanceRatio;
-            public float m_OverheadPressReleaseEndBelowHeadRatio;
-            public int m_OverheadPressReleaseWindowFrames;
-            public float m_OverheadPressCooldownSeconds;
+            public float m_HandsAboveNoseEnterMarginRatio;
+            public float m_HandsAboveNoseExitMarginRatio;
             public int m_CrossChestExpandReadyFrames;
             public float m_CrossChestExpandSpeedRatioPerSecond;
             public float m_CrossChestExpandMinDistanceRatio;
@@ -850,6 +861,39 @@ namespace GameDll
             public int m_HandsExpandHoldFrames;
             public int m_HandsExpandReleaseWindowFrames;
             public float m_HandsExpandCooldownSeconds;
+            public int m_LeftLeanReadyFrames;
+            public float m_LeftLeanTriggerOffsetRatio;
+            public float m_LeftLeanReturnToNeutralRatio;
+            public float m_LeftLeanMinSpeedRatioPerSecond;
+            public float m_LeftLeanCooldownSeconds;
+            public int m_RightLeanReadyFrames;
+            public float m_RightLeanTriggerOffsetRatio;
+            public float m_RightLeanReturnToNeutralRatio;
+            public float m_RightLeanMinSpeedRatioPerSecond;
+            public float m_RightLeanCooldownSeconds;
+            public int m_JumpReadyFrames;
+            public float m_JumpReadyMaxVerticalSpeedRatioPerSecond;
+            public float m_JumpMinShoulderRiseRatio;
+            public float m_JumpMinHipRiseRatio;
+            public float m_JumpMinAnkleRiseRatio;
+            public float m_JumpMinUpwardSpeedRatioPerSecond;
+            public float m_JumpCooldownSeconds;
+            public int m_CrouchDownReadyFrames;
+            public float m_CrouchDownReadyMaxVerticalSpeedRatioPerSecond;
+            public float m_CrouchDownMinShoulderDropRatio;
+            public float m_CrouchDownMinHipDropRatio;
+            public float m_CrouchDownMinLegCompressionRatio;
+            public float m_CrouchDownMinDownwardSpeedRatioPerSecond;
+            public float m_CrouchDownCooldownSeconds;
+            public int m_CrouchDownConfirmHoldFrames;
+            public float m_SingleHandSideSweepStartAboveHipToleranceRatio;
+            public float m_SingleHandSideSweepStartBelowHipToleranceRatio;
+            public float m_SingleHandSideSweepStartMovementDistanceRatio;
+            public float m_SingleHandSideSweepElbowHeightToleranceRatio;
+            public int m_SingleHandSideSweepWristMissingToleranceFrames;
+            public float m_SingleHandSideSweepMaxDurationSeconds;
+            public int m_SingleHandSideSweepElbowMissingToleranceFrames;
+            public float m_SingleHandSideSweepMinTriggerIntervalSeconds;
             public float m_PoseRaiseMarginRatio;
             public float m_PoseCrossChestCenterRatio;
             public float m_PoseCrossChestVerticalRatio;
@@ -857,6 +901,9 @@ namespace GameDll
             public float m_PoseHipVerticalRatio;
             public float m_PoseCrouchTorsoRatio;
             public int m_PoseStableFrames;
+            public float m_UpDownSwingPairingWindowSeconds;
+            public float m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio;
+            public float m_TurnUpdateDeltaTimeSeconds;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -930,6 +977,7 @@ namespace GameDll
         {
             public int m_GestureType;
             public int m_Phase;
+            public int m_TriggerHand;
             public int m_SlotIndex;
             public int m_BindingId;
             public int m_PersonId;
@@ -943,6 +991,7 @@ namespace GameDll
             public int m_ActionId;
             public int m_GestureType;
             public int m_Phase;
+            public int m_TriggerHand;
             public int m_SlotIndex;
             public int m_BindingId;
             public int m_PersonId;

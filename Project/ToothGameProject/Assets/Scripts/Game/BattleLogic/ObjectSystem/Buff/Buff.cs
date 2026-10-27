@@ -149,7 +149,8 @@ namespace GameDll
                     if (m_BuffIntervalTime > 0 && m_PassedTime > m_BuffIntervalTime)
                     {
                         m_PassedTime = 0;
-                        DoAction(null, m_TargetEnt);
+                        //带上施法者来源，让 buff 跳伤的飘字能映射到玩家颜色
+                        DoAction(m_SourceEnt, m_TargetEnt);
                     }
                 }
                 m_PassedTime += dt;
@@ -221,6 +222,12 @@ namespace GameDll
             m_BuffIntervalTime = m_Bean.t_buff_gap / 1000.0f;
             __ModifyBuff();
 
+            // 状态持续时间天赋：按施法者自身累计的状态时间属性延长有效时长，永久 buff 不参与。
+            if (m_BuffDuringTime > 0 && m_SourceEnt != null)
+            {
+                m_BuffDuringTime += m_SourceEnt.ReadBuffDurationAddSeconds();
+            }
+
             m_EndTime = m_BuffDuringTime + BattleManager.ReadBattleTime();
             LoadEffect();
 
@@ -267,6 +274,14 @@ namespace GameDll
         {
             m_Level = level;
         }
+
+        // 来源子弹的技能伤害（千分比），供跳动型伤害 buff 结算每跳伤害
+        protected int m_SourceSkillDamageCfg = 0;
+
+        public void SetSourceSkillDamageCfg(int skillDamageCfg)
+        {
+            m_SourceSkillDamageCfg = skillDamageCfg;
+        }
         private void __ChangeProperty(long buff_param_cfg_id)
         {
             var cfg = t_buffParam.GetConfig(buff_param_cfg_id);
@@ -311,6 +326,11 @@ namespace GameDll
         {
             return m_TargetEnt;
         }
+        protected void RefreshDuration()
+        {
+            m_EndTime = m_BuffDuringTime + BattleManager.ReadBattleTime();
+        }
+
         public virtual void AddBuffAgain()
         {
             var maxStack = 1;
@@ -325,7 +345,7 @@ namespace GameDll
 
             int oldStackCount = m_StackCount;
             m_StackCount = Math.Min(Math.Max(1, maxStack), m_StackCount + 1);
-            m_EndTime = m_BuffDuringTime + BattleManager.ReadBattleTime();
+            RefreshDuration();
 
             if (m_StackCount > oldStackCount && m_TargetEnt != null)
             {
@@ -362,29 +382,19 @@ namespace GameDll
             m_StackCount = Math.Max(0, stackCount);
         }
 
-        protected bool HasBuffEffectPath()
+        protected bool HasBuffEffectConfig()
         {
-            return IsConfigValueSet(ReadBuffEffectPath());
+            return ReadBuffEffectId() > 0;
         }
 
-        protected string ReadBuffEffectPath()
+        protected int ReadBuffEffectId()
         {
-            return m_DescBean != null ? m_DescBean.t_buff_addEffect : null;
+            return m_DescBean != null ? m_DescBean.t_buff_addEffect : 0;
         }
 
         protected string ReadBuffEffectHangPath()
         {
             return m_DescBean != null ? m_DescBean.t_specialbuff_pos : null;
-        }
-
-        protected string ReadBuffEffectSound()
-        {
-            return m_DescBean != null ? m_DescBean.t_specialbuff_sound : null;
-        }
-
-        protected static bool IsConfigValueSet(string value)
-        {
-            return !string.IsNullOrWhiteSpace(value) && value != "0";
         }
 
         protected Vector3 ReadBuffEffectPosition()
@@ -436,9 +446,9 @@ namespace GameDll
             {
                 m_Effect.SetActive(true);
             }
-            else if(HasBuffEffectPath())
+            else if(HasBuffEffectConfig())
             {
-                m_Effect = BattleAPIBridge.__RenderEffManager_CreateRenderEff(ReadBuffEffectPath(), ReadBuffEffectSound());
+                m_Effect = BattleAPIBridge.__RenderEffManager_CreateRenderEff(ReadBuffEffectId());
 
                 if (TryAttachEffectToTargetMount(m_Effect))
                 {

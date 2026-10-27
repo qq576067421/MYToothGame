@@ -44,6 +44,24 @@
     <Reference Include="Assembly-CSharp-firstpass">
       <HintPath>..\Library\ScriptAssemblies\Assembly-CSharp-firstpass.dll</HintPath>
     </Reference>
+    <Reference Include="UnityEngine.Physics2DModule">
+      <HintPath>..\UnityEngineDll\UnityEngine.Physics2DModule.dll</HintPath>
+    </Reference>
+    <Reference Include="YoudooGame.Core">
+      <HintPath>..\Library\ScriptAssemblies\YoudooGame.Core.dll</HintPath>
+    </Reference>
+    <Reference Include="YoudooGame.Framework">
+      <HintPath>..\Library\ScriptAssemblies\YoudooGame.Framework.dll</HintPath>
+    </Reference>
+    <Reference Include="YoudooGame.MatchFlow">
+      <HintPath>..\Library\ScriptAssemblies\YoudooGame.MatchFlow.dll</HintPath>
+    </Reference>
+    <Reference Include="YoudooGame.PlayerAvatar">
+      <HintPath>..\Library\ScriptAssemblies\YoudooGame.PlayerAvatar.dll</HintPath>
+    </Reference>
+    <Reference Include="YoudooGame.CameraImage">
+      <HintPath>..\Library\ScriptAssemblies\YoudooGame.CameraImage.dll</HintPath>
+    </Reference>
     <Reference Include="DOTween, Version=1.0.0.0, Culture=neutral, processorArchitecture=MSIL">
       <SpecificVersion>False</SpecificVersion>
       <HintPath>..\Assets\Plugins\Demigiant\DOTween\DOTween.dll</HintPath>
@@ -159,16 +177,18 @@
     <Compile Include="Src\GameLogic\Lobby\tower_defend_giftedness_wnd.cs" />
     <Compile Include="Src\GameLogic\Lobby\tower_defend_lvchoose_wnd.cs" />
     <Compile Include="Src\GameLogic\Lobby\tower_defend_prepare_wnd.cs" />
+    <Compile Include="Src\GameLogic\Lobby\tower_defend_pause_wnd.cs" />
     <Compile Include="Src\GameLogic\Lobby\tower_defend_setting_wnd.cs" />
     <Compile Include="Src\GameLogic\Login\CGamePro_Login.cs" />
     <Compile Include="Src\GameLogic\Login\login_wnd.cs" />
     <Compile Include="Src\GameLogic\Mono2GameDll.cs" />
     <Compile Include="Src\GameLogic\Scene\BattleHeadCameraTracker.cs" />
+    <Compile Include="Src\GameLogic\Scene\BattleHeadUvSmoother.cs" />
     <Compile Include="Src\GameLogic\Scene\CGamePro_Scene.cs" />
     <Compile Include="Src\GameLogic\Scene\tower_defend_battle_hud_wnd.cs" />
     <Compile Include="Src\GameLogic\Scene\tower_defend_chapter_result_wnd.cs" />
     <Compile Include="Src\GameLogic\Scene\tower_defend_endless_result_wnd.cs" />
-    <Compile Include="Src\GameLogic\Scene\tower_defend_pause_wnd.cs" />
+    <Compile Include="Src\GameLogic\Scene\tower_defend_battle_pause_wnd.cs" />
     <Compile Include="Src\GameLogic\Scene\tower_defend_wave_notice_wnd.cs" />
     <Compile Include="Src\GameLogic\Start\CGamePro_StartApplication.cs" />
     <Compile Include="Src\GameLogic\System\Guide\guide_step_id.cs" />
@@ -203,13 +223,15 @@
     <Compile Include="Src\UIGen\v_tower_defend_endless_result_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_giftedness_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_lvchoose_wnd.cs" />
-    <Compile Include="Src\UIGen\v_tower_defend_pause_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_battle_pause_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_prepare_wnd.cs" />
-    <Compile Include="Src\UIGen\v_tower_defend_setting_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_pause_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_wave_notice_wnd.cs" />
     <Compile Include="Src\UIGen\v_year_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_player_count_wnd.cs" />
-  <Compile Include="Src\UIGen\v_start_video_wnd.cs" /></ItemGroup>
+    <Compile Include="Src\UIGen\v_start_video_wnd.cs" />
+    <Compile Include="Src\UIGen\v_tower_defend_setting_wnd.cs" />
+  </ItemGroup>
   <ItemGroup>
     <Folder Include="Src\Data\" />
   </ItemGroup>

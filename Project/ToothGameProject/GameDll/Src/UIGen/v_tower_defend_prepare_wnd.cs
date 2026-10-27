@@ -1,6 +1,6 @@
 ﻿//功能：tower_defend_prepare_wnd的窗口配置文件
 //工具作者：lichunlin
-//生成时间：08/21/2026 10:35:17
+//生成时间：10/15/2026 18:02:55
 //描述：以下文件是自动生成的，任何手动修改都会被下次自动生成覆盖。
 
 using System;
@@ -34,6 +34,12 @@ namespace GameHot
           //tower_defend_prepare_wnd/WindowContent/NotEqualPlayer
           public LUIRawImage m_NotEqualPlayer;
 
+          //tower_defend_prepare_wnd/WindowContent/leftImage/cut_txt
+          public LUITextMesh m_cut_txt;
+
+          //tower_defend_prepare_wnd/WindowContent/rightImage/prepare_txt
+          public LUITextMesh m_prepare_txt;
+
           public override void InitComponent(GameObject go)
           {
                m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
@@ -42,6 +48,8 @@ namespace GameHot
                m_NoPlayer = m_Bridge.GetControl(2) as LUIRawImage;
                m_SystemPlayer = m_Bridge.GetControl(3) as LUIRawImage;
                m_NotEqualPlayer = m_Bridge.GetControl(4) as LUIRawImage;
+               m_cut_txt = m_Bridge.GetControl(5) as LUITextMesh;
+               m_prepare_txt = m_Bridge.GetControl(6) as LUITextMesh;
           }
           public class v_PlayerSlot:v_base_wnd
           {

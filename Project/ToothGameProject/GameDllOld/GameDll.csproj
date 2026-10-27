@@ -234,6 +234,7 @@
     <Compile Include="Src\Data\Bean\t_tableBean.cs" />
     <Compile Include="Src\Data\Bean\t_tdRoleGrowBean.cs" />
     <Compile Include="Src\Data\Bean\t_tdStageGuardRoleBean.cs" />
+    <Compile Include="Src\Data\Bean\t_talentBean.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>

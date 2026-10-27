@@ -1,0 +1,55 @@
+%YAML 1.1
+%TAG !u! tag:yousandi.cn,2023:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3eef8726aa97a4347b25fe37442fe734, type: 3}
+  m_Name: SPLIT_FIXED
+  m_EditorClassIdentifier: 
+  templateId: 1001
+  displayName: "SPLIT+\u56FA\u5B9A\u69FD\u4F4D"
+  displayProfile: {fileID: 0}
+  displayProfileResourcesPath: 
+  sessionConfigAsset: {fileID: 11400000, guid: 50e02ec2b04729930f4efd08444a28fd, type: 2}
+  sessionConfigResourcesPath: YoudooGame/Framework/Profiles/MatchFlow/MatchSessionConfig_SPLIT
+  actionProfileAsset: {fileID: 11400000, guid: 8f36323d214410cedd84c2641ec3047c, type: 2}
+  actionProfileResourcesPath: YoudooGame/Framework/Profiles/MatchFlow/MatchActionProfile
+  uiProfileAsset: {fileID: 11400000, guid: 45099a4e1117c50614f4661f7d33e4e5, type: 2}
+  uiProfileResourcesPath: YoudooGame/Framework/Profiles/MatchFlow/MatchSessionUiProfile
+  uiVisualProfileAsset: {fileID: 11400000, guid: 1826b66a8b017685334bb504d2305e61,
+    type: 2}
+  uiVisualProfileResourcesPath: YoudooGame/Framework/Profiles/MatchFlow/MatchSessionUiVisualProfile
+  cameraPresentation:
+    fitMode: 2
+    showBoundSkeletonPoints: 1
+    showBoundPlayerBounds: 1
+    showFullFrameMultiPlayerAreaGuide: 1
+    showFullFrameLockAreaGuide: 0
+    trackingFocusEnabled: 0
+    fullFocusMode: 1
+    fullFocusTopInsetPercent: 0.12
+    useLayoutGapRegions: 0
+  legacyLayoutMode: 0
+  legacyApplyLayoutMode: 1
+  legacyViewProfile: {fileID: 0}
+  legacyViewProfileResourcesPath: 
+  legacySplitFocusProfile: {fileID: 0}
+  legacySplitFocusProfileResourcesPath: 
+  legacySplitLayoutProfile: {fileID: 0}
+  legacySplitLayoutProfileResourcesPath: 
+  legacyFullViewProfile: {fileID: 0}
+  legacyFullViewProfileResourcesPath: 
+  legacySplitViewProfile: {fileID: 0}
+  legacySplitViewProfileResourcesPath: 
+  focusProfile: {fileID: 11400000, guid: ae34135e02005a4b9ad1d3bc44e65778, type: 2}
+  focusProfileResourcesPath: YoudooGame/Framework/Profiles/CameraImage/CameraImageFocusProfile
+  splitFocusProfile: {fileID: 11400000, guid: 49242c6df236612bb92e783273371904, type: 2}
+  splitFocusProfileResourcesPath: YoudooGame/Framework/Profiles/CameraImage/CameraImageSplitFocusProfile
+  splitLayoutProfile: {fileID: 11400000, guid: 13776969fe2290ee30cdee4a6cf7cdb0, type: 2}
+  splitLayoutProfileResourcesPath: YoudooGame/Framework/Profiles/CameraImage/CameraImageSplitLayoutProfile_SPLIT_FIXED

@@ -9,10 +9,24 @@ namespace GameDll
         private int m_AngularSpeed = 720;
         private float m_MoveSpeed = 1;
         private ProjectileMover m_Mover;
+        private LineRenderer m_LineRenderer;
 
         private bool m_NeedEmit = false;
         private bool m_IsFollow;
         private Vector3 m_FollowTargetPosition;
+        private static MaterialPropertyBlock s_BeamBendOffBlock;
+
+        private void ApplyBeamBendOff()
+        {
+            if (s_BeamBendOffBlock == null)
+            {
+                s_BeamBendOffBlock = new MaterialPropertyBlock();
+                s_BeamBendOffBlock.SetFloat(CurveWorldVisualUtility.BendOffPropertyName, 1f);
+            }
+
+            m_LineRenderer.SetPropertyBlock(s_BeamBendOffBlock);
+        }
+
         protected override bool LoadShowObjImp(Object obj)
         {
             if (base.LoadShowObjImp(obj) == false)
@@ -20,6 +34,14 @@ namespace GameDll
                 return false;
             }
             m_Mover = m_GameObject.GetComponent<ProjectileMover>();
+            m_LineRenderer = m_GameObject.GetComponentInChildren<LineRenderer>();
+            if (m_LineRenderer != null)
+            {
+                // 带 LineRenderer 的子弹即激光束：材质关闭 Curve World 弯曲，保持直线渲染
+                ApplyBeamBendOff();
+                // 预制件自带的默认控制点/粒子不能出现在发弹首帧
+                PrepareBeamForFire();
+            }
             if (m_Mover != null)
             {
                 m_Mover.Init(GameDll.RenderEffManager.GetInstance().GetRenderEffParent());
@@ -137,6 +159,32 @@ namespace GameDll
             }
 
             base.SetActive(bshow);
+            if (bshow)
+            {
+                // 激活后再清一次：预制件上的 playOnAwake 粒子会随激活起播，必须同帧停掉，
+                // 否则点普攻的第一帧会闪出预制件状态或上一发的激光粒子/命中特效。
+                PrepareBeamForFire();
+            }
+        }
+
+        // 激光束发弹/复用时的清理：光束控制点收成不可见退化两点、停掉粒子和命中/枪口特效。
+        // 真正的光束由逻辑层（BulletObj.UpdateLaserBeam）随后的 SetBeamPoints 建立。
+        // 只处理带 LineRenderer 的子弹（激光束），其它子弹保持原有激活行为。
+        private void PrepareBeamForFire()
+        {
+            if (m_LineRenderer == null)
+            {
+                return;
+            }
+
+            if (m_Mover != null)
+            {
+                m_Mover.PrepareForEmit();
+            }
+
+            m_LineRenderer.positionCount = 2;
+            m_LineRenderer.SetPosition(0, Vector3.zero);
+            m_LineRenderer.SetPosition(1, Vector3.zero);
         }
         public override void Destroy()
         {
@@ -158,9 +206,29 @@ namespace GameDll
         public override void SetTargetPosition(Vector3 pos)
         {
             m_FollowTargetPosition = pos;
-            if(m_Mover != null)
+            if (m_Mover != null)
             {
                 m_Mover.SetFollowTargetPosition(m_FollowTargetPosition);
+            }
+        }
+
+        public override void SetBeamPoints(Vector3[] points, int count)
+        {
+            if (m_LineRenderer == null || points == null || count < 2)
+            {
+                return;
+            }
+
+            // 激光类子弹：光束控制点用世界坐标直接写入 LineRenderer，与根节点位移无关。
+            // 控制点数量由逻辑层决定（预弯折线），渲染前只对齐数量。
+            if (m_LineRenderer.positionCount != count)
+            {
+                m_LineRenderer.positionCount = count;
+            }
+            m_LineRenderer.useWorldSpace = true;
+            for (int i = 0; i < count; i++)
+            {
+                m_LineRenderer.SetPosition(i, points[i]);
             }
         }
 

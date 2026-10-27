@@ -1,6 +1,3 @@
-// Toony Colors Pro+Mobile 2
-// (c) 2014-2025 Jean Moreno
-
 Shader "dg/dg_unlit_curvy_matcap"
 {
 	Properties
@@ -689,8 +686,4 @@ Shader "dg/dg_unlit_curvy_matcap"
 	}
 
 	FallBack "Hidden/InternalErrorShader"
-	CustomEditor "ToonyColorsPro.ShaderGenerator.MaterialInspector_SG2"
 }
-
-/* TCP_DATA u config(ver:"2.9.21";unity:"2022.3.62t7";tmplt:"SG2_Template_URP";features:list["ENABLE_FORWARD_PLUS","UNITY_5_4","UNITY_5_5","UNITY_5_6","UNITY_2017_1","UNITY_2018_1","UNITY_2018_2","UNITY_2018_3","UNITY_2019_1","RIM_LIGHTMASK","UNITY_2019_2","UNITY_2019_3","UNITY_2019_4","UNITY_2020_1","UNITY_2021_1","UNITY_2021_2","UNITY_2022_2","CURVED_WORLD_2020","FOG","MATCAP_SHADER_FEATURE","SHADOW_COLOR_MAIN_DIR","NO_RAMP_UNLIT","TEMPLATE_LWRP","AUTO_TRANSPARENT_BLENDING","MATCAP_ADD","MATCAP"];flags:list[];flags_extra:dict[];keywords:dict[RampTextureDrawer="[TCP2Gradient]",RampTextureLabel="Ramp Texture",SHADER_TARGET="3.0",RIM_LABEL="Rim Lighting",RENDER_TYPE="Opaque",CURVED_WORLD_2020_INCLUDE="Assets/PluginAssets/Amazing Assets/Curved World/Shaders/Core"];shaderProperties:list[sp(name:"Albedo";imps:list[imp_mp_texture(uto:True;tov:"";tov_lbl:"";gto:True;sbt:False;scr:False;scv:"";scv_lbl:"";gsc:False;roff:False;goff:False;sin_anm:False;sin_anmv:"";sin_anmv_lbl:"";gsin:False;notile:False;triplanar_local:False;def:"white";locked_uv:False;uv:0;cc:4;chan:"RGBA";mip:-1;mipprop:False;ssuv_vert:False;ssuv_obj:False;uv_type:Texcoord;uv_chan:"XZ";tpln_scale:1;uv_shaderproperty:__NULL__;uv_cmp:__NULL__;sep_sampler:__NULL__;prop:"_MainTex";md:"";gbv:False;custom:False;refs:"";pnlock:False;guid:"4030e6dc-614f-4a02-b744-6c40b441e248";op:Multiply;lbl:"Albedo";gpu_inst:False;dots_inst:False;locked:False;impl_index:-1)];layers:list[];unlocked:list[];layer_blend:dict[];custom_blend:dict[];clones:dict[];isClone:False),,,,,,,,,,,,,,,,,,,,sp(name:"Emission";imps:list[imp_mp_color(def:RGBA(0, 0, 0, 1);hdr:True;cc:3;chan:"RGB";prop:"_Emission";md:"";gbv:False;custom:False;refs:"";pnlock:False;guid:"84301501-636e-40de-a68e-52353fa81b30";op:Multiply;lbl:"Emission Color";gpu_inst:False;dots_inst:False;locked:False;impl_index:-1),imp_vcolors(cc:3;chan:"AAA";linear:False;guid:"3756428c-99e2-4293-92a4-317d82550f48";op:Multiply;lbl:"Emission";gpu_inst:False;dots_inst:False;locked:False;impl_index:-1)];layers:list[];unlocked:list[];layer_blend:dict[];custom_blend:dict[];clones:dict[];isClone:False)];customTextures:list[];codeInjection:codeInjection(injectedFiles:list[];mark:False);matLayers:list[]) */
-/* TCP_HASH 694cab0fc7227bf9d934418153b6c0ae */

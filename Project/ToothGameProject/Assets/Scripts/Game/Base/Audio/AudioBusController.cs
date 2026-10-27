@@ -199,8 +199,8 @@ namespace GameDll
         {
             int index = (int)bus;
             m_BusVolumes[index] = Mathf.Clamp01(value);
-            PlayerPrefs.SetFloat(m_BusVolumeKeys[index], m_BusVolumes[index]);
             ApplyBusVolume(bus);
+            SyncVolumeSettingsToSave();
         }
 
         /// <summary>读取指定声音总线当前的玩家音量。</summary>
@@ -231,8 +231,8 @@ namespace GameDll
         public void SetGlobalMuted(bool muted)
         {
             m_IsGlobalMuted = muted;
-            PlayerPrefs.SetInt(m_GlobalMutedKey, muted ? 1 : 0);
             ApplyGlobalMuted();
+            SyncVolumeSettingsToSave();
         }
 
         /// <summary>读取当前全局静音状态。</summary>
@@ -242,10 +242,59 @@ namespace GameDll
             return m_IsGlobalMuted;
         }
 
-        /// <summary>将已经写入 <see cref="PlayerPrefs"/> 缓存的音量设置立即保存到设备。</summary>
+        /// <summary>将当前音量与静音设置写入 SDK 存档（下一帧合并提交）。</summary>
         public void SaveVolumeSettings()
         {
-            PlayerPrefs.Save();
+            SyncVolumeSettingsToSave();
+        }
+
+        private void SyncVolumeSettingsToSave()
+        {
+            var saveService = GameSaveService.Instance;
+            if (saveService == null || !saveService.IsReady)
+            {
+                return;
+            }
+
+            for (int i = 0; i < m_BusVolumes.Length && i < saveService.Root.m_AudioBusVolumes.Length; i++)
+            {
+                saveService.Root.m_AudioBusVolumes[i] = m_BusVolumes[i];
+            }
+
+            saveService.Root.m_AudioMuted = m_IsGlobalMuted ? 1 : 0;
+            saveService.QueueSaveRoot();
+        }
+
+        /// <summary>SDK 存档就绪后应用已保存的音量与静音设置；未保存过（-1）保持默认。</summary>
+        internal void ApplySaveVolumes(float[] savedVolumes, bool muted)
+        {
+            if (savedVolumes == null)
+            {
+                return;
+            }
+
+            bool changed = false;
+            for (int i = 0; i < m_BusVolumes.Length && i < savedVolumes.Length; i++)
+            {
+                if (savedVolumes[i] >= 0f && !Mathf.Approximately(m_BusVolumes[i], savedVolumes[i]))
+                {
+                    m_BusVolumes[i] = Mathf.Clamp01(savedVolumes[i]);
+                    ApplyBusVolume((AudioBus)i);
+                    changed = true;
+                }
+            }
+
+            if (m_IsGlobalMuted != muted)
+            {
+                m_IsGlobalMuted = muted;
+                ApplyGlobalMuted();
+                changed = true;
+            }
+
+            if (changed)
+            {
+                UnityEngine.Debug.Log("[AudioBusController] applied saved volume settings.");
+            }
         }
 
         /// <summary>验证主混音器是否包含管理器运行所需的全部暴露参数。</summary>
@@ -271,44 +320,24 @@ namespace GameDll
             return true;
         }
 
-        /// <summary>从 <see cref="PlayerPrefs"/> 恢复玩家音量和全局静音设置，并写入混音器。</summary>
+        /// <summary>按混音器默认值初始化音量；SDK 存档就绪后由 ApplySaveVolumes 覆盖。</summary>
         private void InitializeVolumes()
         {
-            // 新声音总线的线性音量含义与旧数据不兼容，版本变化时直接恢复推荐默认值。
-            bool resetSavedVolumes = PlayerPrefs.GetInt(m_VolumeSettingsVersionKey, 0) != m_CurrentVolumeSettingsVersion;
             for (int i = 0; i < m_BusVolumes.Length; i++)
             {
                 var bus = (AudioBus)i;
-                //线性值
-                float vol = 1;
-                //如果没有设置过，就应该使用混音器默认的
-                if (resetSavedVolumes || !PlayerPrefs.HasKey(m_BusVolumeKeys[i]))
+                float vol = 1f;
+                if (m_Mixer != null)
                 {
-                    //使用混音器自己的值
-                    if (m_Mixer != null)
-                    {
-                        m_Mixer.GetFloat(m_BusVolumeParameters[i], out vol);
-                        vol = DecibelToLinear(vol);
-                        PlayerPrefs.SetFloat(m_BusVolumeKeys[i], vol);
-                    }
+                    m_Mixer.GetFloat(m_BusVolumeParameters[i], out vol);
+                    vol = DecibelToLinear(vol);
                 }
-                else
-                {
-                    vol = Mathf.Clamp01(PlayerPrefs.GetFloat(m_BusVolumeKeys[i]));
-                }
-                m_BusVolumes[i] = vol;
+
+                m_BusVolumes[i] = Mathf.Clamp01(vol);
                 ApplyBusVolume(bus);
             }
-            if (resetSavedVolumes)
-            {
-                m_IsGlobalMuted = false;
-                PlayerPrefs.SetInt(m_GlobalMutedKey, 0);
-                PlayerPrefs.SetInt(m_VolumeSettingsVersionKey, m_CurrentVolumeSettingsVersion);
-            }
-            else
-            {
-                m_IsGlobalMuted = PlayerPrefs.GetInt(m_GlobalMutedKey, 0) != 0;
-            }
+
+            m_IsGlobalMuted = false;
             ApplyGlobalMuted();
         }
 

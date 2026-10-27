@@ -27,12 +27,10 @@ private static string m_FileName = "t_buffDesc.csv";
     public string t_battle_icon{ get { return _t_battle_icon; }}
     private int _t_effect_type;
     public int t_effect_type{ get { return _t_effect_type; }}
-    private string _t_buff_addEffect;
-    public string t_buff_addEffect{ get { return _t_buff_addEffect; }}
+    private int _t_buff_addEffect;
+    public int t_buff_addEffect{ get { return _t_buff_addEffect; }}
     private string _t_specialbuff_pos;
     public string t_specialbuff_pos{ get { return _t_specialbuff_pos; }}
-    private string _t_specialbuff_sound;
-    public string t_specialbuff_sound{ get { return _t_specialbuff_sound; }}
     private int _t_buff_replace_type;
     public int t_buff_replace_type{ get { return _t_buff_replace_type; }}
     private int _t_buff_priority;
@@ -95,7 +93,6 @@ private static string m_FileName = "t_buffDesc.csv";
         _t_effect_type = source._t_effect_type;
         _t_buff_addEffect = source._t_buff_addEffect;
         _t_specialbuff_pos = source._t_specialbuff_pos;
-        _t_specialbuff_sound = source._t_specialbuff_sound;
         _t_buff_replace_type = source._t_buff_replace_type;
         _t_buff_priority = source._t_buff_priority;
         _t_special_action = source._t_special_action;
@@ -113,9 +110,8 @@ private static string m_FileName = "t_buffDesc.csv";
             bean._t_desc = ReadString(datas[index++]);
             bean._t_battle_icon = ReadString(datas[index++]);
             bean._t_effect_type = ReadInt(datas[index++]);
-            bean._t_buff_addEffect = ReadString(datas[index++]);
+            bean._t_buff_addEffect = ReadInt(datas[index++]);
             bean._t_specialbuff_pos = ReadString(datas[index++]);
-            bean._t_specialbuff_sound = ReadString(datas[index++]);
             bean._t_buff_replace_type = ReadInt(datas[index++]);
             bean._t_buff_priority = ReadInt(datas[index++]);
             bean._t_special_action = ReadInt(datas[index++]);
@@ -141,9 +137,8 @@ private static string m_FileName = "t_buffDesc.csv";
             bean._t_desc = SqliteDataManager_ReadString();
             bean._t_battle_icon = SqliteDataManager_ReadString();
             bean._t_effect_type = SqliteDataManager_ReadInt();
-            bean._t_buff_addEffect = SqliteDataManager_ReadString();
+            bean._t_buff_addEffect = SqliteDataManager_ReadInt();
             bean._t_specialbuff_pos = SqliteDataManager_ReadString();
-            bean._t_specialbuff_sound = SqliteDataManager_ReadString();
             bean._t_buff_replace_type = SqliteDataManager_ReadInt();
             bean._t_buff_priority = SqliteDataManager_ReadInt();
             bean._t_special_action = SqliteDataManager_ReadInt();

@@ -216,8 +216,8 @@
       "source": "registry",
       "dependencies": {
         "com.unity.ugui": "1.0.0",
-        "com.unity.modules.jsonserialize": "1.0.0",
-        "com.unity.services.core": "1.12.4"
+        "com.unity.services.core": "1.12.4",
+        "com.unity.modules.jsonserialize": "1.0.0"
       },
       "url": "https://packages.tuanjie.cn"
     },
@@ -226,9 +226,9 @@
       "depth": 1,
       "source": "registry",
       "dependencies": {
-        "com.unity.modules.unitywebrequest": "1.0.0",
+        "com.unity.modules.androidjni": "1.0.0",
         "com.unity.nuget.newtonsoft-json": "3.2.1",
-        "com.unity.modules.androidjni": "1.0.0"
+        "com.unity.modules.unitywebrequest": "1.0.0"
       },
       "url": "https://packages.tuanjie.cn"
     },
@@ -266,9 +266,9 @@
       "depth": 0,
       "source": "registry",
       "dependencies": {
-        "com.unity.modules.audio": "1.0.0",
         "com.unity.modules.director": "1.0.0",
         "com.unity.modules.animation": "1.0.0",
+        "com.unity.modules.audio": "1.0.0",
         "com.unity.modules.particlesystem": "1.0.0"
       },
       "url": "https://packages.tuanjie.cn"
@@ -300,6 +300,22 @@
         "com.unity.modules.xr": "1.0.0"
       },
       "url": "https://packages.tuanjie.cn"
+    },
+    "com.youdoogame.framework": {
+      "version": "https://gitlab.youdoogo.com/shared/youdoogame-unity-sdk.git#v1.0.7",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.inputsystem": "1.14.1",
+        "com.unity.ugui": "1.0.0",
+        "com.unity.modules.androidjni": "1.0.0",
+        "com.unity.modules.imageconversion": "1.0.0",
+        "com.unity.modules.screencapture": "1.0.0",
+        "com.unity.modules.unitywebrequest": "1.0.0",
+        "com.unity.modules.unitywebrequesttexture": "1.0.0",
+        "com.unity.modules.video": "1.0.0"
+      },
+      "hash": "ec5b0e35572bedcdd4d83f0ee5945001bccf7d28"
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",

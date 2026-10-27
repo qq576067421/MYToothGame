@@ -67,7 +67,6 @@ SpriteAtlas:
     isAtlasV2: 0
     cachedData: {fileID: 0}
     packedSpriteRenderDataKeys:
-    - 1eef1c403cfd48c48b971dc28e2e9901: 21300000
     - 1406f450a8d3f8e4bbe750164dc2dc58: 21300000
     - 057e2b80c9141b74bbc03263ca1b8036: 21300000
     - 1da38b71c22fb7b4eb5c3fa379a60145: 21300000
@@ -91,7 +90,6 @@ SpriteAtlas:
     - 6839f97e00b13ee4baba994b68c089d1: 21300000
   m_MasterAtlas: {fileID: 0}
   m_PackedSprites:
-  - {fileID: 21300000, guid: 1eef1c403cfd48c48b971dc28e2e9901, type: 3}
   - {fileID: 21300000, guid: 1406f450a8d3f8e4bbe750164dc2dc58, type: 3}
   - {fileID: 21300000, guid: 057e2b80c9141b74bbc03263ca1b8036, type: 3}
   - {fileID: 21300000, guid: 1da38b71c22fb7b4eb5c3fa379a60145, type: 3}
@@ -114,7 +112,6 @@ SpriteAtlas:
   - {fileID: 21300000, guid: 05c3c2ecf6bd0ff4596e75e3afff61b3, type: 3}
   - {fileID: 21300000, guid: 6839f97e00b13ee4baba994b68c089d1, type: 3}
   m_PackedSpriteNamesToIndex:
-  - de
   - chuangguanshibaide
   - result_15
   - result_13

@@ -22,7 +22,7 @@ typedef void* BoneParserCLibHandle;
 
 enum
 {
-    BoneParserCLibAbiVersion = 9,
+    BoneParserCLibAbiVersion = 27,
     BoneParserCLibBodyJointCount = 18
 };
 
@@ -38,43 +38,29 @@ typedef struct BoneParserCLibConfig
     float m_MinBodyScore;
     float m_MinJointScore;
     int32_t m_MaxMissingFrameCount;
-    float m_RotationSmoothFactor;
+    float m_ShoulderAngleTurnMaxOutputAngleDegrees;
+    int32_t m_ShoulderAngleTurnInvertDirection;
+    float m_ShoulderAngleTurnSmoothTimeSeconds;
+    float m_ShoulderAngleTurnFullInputDegrees;
+    float m_ShoulderAngleTurnInputJitterDegrees;
+    float m_ShoulderAngleTurnMaxSpeedDegreesPerSecond;
     float m_KeypointConfidenceThreshold;
     float m_ShoulderWidthEpsilon;
-    float m_MaxShoulderWidthUpdateConfidence;
-    float m_MaxTurnAngleDegrees;
-    int32_t m_InvertTurnDirection;
-    float m_RotationAmplifyFactor;
-    float m_AimCenterEnterRatio;
-    float m_AimCenterExitRatio;
-    float m_AimResponseCurveExponent;
-    float m_ShoulderTurnJitterDeadZone;
-    int32_t m_AimPredictMissingFrames;
-    int32_t m_AimHoldMissingFrames;
     int32_t m_AimReconnectStableFrames;
-    float m_AimPredictVelocityDamping;
-    float m_AimReconnectBlendFactor;
-    float m_AimReturnToForwardSeconds;
     float m_GestureKeypointMinConfidence;
-    float m_AlternatingSwingSpeedRatioPerSecond;
-    float m_AlternatingSwingMinVerticalDistanceRatio;
-    float m_AlternatingSwingDirectionNoiseRatio;
-    int32_t m_AlternatingSwingMinDirectionalFrames;
-    float m_AlternatingSwingCooldownSeconds;
-    int32_t m_AlternatingSwingWindowFrames;
+    float m_UpDownSwingMinUpwardSpeedRatioPerSecond;
+    float m_UpDownSwingStartMaxHeightRatio;
+    float m_UpDownSwingStartMinHeightRatio;
+    float m_UpDownSwingMinStrokeDistanceRatio;
+    float m_UpDownSwingMaxLateralRatio;
     float m_LargeAlternatingSwingSpeedRatioPerSecond;
     float m_LargeAlternatingSwingDirectionNoiseRatio;
     int32_t m_LargeAlternatingSwingMinDirectionalFrames;
     float m_LargeAlternatingSwingCooldownSeconds;
     int32_t m_LargeAlternatingSwingWindowFrames;
     float m_LargeAlternatingSwingMinTorsoDistanceRatio;
-    int32_t m_OverheadPressReadyFrames;
-    float m_OverheadPressHeadMarginRatio;
-    float m_OverheadPressReleaseSpeedRatio;
-    float m_OverheadPressMinReleaseDistanceRatio;
-    float m_OverheadPressReleaseEndBelowHeadRatio;
-    int32_t m_OverheadPressReleaseWindowFrames;
-    float m_OverheadPressCooldownSeconds;
+    float m_HandsAboveNoseEnterMarginRatio;
+    float m_HandsAboveNoseExitMarginRatio;
     int32_t m_CrossChestExpandReadyFrames;
     float m_CrossChestExpandSpeedRatioPerSecond;
     float m_CrossChestExpandMinDistanceRatio;
@@ -111,6 +97,42 @@ typedef struct BoneParserCLibConfig
     int32_t m_HandsExpandHoldFrames;
     int32_t m_HandsExpandReleaseWindowFrames;
     float m_HandsExpandCooldownSeconds;
+    int32_t m_LeftLeanReadyFrames;
+    float m_LeftLeanTriggerOffsetRatio;
+    float m_LeftLeanReturnToNeutralRatio;
+    float m_LeftLeanMinSpeedRatioPerSecond;
+    float m_LeftLeanCooldownSeconds;
+    int32_t m_RightLeanReadyFrames;
+    float m_RightLeanTriggerOffsetRatio;
+    float m_RightLeanReturnToNeutralRatio;
+    float m_RightLeanMinSpeedRatioPerSecond;
+    float m_RightLeanCooldownSeconds;
+    int32_t m_JumpReadyFrames;
+    float m_JumpReadyMaxVerticalSpeedRatioPerSecond;
+    float m_JumpMinShoulderRiseRatio;
+    float m_JumpMinHipRiseRatio;
+    float m_JumpMinAnkleRiseRatio;
+    float m_JumpMinUpwardSpeedRatioPerSecond;
+    float m_JumpCooldownSeconds;
+    int32_t m_CrouchDownReadyFrames;
+    float m_CrouchDownReadyMaxVerticalSpeedRatioPerSecond;
+    float m_CrouchDownMinShoulderDropRatio;
+    float m_CrouchDownMinHipDropRatio;
+    float m_CrouchDownMinLegCompressionRatio;
+    float m_CrouchDownMinDownwardSpeedRatioPerSecond;
+    float m_CrouchDownCooldownSeconds;
+    // 蹲下确认保持帧数：下降条件首次满足后，身体需保持在髋部下降阈值以下至少
+    // 这么多帧才真正触发；起跳前的反向下压会很快反弹回去，凑不满保持帧。
+    // 小于等于 1 表示满足条件立即触发（旧行为）。
+    int32_t m_CrouchDownConfirmHoldFrames;
+    float m_SingleHandSideSweepStartAboveHipToleranceRatio;
+    float m_SingleHandSideSweepStartBelowHipToleranceRatio;
+    float m_SingleHandSideSweepStartMovementDistanceRatio;
+    float m_SingleHandSideSweepElbowHeightToleranceRatio;
+    int32_t m_SingleHandSideSweepWristMissingToleranceFrames;
+    float m_SingleHandSideSweepMaxDurationSeconds;
+    int32_t m_SingleHandSideSweepElbowMissingToleranceFrames;
+    float m_SingleHandSideSweepMinTriggerIntervalSeconds;
     float m_PoseRaiseMarginRatio;
     float m_PoseCrossChestCenterRatio;
     float m_PoseCrossChestVerticalRatio;
@@ -118,6 +140,9 @@ typedef struct BoneParserCLibConfig
     float m_PoseHipVerticalRatio;
     float m_PoseCrouchTorsoRatio;
     int32_t m_PoseStableFrames;
+    float m_UpDownSwingPairingWindowSeconds;
+    float m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio;
+    float m_TurnUpdateDeltaTimeSeconds;
 } BoneParserCLibConfig;
 
 typedef struct BoneParserCLibJoint
@@ -184,6 +209,7 @@ typedef struct BoneParserCLibGestureEventOutput
 {
     int32_t m_GestureType;
     int32_t m_Phase;
+    int32_t m_TriggerHand;
     int32_t m_SlotIndex;
     int32_t m_BindingId;
     int32_t m_PersonId;
@@ -196,6 +222,7 @@ typedef struct BoneParserCLibActionEventOutput
     int32_t m_ActionId;
     int32_t m_GestureType;
     int32_t m_Phase;
+    int32_t m_TriggerHand;
     int32_t m_SlotIndex;
     int32_t m_BindingId;
     int32_t m_PersonId;

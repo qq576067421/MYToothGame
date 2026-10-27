@@ -11,6 +11,17 @@ namespace GameDll
         private List<Buff> m_Buffs = new List<Buff>();
         private int m_BuffId = 0;
         private Entity m_Owner;
+        private PropertyData m_TalentPropertyData = new PropertyData();
+
+        public void AddTalentProperty(int type, float value)
+        {
+            m_TalentPropertyData.AddProperty(type, value);
+        }
+
+        public float ReadTalentProperty(int type)
+        {
+            return m_TalentPropertyData.ReadProperty(type);
+        }
 
         public float ReadBuffPropertyDataV(int type)
         {
@@ -30,7 +41,7 @@ namespace GameDll
                 var temp = buff.ReadProperty(type);
                 data += temp;
             }
-            return data;
+            return data + m_TalentPropertyData.ReadProperty(type);
         }
         //(UI禁用)
         public float CalBuffPropertyDataMaxScale(int type, int slot, HurtType hurt_type)
@@ -104,6 +115,10 @@ namespace GameDll
             m_Buffs.Add(buff);
             buff.InitInstance(++m_BuffId);
             buff.AddBuff(source, target, modify, paramModifies);
+            if (buff is ShieldBuff)
+            {
+                RenderEvent.Event.OnShieldChanged(target);
+            }
             if (m_Owner.ReadId() == BattleAPIBridge.__BattleRenderData_GetUIUnitId(true))
             {
                 BRenderEvent.Event.OnChangeBuff(buff.GetId(), buff.GetTemplateId(), remove_id);
@@ -112,12 +127,14 @@ namespace GameDll
 
         }
         public Buff TryAddBuff(long buffCfgId, PropertyEntity source, PropertyEntity target,
-            BuffModify modify = null, Dictionary<long, BuffParamModify> paramModifies = null, long level = 1)
+            BuffModify modify = null, Dictionary<long, BuffParamModify> paramModifies = null, long level = 1,
+            int sourceSkillDamageCfg = 0)
         {
             var buff = BuffTemplate.createBuff(buffCfgId);
             if(buff != null)
             {
                 buff.SetLevel(level);
+                buff.SetSourceSkillDamageCfg(sourceSkillDamageCfg);
                 AddBuff(buff, source, target, modify, paramModifies);
                 return buff.GetDescBean() != null ? buff : null;
             }
@@ -178,6 +195,42 @@ namespace GameDll
         {
             return m_Buffs;
         }
+
+        public float ReadTotalShieldValue()
+        {
+            float total = 0;
+            int count = m_Buffs.Count;
+            for (int i = 0; i < count; ++i)
+            {
+                var shield = m_Buffs[i] as ShieldBuff;
+                if (shield != null)
+                {
+                    total += shield.ReadShieldValue();
+                }
+            }
+            return total;
+        }
+
+        public float AbsorbDamage(float value)
+        {
+            if (value <= 0)
+            {
+                return value;
+            }
+
+            for (int i = m_Buffs.Count - 1; i >= 0 && value > 0; --i)
+            {
+                var shield = m_Buffs[i] as ShieldBuff;
+                if (shield == null)
+                {
+                    continue;
+                }
+
+                value = shield.AbsorbDamage(value);
+            }
+
+            return value;
+        }
         public void RemoveBuffImp(Buff buff, int idx = -1)
         {
             var remove_id = buff.GetId();
@@ -192,6 +245,11 @@ namespace GameDll
             else
             {
                 m_Buffs.Remove(buff);
+            }
+
+            if (buff is ShieldBuff)
+            {
+                RenderEvent.Event.OnShieldChanged(buff.GetTarget());
             }
 
             if (m_Owner.ReadId() == BattleAPIBridge.__BattleRenderData_GetUIUnitId(true))
@@ -344,11 +402,20 @@ namespace GameDll
         }
         public void ClearBuffs()
         {
+            var hasShield = false;
             for (int i = 0; i < m_Buffs.Count; ++i)
             {
+                if (m_Buffs[i] is ShieldBuff)
+                {
+                    hasShield = true;
+                }
                 m_Buffs[i].OnRemove();
             }
             m_Buffs.Clear();
+            if (hasShield)
+            {
+                RenderEvent.Event.OnShieldChanged(m_Owner as PropertyEntity);
+            }
             if (m_Owner.ReadId() == BattleAPIBridge.__BattleRenderData_GetUIUnitId(true))
             {
                 BRenderEvent.Event.OnClearBuff();
@@ -361,11 +428,6 @@ namespace GameDll
         public static RenderEff __RenderEffManager_CreateRenderEff(int cfgId)
         {
             return RenderEffManager.GetInstance().CreateRenderEff(cfgId);
-        }
-
-        public static RenderEff __RenderEffManager_CreateRenderEff(string abName, string sound = null)
-        {
-            return RenderEffManager.GetInstance().CreateRenderEff(abName, sound);
         }
 
         public static void __RenderEffManager_PoolRenderEff(RenderEff eff)
@@ -439,7 +501,16 @@ namespace GameDll
 
             var curHp = entity.ReadHP();
             var maxHp = entity.GetMaxHP();
-            curHp -= value;
+            var damage = value;
+            if (damage > 0)
+            {
+                var buffMgr = entity.GetBuffManager();
+                if (buffMgr != null)
+                {
+                    damage = buffMgr.AbsorbDamage(damage);
+                }
+            }
+            curHp -= damage;
             if (curHp > maxHp)
             {
                 curHp = maxHp;
@@ -450,9 +521,9 @@ namespace GameDll
             }
             entity.SetHpRuntime(curHp);
             entity.OnHpChanged();
-            if (showNumber && value > 0)
+            if (showNumber && damage > 0)
             {
-                DamageCal.ShowBuffDamageNumber(source, entity, value);
+                DamageCal.ShowBuffDamageNumber(source, entity, damage);
             }
         }
 
@@ -565,6 +636,26 @@ namespace GameDll
             var buffMgr = source.GetBuffManager();
             return buffMgr != null && buffMgr.ReadBuffStackCount(condition.Value.m_BuffId) >= condition.Value.m_NeedStackCount;
         }
+
+        // 持续释放期间的复查口径：只有“不消耗”的前置条件（clearFlag != 0）才需要继续满足。
+        // clearFlag == 0 的条件在施放时已被消耗，不能反过来要求它一直存在，否则持续技能会在
+        // 起手后立刻被判定为条件不满足。
+        public bool CheckKeepSkillPrecondition(PropertyEntity source, t_skillBean skillCfg)
+        {
+            if (source == null || skillCfg == null || skillCfg.t_skill_precon == null || skillCfg.t_skill_precon.Count <= 0)
+            {
+                return true;
+            }
+
+            var condition = ParseSkillPrecondition(skillCfg);
+            if (!condition.HasValue || condition.Value.m_ClearFlag == 0)
+            {
+                return true;
+            }
+
+            var buffMgr = source.GetBuffManager();
+            return buffMgr != null && buffMgr.ReadBuffStackCount(condition.Value.m_BuffId) >= condition.Value.m_NeedStackCount;
+        }
         public void ConsumeSkillPreconditionIfNeeded(PropertyEntity source, t_skillBean skillCfg)
         {
             if (source == null || skillCfg == null || skillCfg.t_skill_precon == null || skillCfg.t_skill_precon.Count <= 0)
@@ -642,7 +733,7 @@ namespace GameDll
             // 旧的按技能施放移除 buff 规则已废弃，是否清层由 skill_precon 的 clearFlag 控制。
         }
 
-        public void AddBuffs(PropertyEntity source, PropertyEntity target, IReadOnlyCollection<long> buffCfgIds)
+        public void AddBuffs(PropertyEntity source, PropertyEntity target, IReadOnlyCollection<long> buffCfgIds, int sourceSkillDamageCfg = 0)
         {
             if (target == null || buffCfgIds == null || buffCfgIds.Count <= 0)
             {
@@ -656,11 +747,11 @@ namespace GameDll
                     continue;
                 }
 
-                AddBuff(source, target, buffId);
+                AddBuff(source, target, buffId, sourceSkillDamageCfg);
             }
         }
 
-        public void AddBuff(PropertyEntity source, PropertyEntity target, long buffCfgId)
+        public void AddBuff(PropertyEntity source, PropertyEntity target, long buffCfgId, int sourceSkillDamageCfg = 0)
         {
             if (target == null || buffCfgId <= 0)
             {
@@ -687,11 +778,12 @@ namespace GameDll
             var old = buffMgr.GetExist(buffCfgId);
             if (old != null)
             {
+                old.SetSourceSkillDamageCfg(sourceSkillDamageCfg);
                 old.AddBuffAgain();
                 return;
             }
 
-            buffMgr.TryAddBuff(buffCfgId, source, target);
+            buffMgr.TryAddBuff(buffCfgId, source, target, null, null, 1, sourceSkillDamageCfg);
         }
 
         public void TryTriggerBuffsOnHit(PropertyEntity source, HurtInfo hurtInfo)
@@ -777,7 +869,8 @@ namespace GameDll
                     continue;
                 }
 
-                if (paramCfg.t_atk != 0 ||
+                if (paramCfg.t_buff_damage > 0 ||
+                    paramCfg.t_atk != 0 ||
                     paramCfg.t_atk_percen != 0 ||
                     paramCfg.t_hp != 0 ||
                     paramCfg.t_hp_percen != 0 ||

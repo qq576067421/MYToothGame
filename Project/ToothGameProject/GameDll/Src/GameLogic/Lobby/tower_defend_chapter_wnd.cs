@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityUI;
 using GameDll;
 using System.Linq;
+using DG.Tweening;
 
 namespace GameHot
 {
@@ -40,14 +41,17 @@ namespace GameHot
         }
 
         private const int m_SlotCount = 5;
+        private static readonly string[] m_ThemeNames = { "1", "2", "3", "4", "5" };
         private const float m_SlotStepSpeed = 6.50f;
         private const float m_SlotEpsilon = 0.001f;
+        public static int m_chapterId;
+
         private static readonly Vector2[] m_SlotAnchors =
         {
-            new Vector2(0f, -215f),
+            new Vector2(0f, -215f - 40),
             new Vector2(-590f, -65f),
-            new Vector2(-275f, 128f),
-            new Vector2(275f, 128f),
+            new Vector2(-275f, 128f + 40),
+            new Vector2(275f, 128f + 40),
             new Vector2(590f, -65f),
         };
         private static readonly int[] m_SlotLayerRanks = { 4, 3, 1, 1, 3 };
@@ -64,6 +68,7 @@ namespace GameHot
         private v_tower_defend_chapter_wnd m_View;
         private ChapterPlateView[] m_Plates;
         private ChapterWheelRuntime m_Runtime;
+        private bool m_IsPendingLockedShake;
         private FrameUpdate m_FrameUpdate;
         private WindowBase m_PendingCloseTargetWindow;
 
@@ -86,7 +91,6 @@ namespace GameHot
             model.m_Request = request;
             model.m_OnConfirm = onConfirm;
             model.m_OnCancel = onCancel;
-            model.m_Request.m_StageId = 1;
             if (IsInitializedView())
             {
                 RefreshView();
@@ -108,6 +112,7 @@ namespace GameHot
             RenderAPI.AddButtonClick(m_View.m_btnLeftRotation, OnClickLeft, 3);
             RenderAPI.AddButtonClick(m_View.m_btnRightRotation, OnClickRight, 3);
             RenderAPI.AddButtonClick(m_View.m_btnOk, OnClickConfirm);
+            OnInitLanguage();
         }
 
         protected override void OnOpen()
@@ -123,11 +128,13 @@ namespace GameHot
 
         private void OnClickLeft()
         {
+            SetShowArrow(true);
             OffsetWheelTargetByStep(-1);
         }
 
         private void OnClickRight()
         {
+            SetShowArrow(false);
             OffsetWheelTargetByStep(1);
         }
 
@@ -135,17 +142,15 @@ namespace GameHot
         {
             var model = GetModel<tower_defend_chapter_model>();
             var request = model.m_Request;
-            int stageId = ResolveBottomStageId();
-            if (request != null && stageId > 0)
+            var unlockCount = (LobbyPlayer.GetInstance().GetUnlockedStage() - 1) / m_SlotCount + 1;
+            if (request != null && ResolveBottomStageId() > unlockCount)
             {
-                if (!CGameProcedure.s_ProcLobby.TrySetSelectedStageId(request.m_GameMode, stageId))
-                {
-                    AudioManager.GetInstance().Play2D(7);
-                    tip_wnd.GetInstance().OnShowTip("当前章节暂未解锁");
-                    return;
-                }
-
-                request.m_StageId = stageId;
+                // 转盘滑动到目标槽位后才触发抖动，等待逻辑见 UpdatePendingLockedShake
+                KillPlateTweens();
+                m_IsPendingLockedShake = true;
+                AudioManager.GetInstance().Play2D(7);
+                tip_wnd.GetInstance().OnShowTip("当前主题暂未解锁");
+                return;
             }
 
             if (model.m_OnConfirm == null)
@@ -154,6 +159,8 @@ namespace GameHot
                 return;
             }
 
+            // 先记录章节号再打开选关窗口，选关窗口初始化时会读取它换算章内解锁数
+            m_chapterId = ResolveBottomStageId();
             var targetWindow = model.m_OnConfirm();
             if (targetWindow == null)
             {
@@ -161,6 +168,15 @@ namespace GameHot
             }
 
             CloseAfterTargetWindowOpened(targetWindow);
+        }
+        private void OnInitLanguage()
+        {
+            RenderAPI.SetTextLan(m_View.m_topic_txt, "td_lobby_chapter_title");
+            RenderAPI.SetTextLan(Get_Btn_Lv_View(0).m_chapter_txt, "td_lobby_chapter_txt_jelly");
+            RenderAPI.SetTextLan(Get_Btn_Lv_View(1).m_chapter_txt, "td_lobby_chapter_txt_cake");
+            RenderAPI.SetTextLan(Get_Btn_Lv_View(2).m_chapter_txt, "td_lobby_chapter_txt_chocolate");
+            RenderAPI.SetTextLan(Get_Btn_Lv_View(3).m_chapter_txt, "td_lobby_chapter_txt_candies");
+            RenderAPI.SetTextLan(Get_Btn_Lv_View(4).m_chapter_txt, "td_lobby_chapter_txt_biscuits");
         }
         private void Init_Btn_Lv_Views()
         {
@@ -282,7 +298,7 @@ namespace GameHot
         private void InitUnlockCount()
         {
             var request = GetModel<tower_defend_chapter_model>().m_Request;
-            int UnlockCount = CGameProcedure.s_ProcLobby.ReadSelectableStageIds(request.m_GameMode).Count;
+            int UnlockCount = (LobbyPlayer.GetInstance().GetUnlockedStage() - 1) / m_SlotCount + 1;
 
             for(int i=0;i< m_Btn_Lv.Count(); i++)
             {
@@ -290,7 +306,7 @@ namespace GameHot
                 {
                     Get_Btn_Lv_View(i).m_UnLock.gameObject.SetActive(true);
                     Get_Btn_Lv_View(i).m_Lock.gameObject.SetActive(false);
-                    RenderAPI.SetText(Get_Btn_Lv_View(i).m_txt, (i+1).ToString());
+                    RenderAPI.SetText(Get_Btn_Lv_View(i).m_txt, m_ThemeNames[i]);
                 }
                 else
                 {
@@ -367,20 +383,8 @@ namespace GameHot
                 return false;
             }
 
-            var allDisplayStageIds = CGameProcedure.s_ProcLobby.ReadChapterDisplayStageIds();
-            if (allDisplayStageIds == null || allDisplayStageIds.Count < m_SlotCount)
-            {
-                Debug.LogError("章节转盘初始化失败：章节总表数量不足 5。");
-                return false;
-            }
-
-            int globalSelectedIndex = allDisplayStageIds.IndexOf(request.m_StageId);
-            if (globalSelectedIndex < 0)
-            {
-                Debug.LogError("章节转盘初始化失败：request.m_StageId 不在章节总表列表内，回退到第一个章节。 stageId=" + request.m_StageId);
-                globalSelectedIndex = 0;
-                request.m_StageId = allDisplayStageIds[0];
-            }
+            var allDisplayStageIds = new List<int> { 1, 2, 3, 4, 5 };
+            int globalSelectedIndex = Mathf.Clamp(ReadThemeUnlockCount(request) - 1, 0, allDisplayStageIds.Count - 1);
 
             selectableStageIds = new List<int>(m_SlotCount);
             for (int i = 0; i < m_SlotCount; i++)
@@ -390,6 +394,12 @@ namespace GameHot
             selectedIndex = 0;
 
             return true;
+        }
+
+        private static int ReadThemeUnlockCount(BattleStartupRequest request)
+        {
+            var adapter = TowerDefendStageConfigResolver.Resolve(request.m_StageId, request.m_GameMode);
+            return adapter != null ? adapter.MonsterPoolId : 0;
         }
 
         private bool HasCompletePlateViews()
@@ -457,8 +467,13 @@ namespace GameHot
 
             m_Runtime.m_IsWheelEnabled = false;
             m_Runtime.m_TargetSlotOffset = m_Runtime.m_SlotOffset;
+            m_IsPendingLockedShake = false;
         }
-
+        private void SetShowArrow(bool isLeft)
+        {
+            m_View.m_leftYellowArrow.gameObject.SetActive(isLeft);
+            m_View.m_rightYellowArrow.gameObject.SetActive(!isLeft);
+        }
         private void OffsetWheelTargetByStep(int direction)
         {
             if (direction == 0 || m_Runtime == null || !m_Runtime.m_IsWheelEnabled)
@@ -473,6 +488,7 @@ namespace GameHot
 
             // 每次点击只改变一个槽位目标；动画途中反向点击会把目标减回上一槽位，
             // 这样会从当前状态沿原路径回退，而不是继续使用惯性滑动。
+            KillPlateTweens();
             m_Runtime.m_TargetSlotOffset += direction;
         }
         private void ShowChoose()
@@ -500,6 +516,7 @@ namespace GameHot
             float forwardDelta = m_SlotCount - plateSlot;
             float bestDelta = Mathf.Abs(backwardDelta) <= Mathf.Abs(forwardDelta) ? backwardDelta : forwardDelta;
 
+            KillPlateTweens();
             m_Runtime.m_TargetSlotOffset = Mathf.Round(m_Runtime.m_SlotOffset + bestDelta);
         }
 
@@ -507,6 +524,26 @@ namespace GameHot
         {
             UpdateWheelRuntime(Time.unscaledDeltaTime);
             ApplyWheelVisuals();
+            UpdatePendingLockedShake();
+        }
+
+        private void UpdatePendingLockedShake()
+        {
+            if (!m_IsPendingLockedShake)
+            {
+                return;
+            }
+
+            if (m_Runtime != null && Mathf.Abs(m_Runtime.m_SlotOffset - m_Runtime.m_TargetSlotOffset) > m_SlotEpsilon)
+            {
+                return;
+            }
+
+            m_IsPendingLockedShake = false;
+            if (HasCompletePlateViews())
+            {
+                m_Plates[ResolveBottomStageId() - 1].m_Rect.DOShakePosition(.5f, 5f, 10, 10, false, true);
+            }
         }
 
         private void UpdateWheelRuntime(float dt)
@@ -528,6 +565,22 @@ namespace GameHot
             ShowChoose();
         }
 
+        private void KillPlateTweens()
+        {
+            if (m_Plates == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < m_Plates.Length; i++)
+            {
+                if (m_Plates[i] != null && m_Plates[i].m_Rect != null)
+                {
+                    m_Plates[i].m_Rect.DOKill();
+                }
+            }
+        }
+
         private void ApplyWheelVisuals()
         {
             if (m_Runtime == null || !HasCompletePlateViews())
@@ -538,6 +591,12 @@ namespace GameHot
             for (int i = 0; i < m_Plates.Length; i++)
             {
                 var plate = m_Plates[i];
+                // 抖动补间期间不重写位置，否则每帧刷新会把 DOShakePosition 抵消掉
+                if (DOTween.IsTweening(plate.m_Rect))
+                {
+                    continue;
+                }
+
                 float slot = ReadCurrentSlot(plate);
                 int from = Mathf.FloorToInt(slot);
                 float t = slot - from;

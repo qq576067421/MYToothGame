@@ -16,4 +16,5 @@
   <Project Path="Febucci.TextAnimator.Demo.Runtime.csproj" />
   <Project Path="Febucci.Attributes.Editor.csproj" />
   <Project Path="Febucci.TextAnimator.TMP.Runtime.csproj" />
+  <Project Path="GameDll/GameDll.csproj" />
 </Solution>

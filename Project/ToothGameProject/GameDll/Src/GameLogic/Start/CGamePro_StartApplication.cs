@@ -103,10 +103,8 @@ namespace GameHot
                 }
                 RenderAPI.InitTimeAndPhysics();
                 //第一次启动游戏？
-                var first_game_start_key = "first_game_start_key";
-                if(!PlayerPrefs.HasKey(first_game_start_key))
+                if (LobbyPlayer.GetInstance().TryConsumeFirstStart())
                 {
-                    PlayerPrefs.SetInt(first_game_start_key, 1);
 
                     var sizeG = SystemInfo.systemMemorySize / 1024;
                     if(sizeG > 10)

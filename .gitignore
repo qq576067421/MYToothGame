@@ -210,3 +210,7 @@ InitTestScene*.unity*
 /Project/ToothGameProject/Febucci.Attributes.Editor.csproj
 /Project/ToothGameProject/Febucci.Attributes.Runtime.csproj
 /Project/ToothGameProject/Febucci.TextAnimator.Demo.Runtime.csproj
+/.codex-tmp
+/InternalTools/BoneParserLib/src/BoneParserLib/bin/Debug/netstandard2.1
+/InternalTools/BoneParserLib/src/BoneParserLib/obj
+/Project/ToothGameProject/ToothGameProject.sln

@@ -340,14 +340,14 @@ namespace GameDll
             }
 
             TryReadFirstTrackedPerson(frameData, out int firstTrackedSlotIndex, out BonePersonData firstPerson);
-            string rightWristText = ReadJointText(firstPerson != null ? firstPerson.m_Body : null, (int)YouDooSDKConstants.KeyPointIndex.Rightwrist);
-            string leftWristText = ReadJointText(firstPerson != null ? firstPerson.m_Body : null, (int)YouDooSDKConstants.KeyPointIndex.Leftwrist);
+            string rightWristText = ReadJointText(firstPerson != null ? firstPerson.m_Body : null, (int)BoneBodyJointType.右手腕);
+            string leftWristText = ReadJointText(firstPerson != null ? firstPerson.m_Body : null, (int)BoneBodyJointType.左手腕);
             return string.Format(
                 "帧={0}, 有效人数={1}, 首个有效槽位={2}, 人物Id={3}, 左手腕={4}, 右手腕={5}, 时间戳={6}",
                 frameData.m_FrameSerial,
                 personCount,
                 firstTrackedSlotIndex >= 0 ? firstTrackedSlotIndex + 1 : 0,
-                firstPerson != null ? firstPerson.m_PersonId : YouDooSDKConstants.PersonIdNull,
+                firstPerson != null ? firstPerson.m_PersonId : BoneTrackedLayout.m_InvalidPersonId,
                 leftWristText,
                 rightWristText,
                 frameData.m_FrameTimeMs);
@@ -396,7 +396,7 @@ namespace GameDll
 
         private static bool IsTrackedPerson(BonePersonData person)
         {
-            return person != null && person.m_PersonId != YouDooSDKConstants.PersonIdNull;
+            return person != null && person.m_PersonId != BoneTrackedLayout.m_InvalidPersonId;
         }
 
         private static string ReadJointText(BoneDetectPartData part, int jointIndex)

@@ -54,7 +54,7 @@ MonoBehaviour:
   m_HitShowTime: 1
   m_FlashEff: {fileID: 0}
   m_FlashShowTime: 0.1
-  m_MainParticleUseConfig: 1
+  m_MainParticleUseConfig: 0
   m_MainParticleSystem: {fileID: 5787241256866658032}
   m_MainTrails: []
   m_EffParticleSystem: {fileID: 0}

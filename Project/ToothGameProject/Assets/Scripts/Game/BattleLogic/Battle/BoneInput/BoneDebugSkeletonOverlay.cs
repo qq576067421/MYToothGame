@@ -27,9 +27,9 @@ namespace GameDll
         private static readonly Color m_BorderColor = new Color(1.00f, 1.00f, 1.00f, 0.18f);
 
         private readonly Vector2[] m_ScreenPoints =
-            new Vector2[(int)YouDooSDKConstants.KeyPointIndex.KEYPOINT_COUNT];
+            new Vector2[BoneTrackedLayout.m_BodyJointCount];
         private readonly bool[] m_HasScreenPoints =
-            new bool[(int)YouDooSDKConstants.KeyPointIndex.KEYPOINT_COUNT];
+            new bool[BoneTrackedLayout.m_BodyJointCount];
 
         private IBoneFrameSource m_FrameSource;
         private Texture2D m_WhiteTexture;
@@ -185,9 +185,9 @@ namespace GameDll
             float pointSize = Mathf.Clamp(slotRect.width * m_PointSizeRatio, m_MinPointSizePixels, m_MaxPointSizePixels);
             float lineWidth = Mathf.Clamp(slotRect.width * m_LineWidthRatio, m_MinLineWidthPixels, m_MaxLineWidthPixels);
 
-            for (int i = 0; i < YouDooSDKConstants.defaultSkeletonConnections.Length; i++)
+            for (int i = 0; i < BoneSkeletonTopology.m_DefaultConnections.Length; i++)
             {
-                var connection = YouDooSDKConstants.defaultSkeletonConnections[i];
+                var connection = BoneSkeletonTopology.m_DefaultConnections[i];
                 if (!ReadHasPoint(connection.from) || !ReadHasPoint(connection.to))
                 {
                     continue;

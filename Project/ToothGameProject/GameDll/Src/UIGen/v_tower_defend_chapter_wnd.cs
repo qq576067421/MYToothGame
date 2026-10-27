@@ -1,6 +1,6 @@
 ﻿//功能：tower_defend_chapter_wnd的窗口配置文件
 //工具作者：lichunlin
-//生成时间：08/13/2026 11:49:26
+//生成时间：10/15/2026 16:11:08
 //描述：以下文件是自动生成的，任何手动修改都会被下次自动生成覆盖。
 
 using System;
@@ -46,6 +46,15 @@ namespace GameHot
           //tower_defend_chapter_wnd/WindowContent/Level/btnOk
           public LUIButton m_btnOk;
 
+          //tower_defend_chapter_wnd/WindowContent/Level/Arrow/leftArrow/leftYellowArrow
+          public LUIImage m_leftYellowArrow;
+
+          //tower_defend_chapter_wnd/WindowContent/Level/Arrow/rightArrow/rightYellowArrow
+          public LUIImage m_rightYellowArrow;
+
+          //tower_defend_chapter_wnd/WindowContent/Level/topic_txt
+          public LUITextMesh m_topic_txt;
+
           public override void InitComponent(GameObject go)
           {
                m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
@@ -58,6 +67,9 @@ namespace GameHot
                m_btnLeftRotation = m_Bridge.GetControl(6) as LUIButton;
                m_btnRightRotation = m_Bridge.GetControl(7) as LUIButton;
                m_btnOk = m_Bridge.GetControl(8) as LUIButton;
+               m_leftYellowArrow = m_Bridge.GetControl(9) as LUIImage;
+               m_rightYellowArrow = m_Bridge.GetControl(10) as LUIImage;
+               m_topic_txt = m_Bridge.GetControl(11) as LUITextMesh;
           }
           public class v_Btn_Lv:v_base_wnd
           {
@@ -77,6 +89,9 @@ namespace GameHot
                //btn_Lv0/txt
                public LUITextMesh m_txt;
 
+               //btn_Lv0/topic_Img/chapter_txt
+               public LUITextMesh m_chapter_txt;
+
                public override void InitComponent(GameObject go)
                {
                     m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
@@ -84,6 +99,7 @@ namespace GameHot
                     m_choose = m_Bridge.GetControl(1) as LUIImage;
                     m_Lock = m_Bridge.GetControl(2) as LUIImage;
                     m_txt = m_Bridge.GetControl(3) as LUITextMesh;
+                    m_chapter_txt = m_Bridge.GetControl(4) as LUITextMesh;
                }
           }
      }

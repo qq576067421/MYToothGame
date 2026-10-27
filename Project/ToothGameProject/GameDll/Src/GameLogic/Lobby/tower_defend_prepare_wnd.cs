@@ -3,13 +3,18 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.IO;
+using System.Text;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Networking;
 using UnityEngine.UI;
 using UnityUI;
 using GameDll;
-using PrepareMatchStep = AndroidParseDataDemo.PrepareMatchStep;
+using YoudooGame.CameraImage;
+using YoudooGame.Core;
+using YoudooGame.Framework;
+using YoudooGame.MatchFlow.Runtime;
+using YoudooGame.PlayerAvatar;
 
 namespace GameHot
 {
@@ -33,17 +38,19 @@ namespace GameHot
             public int m_LoadVersion;
             public int m_PersonId = m_InvalidPersonId;
             public long m_UserId;
+            public string m_PendingImagePath;
+            public string m_LastLogKey;
         }
 
         private readonly SeatViewState[] m_SeatStates = new SeatViewState[m_MaxPlayerCount];
         private readonly LUIRawImage m_NoPlayerTemplate;
         private readonly LUIRawImage m_NotEqualPlayerTemplate;
         private readonly LUIRawImage m_SystemPlayerTemplate;
-        private AndroidParseDataDemo m_ParseDataDemo;
+        private GameProductUiAdapter m_FrameworkAdapter;
+        private bool m_UseFramework;
         private bool m_IsOpen;
         private int m_PlayerCount;
         private int m_ManualSelectingSeatId = -1;
-        private int m_ManualSelectingPersonId = m_InvalidPersonId;
 
         public tower_defend_prepare_face_controller(
             IList<LUIButton> headButtons,
@@ -78,18 +85,21 @@ namespace GameHot
             }
         }
 
-        public void Open(AndroidParseDataDemo parseDataDemo, int playerCount)
+        // 框架会话模式：数据源换成 GameProductUiAdapter 的 UI 快照与 PlayerAvatar。
+        public void Open(GameProductUiAdapter adapter, int playerCount)
         {
             Close();
             m_IsOpen = true;
-            m_ParseDataDemo = parseDataDemo;
-            SubscribeEvents();
+            m_UseFramework = true;
+            m_FrameworkAdapter = adapter;
             Refresh(playerCount);
         }
 
         public void Close()
         {
-            UnsubscribeEvents();
+            CancelFrameworkAvatarSelection();
+            m_UseFramework = false;
+            m_FrameworkAdapter = null;
             ClearManualSelection();
             for (int seatId = 0; seatId < m_SeatStates.Length; seatId++)
             {
@@ -97,7 +107,6 @@ namespace GameHot
             }
 
             m_PlayerCount = 0;
-            m_ParseDataDemo = null;
             m_IsOpen = false;
         }
 
@@ -112,192 +121,259 @@ namespace GameHot
 
         public void OnClickHead(int seatId)
         {
-            if (!m_IsOpen || !IsActiveSeat(seatId) || m_ManualSelectingSeatId >= 0)
+            if (!m_IsOpen || !IsActiveSeat(seatId))
             {
                 return;
             }
 
-            if (Application.platform != RuntimePlatform.Android ||
-                m_ParseDataDemo == null || AndroidServerInfoDemo.Instance == null)
-            {
-                return;
-            }
-
-            var state = m_ParseDataDemo.GetPrepareSeatState(seatId);
-            if (state == null || state.m_PersonId == m_InvalidPersonId ||
-                (state.m_Step != PrepareMatchStep.WaitRaiseHand && state.m_Step != PrepareMatchStep.Ready))
-            {
-                return;
-            }
-
-            m_ManualSelectingSeatId = seatId;
-            m_ManualSelectingPersonId = state.m_PersonId;
-            m_ParseDataDemo.BeginPrepareExternalAvatarSelection();
-            SetHeadInfo(seatId, m_LanFaceSelectAvatar);
-            AndroidServerInfoDemo.Instance.SelectRole(m_ParseDataDemo.ReadAssignedUserIds(seatId));
+            OnClickHeadFramework(seatId);
         }
 
-        private void SubscribeEvents()
+        // 框架会话模式：头像选角完全跟随 MatchFlow 的状态机，界面不保存自己的选角标记。
+        // 未选角时点击=进入该座位的槽位选择；已在选角时点击同一座位=确认并打开平台选角界面，
+        // 点击别的座位=把焦点移到那个座位；平台选角界面打开后由平台持有输入，界面不再重复触发。
+        private void OnClickHeadFramework(int seatId)
         {
-            if (m_ParseDataDemo == null)
+            if (m_FrameworkAdapter == null)
             {
                 return;
             }
 
-            m_ParseDataDemo.onPlayerFaceRecognizing += OnPlayerFaceRecognizing;
-            m_ParseDataDemo.onPlayerFaceRecognizeFailed += OnPlayerFaceRecognizeFailed;
-            m_ParseDataDemo.onPrepareSeatStateChanged += OnPrepareSeatStateChanged;
-            AndroidServerInfoDemo.OnFaceRecognizedUser += OnFaceRecognizedUser;
-            AndroidServerInfoDemo.OnManualRoleSelectionFailed += OnManualRoleSelectionFinished;
-            AndroidServerInfoDemo.OnManualRoleSelectionCancelled += OnManualRoleSelectionFinished;
-        }
-
-        private void UnsubscribeEvents()
-        {
-            if (m_ParseDataDemo != null)
+            var slot = TryGetFrameworkSlot(seatId);
+            if (!slot.HasValue)
             {
-                m_ParseDataDemo.onPlayerFaceRecognizing -= OnPlayerFaceRecognizing;
-                m_ParseDataDemo.onPlayerFaceRecognizeFailed -= OnPlayerFaceRecognizeFailed;
-                m_ParseDataDemo.onPrepareSeatStateChanged -= OnPrepareSeatStateChanged;
-            }
-
-            AndroidServerInfoDemo.OnFaceRecognizedUser -= OnFaceRecognizedUser;
-            AndroidServerInfoDemo.OnManualRoleSelectionFailed -= OnManualRoleSelectionFinished;
-            AndroidServerInfoDemo.OnManualRoleSelectionCancelled -= OnManualRoleSelectionFinished;
-        }
-
-        private void OnPlayerFaceRecognizing(int seatId)
-        {
-            ApplySeatState(seatId);
-        }
-
-        private void OnPlayerFaceRecognizeFailed(int seatId)
-        {
-            if (!IsActiveSeat(seatId) || m_ParseDataDemo == null)
-            {
+                LogFrameworkAvatarSelectionSkipped(seatId, "no session slot");
                 return;
             }
 
-            var state = m_ParseDataDemo.GetPrepareSeatState(seatId);
-            if (state == null || state.m_Step != PrepareMatchStep.FaceRecognizing)
+            var selection = m_FrameworkAdapter.AvatarSelectionSnapshot;
+            if (selection == null)
             {
+                LogFrameworkAvatarSelectionSkipped(seatId, "selection snapshot unavailable");
                 return;
             }
 
-            ShowTemplate(seatId, m_SystemPlayerTemplate);
-            SetHeadInfo(seatId, m_LanFaceWaitAvatarSelect);
-            // SDK 没有稳定的识别失败结果，业务超时后仍需推进到举手阶段，头像选择保持可选。
-            m_ParseDataDemo.TryNotifyPlayerFaceRecognized(seatId, 0, null);
-        }
-
-        private void OnPrepareSeatStateChanged(int seatId, AndroidParseDataDemo.PrepareMatchSeatState state)
-        {
-            ApplySeatState(seatId);
-        }
-
-        private void OnFaceRecognizedUser(int personId, long userId, bool isManualSelection)
-        {
-            if (!m_IsOpen || m_ParseDataDemo == null)
+            if (selection.ManualState != PlayerAvatarManualState.Inactive &&
+                selection.ManualState != PlayerAvatarManualState.SelectingSlot)
             {
+                GameSdkLog.Info("[新SDK整合] prepare avatar click ignored seat=" + seatId +
+                          " platform owns input, state=" + selection.ManualState);
                 return;
             }
 
-            if (isManualSelection)
+            // 能不能选角只由 MatchFlow 判定（只有已占用槽位可选），座位显示状态不参与：
+            // TemporarilyLost/Reacquiring 恰恰是需要重新选角的场景。
+            if (!selection.IsSelectable(slot.Value.SlotIndex))
             {
-                if (userId > 0)
-                {
-                    ApplyManualSelection(userId);
-                }
-                else
-                {
-                    OnManualRoleSelectionFinished();
-                }
+                LogFrameworkAvatarSelectionSkipped(seatId,
+                    "slot " + slot.Value.SlotIndex + " is not occupied, state=" + slot.Value.State);
                 return;
             }
 
-            if (userId <= 0)
+            if (selection.ManualState == PlayerAvatarManualState.Inactive)
             {
-                return;
+                LogFrameworkAvatarSelectionResult(
+                    "enter seat=" + seatId + " slot=" + slot.Value.SlotIndex,
+                    m_FrameworkAdapter.BeginAvatarSlotSelection(slot.Value.SlotIndex));
             }
-
-            int seatId = m_ParseDataDemo.GetPlayerIndexByPersonId(personId);
-            if (!IsActiveSeat(seatId))
+            else if (selection.SelectedSlotIndex == slot.Value.SlotIndex)
             {
-                return;
-            }
-
-            var state = m_ParseDataDemo.GetPrepareSeatState(seatId);
-            if (state == null || state.m_Step != PrepareMatchStep.FaceRecognizing || state.m_PersonId != personId)
-            {
-                return;
-            }
-
-            string facePhotoPath = PlayerRoleManager.Instance.GetFacePhotoPathByUserId(userId);
-            m_ParseDataDemo.TryNotifyPlayerFaceRecognized(seatId, userId, facePhotoPath);
-        }
-
-        private void ApplyManualSelection(long userId)
-        {
-            int seatId = m_ManualSelectingSeatId;
-            if (!IsActiveSeat(seatId) || m_ParseDataDemo == null)
-            {
-                ClearManualSelection();
-                return;
-            }
-
-            var state = m_ParseDataDemo.GetPrepareSeatState(seatId);
-            if (state == null || state.m_PersonId != m_ManualSelectingPersonId)
-            {
-                ClearManualSelection();
-                return;
-            }
-
-            string facePhotoPath = PlayerRoleManager.Instance.GetFacePhotoPathByUserId(userId);
-            if (state.m_Step == PrepareMatchStep.FaceRecognizing)
-            {
-                m_ParseDataDemo.TryNotifyPlayerFaceRecognized(seatId, userId, facePhotoPath);
+                LogFrameworkAvatarSelectionResult(
+                    "confirm slot=" + selection.SelectedSlotIndex,
+                    m_FrameworkAdapter.HandleAvatarSelectionCommand(
+                        MatchAvatarSelectionCommand.Confirm));
             }
             else
             {
-                TryReplacePrepareSeatUser(state, userId, facePhotoPath);
+                MoveFrameworkAvatarSelectionTo(slot.Value.SlotIndex);
             }
 
-            ClearManualSelection();
-            ApplySeatState(seatId);
+            Refresh(m_PlayerCount);
         }
 
-        private bool TryReplacePrepareSeatUser(
-            AndroidParseDataDemo.PrepareMatchSeatState state,
-            long userId,
-            string facePhotoPath)
+        public void HandleFrameworkSubmit()
         {
-            if (state == null || state.m_PersonId != m_ManualSelectingPersonId || userId <= 0 ||
-                (state.m_Step != PrepareMatchStep.WaitRaiseHand && state.m_Step != PrepareMatchStep.Ready))
+            var selection = m_FrameworkAdapter != null ? m_FrameworkAdapter.AvatarSelectionSnapshot : null;
+            if (selection == null || selection.ManualState != PlayerAvatarManualState.SelectingSlot)
+            {
+                return;
+            }
+
+            LogFrameworkAvatarSelectionResult(
+                "confirm by submit",
+                m_FrameworkAdapter.HandleAvatarSelectionCommand(MatchAvatarSelectionCommand.Confirm));
+            Refresh(m_PlayerCount);
+        }
+
+        public void HandleFrameworkCancel()
+        {
+            var selection = m_FrameworkAdapter != null ? m_FrameworkAdapter.AvatarSelectionSnapshot : null;
+            if (selection == null || selection.ManualState != PlayerAvatarManualState.SelectingSlot)
+            {
+                return;
+            }
+
+            LogFrameworkAvatarSelectionResult(
+                "cancel",
+                m_FrameworkAdapter.HandleAvatarSelectionCommand(MatchAvatarSelectionCommand.Back));
+            Refresh(m_PlayerCount);
+        }
+
+        // 框架会话模式：选角期间方向键交给 MatchFlow（左右切槽位、下取消、上进入），
+        // 未在选角时不消费，其余遥控器导航仍交回现有 UI 框架，避免双输入。
+        public bool HandleFrameworkNavigate(Vector2 direction)
+        {
+            var selection = m_FrameworkAdapter != null ? m_FrameworkAdapter.AvatarSelectionSnapshot : null;
+            if (!m_UseFramework || selection == null || !selection.IsActive)
             {
                 return false;
             }
 
-            var assignedUserIds = m_ParseDataDemo.ReadAssignedUserIds(state.m_SeatId);
-            for (int i = 0; i < assignedUserIds.Length; i++)
-            {
-                if (assignedUserIds[i] == userId)
-                {
-                    return false;
-                }
-            }
-
-            // 人工选择只替换账号头像，不改变该玩家当前的举手或已准备状态。
-            state.m_UserId = userId;
-            state.m_FacePhotoPath = facePhotoPath;
+            LogFrameworkAvatarSelectionResult(
+                "navigate " + direction,
+                m_FrameworkAdapter.HandleAvatarSelectionNavigation(direction));
+            Refresh(m_PlayerCount);
             return true;
         }
 
-        private void OnManualRoleSelectionFinished()
+        public bool IsFrameworkManualSelecting
         {
-            int seatId = m_ManualSelectingSeatId;
-            ClearManualSelection();
-            ApplySeatState(seatId);
+            get
+            {
+                if (!m_UseFramework || m_FrameworkAdapter == null)
+                {
+                    return false;
+                }
+
+                var selection = m_FrameworkAdapter.AvatarSelectionSnapshot;
+                return selection != null && selection.IsActive;
+            }
         }
+
+        private void CancelFrameworkAvatarSelection()
+        {
+            var selection = m_FrameworkAdapter != null ? m_FrameworkAdapter.AvatarSelectionSnapshot : null;
+            if (selection == null || selection.ManualState != PlayerAvatarManualState.SelectingSlot)
+            {
+                return;
+            }
+
+            m_FrameworkAdapter.HandleAvatarSelectionCommand(MatchAvatarSelectionCommand.Back);
+        }
+
+        // 把选角焦点槽位换算成界面座位号；没在选角或槽位不属于本局座位时返回 -1。
+        private int ResolveFrameworkSelectingSeatId()
+        {
+            if (!m_UseFramework || m_FrameworkAdapter == null)
+            {
+                return m_InvalidPersonId;
+            }
+
+            var selection = m_FrameworkAdapter.AvatarSelectionSnapshot;
+            if (selection == null || !selection.IsActive || selection.SelectedSlotIndex < 0)
+            {
+                return m_InvalidPersonId;
+            }
+
+            var snapshot = m_FrameworkAdapter.UiSnapshot;
+            if (snapshot == null)
+            {
+                return m_InvalidPersonId;
+            }
+
+            for (int i = 0; i < snapshot.Slots.Count; i++)
+            {
+                if (snapshot.Slots[i].SlotIndex == selection.SelectedSlotIndex)
+                {
+                    return snapshot.Slots[i].VisualSlotIndex;
+                }
+            }
+
+            return m_InvalidPersonId;
+        }
+
+        private void MoveFrameworkAvatarSelectionTo(int targetSlotIndex)
+        {
+            var selection = m_FrameworkAdapter != null ? m_FrameworkAdapter.AvatarSelectionSnapshot : null;
+            if (selection == null || selection.SelectableSlotCount <= 1)
+            {
+                return;
+            }
+
+            int currentOrdinal = selection.SelectedSlotOrdinal;
+            int targetOrdinal = ResolveSelectableOrdinal(selection, targetSlotIndex);
+            if (currentOrdinal < 0 || targetOrdinal < 0)
+            {
+                LogFrameworkAvatarSelectionSkipped(-1, "target slot " + targetSlotIndex + " is not selectable");
+                return;
+            }
+
+            MatchAvatarSelectionCommand command = targetOrdinal > currentOrdinal
+                ? MatchAvatarSelectionCommand.Right
+                : MatchAvatarSelectionCommand.Left;
+            for (int step = 0; step < selection.SelectableSlotCount; step++)
+            {
+                selection = m_FrameworkAdapter.AvatarSelectionSnapshot;
+                if (selection == null || selection.SelectedSlotIndex == targetSlotIndex)
+                {
+                    return;
+                }
+
+                var result = m_FrameworkAdapter.HandleAvatarSelectionCommand(command);
+                if (!result.Success || !result.Value)
+                {
+                    LogFrameworkAvatarSelectionResult("focus move to slot " + targetSlotIndex, result);
+                    return;
+                }
+            }
+        }
+
+        private static int ResolveSelectableOrdinal(MatchAvatarSelectionSnapshot selection, int slotIndex)
+        {
+            var selectable = selection.SelectableSlotIndices;
+            for (int i = 0; i < selectable.Count; i++)
+            {
+                if (selectable[i] == slotIndex)
+                {
+                    return i;
+                }
+            }
+
+            return -1;
+        }
+
+        private void LogFrameworkAvatarSelectionResult(string action, Result<bool> result)
+        {
+            if (!result.Success)
+            {
+                Debug.LogWarning("[新SDK整合] prepare avatar " + action + " failed: " +
+                          result.Error + " " + result.Message);
+                return;
+            }
+
+            GameSdkLog.Info("[新SDK整合] prepare avatar " + action +
+                      (result.Value ? " ok" : " rejected by flow"));
+        }
+
+        private void LogFrameworkAvatarSelectionSkipped(int seatId, string reason)
+        {
+            Debug.LogWarning("[新SDK整合] prepare avatar click ignored seat=" + seatId + " reason=" + reason);
+        }
+
+        private MatchSessionUiSlotSnapshot? TryGetFrameworkSlot(int seatId)
+        {
+            var snapshot = m_FrameworkAdapter != null ? m_FrameworkAdapter.UiSnapshot : null;
+            if (snapshot == null)
+            {
+                return null;
+            }
+
+            MatchSessionUiSlotSnapshot slot;
+            return snapshot.TryGetSlotForVisualIndex(seatId, out slot)
+                ? slot
+                : (MatchSessionUiSlotSnapshot?)null;
+        }
+
 
         private void ApplySeatState(int seatId)
         {
@@ -306,62 +382,106 @@ namespace GameHot
                 return;
             }
 
-            if (!IsActiveSeat(seatId) || m_ParseDataDemo == null)
+            ApplyFrameworkSeatState(seatId);
+        }
+
+        // 框架会话模式的座位头像刷新：状态来自 MatchSessionUiSnapshot，
+        // 头像地址来自 PlayerAvatar，纹理加载复用既有协程管线。
+        private void ApplyFrameworkSeatState(int seatId)
+        {
+            if (!IsActiveSeat(seatId) || m_FrameworkAdapter == null)
             {
                 ResetSeatView(seatId, true);
                 return;
             }
 
-            var state = m_ParseDataDemo.GetPrepareSeatState(seatId);
-            if (state == null || state.m_Step == PrepareMatchStep.Empty ||
-                state.m_Step == PrepareMatchStep.WaitCenter)
+            var slot = TryGetFrameworkSlot(seatId);
+            if (!slot.HasValue)
             {
                 ResetSeatView(seatId, true);
                 return;
             }
 
-            var seat = m_SeatStates[seatId];
-            if (seat.m_PersonId != state.m_PersonId)
+            // 选角焦点所在座位：保留当前头像，只把提示切到"选择头像中"，
+            // 结束与否由 MatchFlow 的状态机决定，界面不自己判定。
+            if (seatId == ResolveFrameworkSelectingSeatId())
             {
-                bool isRecognizedSeatRebind = seat.m_PersonId != m_InvalidPersonId &&
-                    (state.m_Step == PrepareMatchStep.WaitRaiseHand || state.m_Step == PrepareMatchStep.Ready);
-                if (isRecognizedSeatRebind)
-                {
-                    // SDK 页面返回后只更新骨骼编号，保留同一座位已经显示的头像，避免重新加载造成闪动。
-                    seat.m_PersonId = state.m_PersonId;
-                }
-                else
-                {
+                SetHeadInfo(seatId, m_LanFaceSelectAvatar);
+                return;
+            }
+
+            switch (slot.Value.State)
+            {
+                case MatchSessionUiSlotState.Searching:
+                    ResetSeatView(seatId, true);
+                    return;
+                case MatchSessionUiSlotState.FocusedCandidate:
+                case MatchSessionUiSlotState.ConfirmingIdentity:
+                case MatchSessionUiSlotState.Reacquiring:
                     ShowTemplate(seatId, m_NotEqualPlayerTemplate);
-                    seat.m_PersonId = state.m_PersonId;
-                    seat.m_UserId = 0;
-                }
+                    SetHeadInfo(seatId, m_LanFaceRecognizing);
+                    return;
             }
 
-            if (state.m_Step == PrepareMatchStep.FaceRecognizing)
+            // WaitingForReadyAction / Bound / TemporarilyLost：头像同步成功就加载；
+            // 未同步或游客时先显示系统占位并提示等待选头像。
+            string imagePath = ResolveFrameworkSeatImagePath(slot.Value);
+            var seat = m_SeatStates[seatId];
+            string logKey = slot.Value.State + "|" + slot.Value.AvatarSyncState + "|" +
+                            slot.Value.IsReady + "|" + imagePath;
+            if (seat.m_LastLogKey != logKey)
             {
-                ShowTemplate(seatId, m_NotEqualPlayerTemplate);
-                seat.m_PersonId = state.m_PersonId;
-                seat.m_UserId = 0;
-                SetHeadInfo(seatId, m_LanFaceRecognizing);
-                return;
+                seat.m_LastLogKey = logKey;
+                GameSdkLog.Info("[新SDK整合] prepare seat=" + seatId +
+                          " state=" + slot.Value.State +
+                          " ready=" + slot.Value.IsReady +
+                          " obs=" + slot.Value.HasObservation +
+                          " person=" + slot.Value.PersonId +
+                          " avatarSync=" + slot.Value.AvatarSyncState +
+                          " image=" + (string.IsNullOrEmpty(imagePath) ? "none" : imagePath));
             }
 
-            if (state.m_UserId <= 0)
+            if (string.IsNullOrEmpty(imagePath))
             {
                 ShowTemplate(seatId, m_SystemPlayerTemplate);
-                seat.m_PersonId = state.m_PersonId;
                 SetHeadInfo(seatId, m_LanFaceWaitAvatarSelect);
                 return;
             }
 
-            StartAvatarLoad(seatId, state.m_PersonId, state.m_UserId, state.m_FacePhotoPath);
+            StartFrameworkAvatarLoad(seatId, slot.Value.PersonId, imagePath);
         }
 
-        private void StartAvatarLoad(int seatId, int personId, long userId, string stateFacePhotoPath)
+        private string ResolveFrameworkSeatImagePath(MatchSessionUiSlotSnapshot slot)
+        {
+            if (!slot.IsAvatarSynchronized)
+            {
+                return null;
+            }
+
+            var result = YoudooAPI.GetSessionPlayerAvatarSlot(slot.SlotIndex);
+            if (!result.Success || result.Value == null)
+            {
+                return null;
+            }
+
+            var avatar = result.Value;
+            if (!string.IsNullOrEmpty(avatar.PreferredImageUri))
+            {
+                return avatar.PreferredImageUri;
+            }
+
+            if (!string.IsNullOrEmpty(avatar.AvatarUri))
+            {
+                return avatar.AvatarUri;
+            }
+
+            return avatar.FacePhotoPath;
+        }
+
+        private void StartFrameworkAvatarLoad(int seatId, int personId, string imagePath)
         {
             var seat = m_SeatStates[seatId];
-            if (seat.m_PersonId == personId && seat.m_UserId == userId &&
+            if (seat.m_PersonId == personId && seat.m_PendingImagePath == imagePath &&
                 (seat.m_RuntimeTexture != null || seat.m_LoadCoroutine != null))
             {
                 SetHeadInfo(seatId, seat.m_RuntimeTexture != null ? null : m_LanFaceRecognizing);
@@ -370,46 +490,29 @@ namespace GameHot
 
             CancelLoad(seat);
             seat.m_PersonId = personId;
-            seat.m_UserId = userId;
-            int loadVersion = seat.m_LoadVersion;
-            string avatarUri = PlayerRoleManager.Instance.GetAvatarUriPathByUserId(userId);
-            string facePhotoPath = !string.IsNullOrEmpty(stateFacePhotoPath)
-                ? stateFacePhotoPath
-                : PlayerRoleManager.Instance.GetFacePhotoPathByUserId(userId);
+            seat.m_UserId = 0;
+            seat.m_PendingImagePath = imagePath;
             SetHeadInfo(seatId, m_LanFaceRecognizing);
+            int loadVersion = seat.m_LoadVersion;
             seat.m_LoadCoroutine = RenderAPI.StartCoroutine(
-                LoadAvatar(seatId, personId, userId, loadVersion, avatarUri, facePhotoPath));
+                LoadFrameworkAvatar(seatId, personId, imagePath, loadVersion));
         }
 
-        private IEnumerator LoadAvatar(
+        private IEnumerator LoadFrameworkAvatar(
             int seatId,
             int personId,
-            long userId,
-            int loadVersion,
-            string avatarUri,
-            string facePhotoPath)
+            string imagePath,
+            int loadVersion)
         {
             var seat = m_SeatStates[seatId];
-            yield return LoadTexture(seat, loadVersion, avatarUri);
-            if (seat.m_LoadVersion != loadVersion)
-            {
-                yield break;
-            }
-
-            if (seat.m_PendingTexture == null &&
-                !string.Equals(avatarUri, facePhotoPath, StringComparison.Ordinal))
-            {
-                yield return LoadTexture(seat, loadVersion, facePhotoPath);
-            }
-
+            yield return LoadTexture(seat, loadVersion, imagePath);
             if (seat.m_LoadVersion != loadVersion)
             {
                 yield break;
             }
 
             Texture loadedTexture = TakePendingTexture(seat);
-            if (!m_IsOpen || seat.m_LoadVersion != loadVersion || seat.m_PersonId != personId ||
-                seat.m_UserId != userId)
+            if (!m_IsOpen || seat.m_LoadVersion != loadVersion || seat.m_PersonId != personId)
             {
                 DestroyRuntimeTexture(loadedTexture);
                 yield break;
@@ -419,7 +522,6 @@ namespace GameHot
             if (loadedTexture == null)
             {
                 ShowTemplate(seatId, m_SystemPlayerTemplate);
-                seat.m_PersonId = personId;
                 SetHeadInfo(seatId, m_LanFaceWaitAvatarSelect);
                 yield break;
             }
@@ -579,6 +681,7 @@ namespace GameHot
             var seat = m_SeatStates[seatId];
             seat.m_PersonId = m_InvalidPersonId;
             seat.m_UserId = 0;
+            seat.m_LastLogKey = null;
             SetHeadInfo(seatId, isWaitingForPlayer ? m_LanFaceEnterArea : null);
         }
 
@@ -676,13 +779,7 @@ namespace GameHot
 
         private void ClearManualSelection()
         {
-            bool wasSelecting = m_ManualSelectingSeatId >= 0;
             m_ManualSelectingSeatId = -1;
-            m_ManualSelectingPersonId = m_InvalidPersonId;
-            if (wasSelecting && m_ParseDataDemo != null)
-            {
-                m_ParseDataDemo.EndPrepareExternalAvatarSelection();
-            }
         }
 
         private bool IsActiveSeat(int seatId)
@@ -718,7 +815,6 @@ namespace GameHot
         private const string m_LanTdPrepareErrorSdkDataMissing = "td_prepare_error_sdk_data_missing";
         private const string m_LanTdPrepareErrorAllReady = "td_prepare_error_all_ready";
         private const string m_PrepareRoleIconAtlas = "texture_set/character.jpg";
-        private const float m_PrepareRoleSelectWaveSpeedRatioReference = 0.7f;
         private const int m_MaxPreparePlayerCount = 4;
         private bool m_IsWaitingBattleLoading;
         private v_tower_defend_prepare_wnd m_View;
@@ -730,12 +826,13 @@ namespace GameHot
         private readonly long[] m_SelectedRoleCfgIdBySeat = new long[m_MaxPreparePlayerCount];
         private readonly string[] m_LastRoleVisualKeysBySeat = new string[m_MaxPreparePlayerCount];
         private int m_RoleCandidateStageId = -1;
-        private int m_LastBoundDemoPlayerCount = -1;
-        private int m_LastConfiguredSdkPlayerCount = -1;
-        private PlayerMatchViewMode m_LastConfiguredSdkViewMode = PlayerMatchViewMode.Length;
         private int m_LastRemoteMenuPlayerCount = -1;
         private tower_defend_prepare_face_controller m_FaceController;
-        private bool m_HasSubscribedSdkEvents;
+        private bool m_UseFrameworkSession;
+        private bool m_HasSubscribedFrameworkUi;
+        private int m_LastBoundFrameworkPlayerCount = -1;
+        private string m_LastFrameworkSnapshotLogKey = string.Empty;
+        private PrepareRoleWaveDetector m_WaveDetector;
 
         public override void OnClassConstructed()
         {
@@ -744,7 +841,7 @@ namespace GameHot
             __CustomUIPrefabDir = UIPrefabDirs.lobby;
             __ParticipateCurrentActiveWindow = true;
             __SelectDefaultActiveButton = false;
-            __SetWindowCacheTime(0);
+            __SetWindowCacheTime(GameProductUiAdapter.HasLiveSession ? 3600 : 0);
             __CreateModel(new tower_defend_prepare_model());
         }
 
@@ -755,10 +852,8 @@ namespace GameHot
             model.m_Request = request;
             m_IsWaitingBattleLoading = false;
             m_RoleCandidateStageId = -1;
-            m_LastBoundDemoPlayerCount = -1;
-            m_LastConfiguredSdkPlayerCount = -1;
-            m_LastConfiguredSdkViewMode = PlayerMatchViewMode.Length;
             m_LastRemoteMenuPlayerCount = -1;
+            m_LastBoundFrameworkPlayerCount = -1;
             ResetPrepareRequestForNewEntry(request);
             EnsureRoleSelections(request);
 
@@ -791,7 +886,7 @@ namespace GameHot
         protected override void OnDestroy()
         {
             m_FaceController?.Close();
-            UnsubscribeSdkEvents();
+            UnsubscribeFrameworkUiEvents();
             base.OnDestroy();
         }
 
@@ -800,32 +895,42 @@ namespace GameHot
             // 业务订阅和显示刷新统一放到打开阶段，不放在 OnInitComponent。
             m_IsWaitingBattleLoading = false;
             var request = GetModel<tower_defend_prepare_model>().m_Request;
+            m_UseFrameworkSession = GameProductUiAdapter.HasLiveSession;
+            if (!m_UseFrameworkSession)
+            {
+                Debug.LogError("[新SDK整合] prepare window opened without a live Framework session.");
+            }
+
+            // 相机在大厅入口统一恢复；窗口打开时只绑定界面视图。
             m_FaceController?.Open(
-                AndroidParseDataDemo.Instance,
+                GameProductUiAdapter.Instance,
                 request != null ? request.ReadPreparePlayerCount() : 0);
-            SubscribeSdkEvents();
-            m_LastBoundDemoPlayerCount = -1;
-            m_LastConfiguredSdkPlayerCount = -1;
-            m_LastConfiguredSdkViewMode = PlayerMatchViewMode.Length;
+            SubscribeFrameworkUiEvents();
+
             m_LastRemoteMenuPlayerCount = -1;
+            m_LastBoundFrameworkPlayerCount = -1;
+            m_LastFrameworkSnapshotLogKey = string.Empty;
             RefreshView();
+            var openSnapshot = GameProductUiAdapter.Instance != null
+                ? GameProductUiAdapter.Instance.UiSnapshot
+                : null;
+            // 人数一致性自检：请求人数（界面表现）与框架会话槽位数（实际数据）必须一致。
+            Debug.Log("[新SDK整合] prepare open frameworkSession=" + m_UseFrameworkSession +
+                      " requestPlayerCount=" + (request != null ? request.ReadPreparePlayerCount() : 0) +
+                      " sessionSlots=" + (openSnapshot != null ? openSnapshot.Slots.Count : 0) +
+                      " platform=" + Application.platform);
+            LogFrameworkSnapshot("open");
         }
 
         protected override void OnClose()
         {
+            Debug.Log("[返回] prepare OnClose begin frameworkSession=" + m_UseFrameworkSession +
+                      " waitingBattle=" + m_IsWaitingBattleLoading);
+            UnsubscribeFrameworkUiEvents();
             m_FaceController?.Close();
-            UnsubscribeSdkEvents();
-
-            if (!m_IsWaitingBattleLoading)
-            {
-                var parseDataDemo = AndroidParseDataDemo.Instance;
-                if (parseDataDemo != null)
-                {
-                    parseDataDemo.ResetPreparePhaseState();
-                }
-            }
 
             base.OnClose();
+            Debug.Log("[返回] prepare OnClose end");
         }
 
         // 准备界面自己完成确认链：先写回当前 UI 绑定，再同步真机已就位结果，
@@ -844,50 +949,79 @@ namespace GameHot
                 return;
             }
 
-            RefreshSdkSeatBindings(request);
-            string error;
-            if (!CGameProcedure.s_ProcLobby.TrySyncPrepareRequestFromSdk(request, out error))
+            bool editorManualSeatSelection = Application.isEditor && m_UseFrameworkSession;
+            if (!ShouldUseSdkManagedSeats() && !editorManualSeatSelection)
             {
-                tip_wnd.GetInstance().OnShowTip(error);
+                tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorSdkDataMissing);
                 return;
             }
 
-            AndroidParseDataDemo parseDataDemo = null;
-            if (ShouldUseSdkPrepareSelection())
-            {
-                parseDataDemo = AndroidParseDataDemo.Instance;
-                if (parseDataDemo == null)
-                {
-                    tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorSdkDataMissing);
-                    return;
-                }
-
-                int requiredPlayerCount = request.ReadPreparePlayerCount();
-                if (parseDataDemo.ReadConfirmedPlayerCount() < requiredPlayerCount)
-                {
-                    tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
-                    return;
-                }
-            }
-
-            if (request.GetPlayerCount() != request.ReadPreparePlayerCount())
+            if (editorManualSeatSelection && request.GetPlayerCount() != request.ReadPreparePlayerCount())
             {
                 tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
                 return;
             }
 
-            // 这里不能在点击确认后立刻关闭准备界面。
-            // 进入战斗时真正负责遮挡的是 loading_wnd，而它要等覆盖动画播完后才会完全盖住底下界面。
-            // 因此准备界面保持到大厅分支在 loading 覆盖完成后统一关闭，避免露出下层选择界面。
-            if (!CGameProcedure.s_ProcLobby.StartBattleFromRequest(request, out error))
+            OnClickConfirmFramework(request);
+        }
+
+        // 框架会话模式确认链：全部视觉座位 Bound 后，按快照回写正式请求，
+        // 再走大厅开战入口，并通知新 SDK 进入 Gameplay 阶段。
+        private void OnClickConfirmFramework(BattleStartupRequest request)
+        {
+            string error;
+            int requiredPlayerCount = request.ReadPreparePlayerCount();
+            var readiness = new StringBuilder(requiredPlayerCount);
+            bool allReady = true;
+            for (int seatId = 0; seatId < requiredPlayerCount; seatId++)
             {
+                bool ready = IsSdkSeatReady(seatId);
+                readiness.Append(ready ? '1' : '0');
+                allReady &= ready;
+            }
+
+            GameSdkLog.Info("[新SDK整合] prepare confirm required=" + requiredPlayerCount +
+                      " seatReady=" + readiness + " allReady=" + allReady);
+            if (!allReady)
+            {
+                LogFrameworkSnapshot("confirm-blocked");
+                tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
+                return;
+            }
+
+            RefreshSdkSeatBindings(request);
+            if (!CGameProcedure.s_ProcLobby.TrySyncPrepareRequestFromFramework(request, out error))
+            {
+                Debug.LogWarning("[新SDK整合] prepare confirm sync failed: " + error);
                 tip_wnd.GetInstance().OnShowTip(error);
                 return;
             }
 
-            if (parseDataDemo != null)
+            if (request.GetPlayerCount() != requiredPlayerCount)
             {
-                parseDataDemo.EnterBattleWithConfirmedPlayers();
+                Debug.LogWarning("[新SDK整合] prepare confirm playerCount mismatch, request=" +
+                                 request.GetPlayerCount() + " required=" + requiredPlayerCount);
+                tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
+                return;
+            }
+
+            // 与旧链一致：不能在点击确认后立刻关闭准备界面，
+            // 等 loading 完全覆盖后由大厅统一关闭。
+            if (!CGameProcedure.s_ProcLobby.StartBattleFromRequest(request, out error))
+            {
+                Debug.LogWarning("[新SDK整合] prepare confirm StartBattleFromRequest failed: " + error);
+                tip_wnd.GetInstance().OnShowTip(error);
+                return;
+            }
+
+            // 注意：这里不能暂停框架相机。CameraImage.Pause 会清空当前帧，
+            // 准备界面的实时画面会立刻变透明；等 loading 完全覆盖后再在
+            // CGamePro_Lobby.BeginGoSceneAfterLoading 里暂停/停止。
+            GameSdkLog.Info("[新SDK整合] prepare confirm passed, notify framework gameplay. players=" +
+                      request.GetPlayerCount());
+            if (!GameProductUiAdapter.Instance.StartGameplay())
+            {
+                Debug.LogError("[新SDK整合] Framework StartGameplay failed.");
             }
 
             m_IsWaitingBattleLoading = true;
@@ -933,6 +1067,7 @@ namespace GameHot
                 return;
             }
 
+            m_UseFrameworkSession = GameProductUiAdapter.HasLiveSession;
             var request = GetModel<tower_defend_prepare_model>().m_Request;
             if (request == null)
             {
@@ -941,9 +1076,15 @@ namespace GameHot
                 return;
             }
 
+            if (!m_UseFrameworkSession)
+            {
+                Debug.LogError("[新SDK整合] prepare refresh blocked because the Framework session is unavailable.");
+                return;
+            }
+
             EnsureRoleSelections(request);
-            BindRuntimeDemoComponents(request);
-            ConfigureSdkPrepareView(request);
+            BindFrameworkCameraViews(request);
+
             m_FaceController?.Refresh(request.ReadPreparePlayerCount());
             RefreshSdkSeatBindings(request);
             RefreshPlayerSlots(request);
@@ -984,7 +1125,7 @@ namespace GameHot
         // 真机下座位是否有人由 SDK 准备结果决定，编辑器下保留手点座位调试。
         private void RefreshPlayerSlots(BattleStartupRequest request)
         {
-            bool useSdkPrepareSelection = ShouldUseSdkPrepareSelection();
+            bool useSdkPrepareSelection = ShouldUseSdkManagedSeats();
             for (int i = 0; i < m_MaxPreparePlayerCount; i++)
             {
                 var slotView = GetSlotView(i);
@@ -1021,8 +1162,11 @@ namespace GameHot
             }
 
             bool isSelected = player != null;
-            bool useSdkPrepareSelection = ShouldUseSdkPrepareSelection();
+            bool useSdkPrepareSelection = ShouldUseSdkManagedSeats();
             bool isReady = useSdkPrepareSelection ? IsSdkSeatReady(seatId) : isSelected;
+            float prepareProgress = useSdkPrepareSelection
+                ? GetFrameworkSeatPrepareProgress(seatId)
+                : (isReady ? 1f : 0f);
 
             RenderAPI.SetActive(slotView.m_choose, !useSdkPrepareSelection && isSelected);
 
@@ -1033,7 +1177,7 @@ namespace GameHot
                 : RenderAPI.GetTextByLanId(m_LanTdPrepareRoleFallback, seatId + 1);
             //RenderAPI.SetText(slotView.m_txt, roleName);
             RefreshPlayerRoleIcon(slotView, seatId);
-            RefreshPlayerStateText(slotView.m_txt_prepare, slotView.m_prepare, slotView.m_Fill, isReady, !useSdkPrepareSelection);
+            RefreshPlayerStateText(slotView.m_txt_prepare, slotView.m_prepare, slotView.m_Fill, isReady, prepareProgress);
         }
 
         private void RefreshPlayerRoleIcon(v_tower_defend_prepare_wnd.v_PlayerSlot slotView, int seatId)
@@ -1072,16 +1216,16 @@ namespace GameHot
             __SetImage(slotView.m_prepare, m_PrepareRoleIconAtlas, prepareName.Substring(0, prepareName.Length - 1) + seatId, false);
         }
 
-        private void RefreshPlayerStateText(LUITextMesh state, LUIImage prepare, LUIImage fill, bool isReady, bool updateFillAmount)
+        private void RefreshPlayerStateText(LUITextMesh state, LUIImage prepare, LUIImage fill, bool isReady, float prepareProgress)
         {
             if (state == null || prepare == null)
             {
                 return;
             }
 
-            if (updateFillAmount && fill != null)
+            if (fill != null)
             {
-                fill.fillAmount = isReady ? 1.0f : 0.0f;
+                fill.fillAmount = isReady ? 1f : Mathf.Clamp01(prepareProgress);
             }
 
             var notPrepare = prepare.transform.Find("noPrepare");
@@ -1098,23 +1242,22 @@ namespace GameHot
                 return;
             }
 
-            var parseDataDemo = AndroidParseDataDemo.Instance;
             request.ClearSdkSlotBindings();
-            if (parseDataDemo == null || parseDataDemo._PlayerList == null)
+            var frameworkSnapshot = GameProductUiAdapter.Instance != null
+                ? GameProductUiAdapter.Instance.UiSnapshot
+                : null;
+            if (frameworkSnapshot != null)
             {
-                return;
-            }
-
-            int preparePlayerCount = request.ReadPreparePlayerCount();
-            for (int seatId = 0; seatId < preparePlayerCount; seatId++)
-            {
-                int sdkSlotIndex;
-                if (!TryResolveSdkSlotIndexByUiSeat(parseDataDemo, seatId, out sdkSlotIndex))
+                int frameworkPlayerCount = request.ReadPreparePlayerCount();
+                for (int seatId = 0; seatId < frameworkPlayerCount; seatId++)
                 {
-                    continue;
+                    MatchSessionUiSlotSnapshot slot;
+                    if (frameworkSnapshot.TryGetSlotForVisualIndex(seatId, out slot))
+                    {
+                        request.SetSdkSlotIndexForSeat(seatId, slot.SlotIndex);
+                    }
                 }
 
-                request.SetSdkSlotIndexForSeat(seatId, sdkSlotIndex);
             }
         }
 
@@ -1227,94 +1370,6 @@ namespace GameHot
             ChangeSelectedRole(seatId, delta);
         }
 
-        private void ConfigureSdkPrepareView(BattleStartupRequest request)
-        {
-            if (!ShouldUseSdkPrepareSelection() || request == null)
-            {
-                return;
-            }
-
-            var parseDataDemo = AndroidParseDataDemo.Instance;
-            if (parseDataDemo == null)
-            {
-                return;
-            }
-
-            int playerCount = request.ReadPreparePlayerCount();
-            PlayerMatchViewMode viewMode = ResolveSdkPrepareViewMode(playerCount);
-            if (m_LastConfiguredSdkPlayerCount == playerCount &&
-                m_LastConfiguredSdkViewMode == viewMode)
-            {
-                return;
-            }
-
-            parseDataDemo.InitGameInfo(playerCount, viewMode);
-#if UNITY_ANDROID && !UNITY_EDITOR
-            if (AndroidServerInfoDemo.Instance != null)
-            {
-                AndroidServerInfoDemo.Instance.SetYouDooNotifyFaceRecognitionType(
-                    YouDooSDKConstants.YouDooNotifyFaceRecognitionType.FRT_USER_ONLY);
-            }
-#endif
-            parseDataDemo.ResetPreparePhaseState();
-            if (parseDataDemo.playerTextuerShow != null)
-            {
-                parseDataDemo.playerTextuerShow.SetRegionLinesVisible(false);
-            }
-
-            m_LastConfiguredSdkPlayerCount = playerCount;
-            m_LastConfiguredSdkViewMode = viewMode;
-        }
-
-        private void BindRuntimeDemoComponents(BattleStartupRequest request)
-        {
-            if (request == null)
-            {
-                return;
-            }
-
-            int playerCount = Mathf.Clamp(request.ReadPreparePlayerCount(), 0, m_MaxPreparePlayerCount);
-            if (m_LastBoundDemoPlayerCount == playerCount)
-            {
-                return;
-            }
-
-            var parseDataDemo = AndroidParseDataDemo.Instance;
-            if (parseDataDemo == null)
-            {
-                return;
-            }
-
-            // 克隆完成后统一恢复 Demo 持有的槽位、准备文字、进度图、状态底图和玩家按钮引用。
-            parseDataDemo.ConfigurePreparePlayerSlots(BuildPreparePlayerSlots(playerCount));
-            BindRuntimeCameraViews(parseDataDemo);
-            m_LastBoundDemoPlayerCount = playerCount;
-        }
-
-        private List<Transform> BuildPreparePlayerSlots(int playerCount)
-        {
-            var slots = new List<Transform>(playerCount);
-            for (int seatId = 0; seatId < playerCount; seatId++)
-            {
-                var slotBridge = GetSlotBridge(seatId);
-                if (slotBridge == null)
-                {
-                    continue;
-                }
-
-                slots.Add(slotBridge.transform);
-            }
-
-            return slots;
-        }
-
-        private PlayerMatchViewMode ResolveSdkPrepareViewMode(int playerCount)
-        {
-            // 准备界面始终按 Player0~3 这四个显示槽承载相机画面。
-            // 即使只有 1 人，也要使用 Player0 节点，不能切到主图 cameraViews[0]。
-            return PlayerMatchViewMode.PartitionView;
-        }
-
         private void ResetPrepareRequestForNewEntry(BattleStartupRequest request)
         {
             if (request == null)
@@ -1323,6 +1378,7 @@ namespace GameHot
             }
 
             request.ClearSdkSlotBindings();
+            request.ClearPersonIdBindings();
             for (int seatId = 0; seatId < m_MaxPreparePlayerCount; seatId++)
             {
                 request.SetSelectedRoleCfgIdForSeat(seatId, 0);
@@ -1334,40 +1390,39 @@ namespace GameHot
             }
         }
 
-        // 不在这里手写反向公式，直接比对同一个界面节点拿到 SDK 内部槽位。
-        private bool TryResolveSdkSlotIndexByUiSeat(AndroidParseDataDemo parseDataDemo, int seatId, out int sdkSlotIndex)
+        private bool ShouldUseSdkManagedSeats()
         {
-            sdkSlotIndex = -1;
-            var slotBridge = GetSlotBridge(seatId);
-            var slotTransform = slotBridge != null ? slotBridge.transform : null;
-            var playerList = parseDataDemo != null ? parseDataDemo._PlayerList : null;
-            if (slotTransform == null || playerList == null)
-            {
-                return false;
-            }
-
-            for (int i = 0; i < playerList.Count; i++)
-            {
-                if (playerList[i] == slotTransform)
-                {
-                    sdkSlotIndex = i;
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        private bool ShouldUseSdkPrepareSelection()
-        {
-            return Application.platform == RuntimePlatform.Android;
+            return m_UseFrameworkSession && !Application.isEditor;
         }
 
         private bool IsSdkSeatReady(int seatId)
         {
-            var parseDataDemo = AndroidParseDataDemo.Instance;
-            var readySeatIds = parseDataDemo != null ? parseDataDemo.GetReadySeatIds() : null;
-            return readySeatIds != null && readySeatIds.ContainsKey(seatId);
+            var snapshot = GameProductUiAdapter.Instance != null
+                ? GameProductUiAdapter.Instance.UiSnapshot
+                : null;
+            MatchSessionUiSlotSnapshot slot;
+            return snapshot != null
+                && snapshot.TryGetSlotForVisualIndex(seatId, out slot)
+                && slot.IsReady;
+        }
+
+        private float GetFrameworkSeatPrepareProgress(int seatId)
+        {
+            var snapshot = GameProductUiAdapter.Instance != null
+                ? GameProductUiAdapter.Instance.UiSnapshot
+                : null;
+            MatchSessionUiSlotSnapshot slot;
+            if (snapshot == null || !snapshot.TryGetSlotForVisualIndex(seatId, out slot))
+            {
+                return 0f;
+            }
+
+            if (slot.ReadyFramesRequired > 0)
+            {
+                return Mathf.Clamp01((float)slot.ReadyFrameCount / slot.ReadyFramesRequired);
+            }
+
+            return 0f;
         }
 
 
@@ -1440,31 +1495,6 @@ namespace GameHot
 
         }
 
-        private void BindRuntimeCameraViews(AndroidParseDataDemo parseDataDemo)
-        {
-            var playerTextureShow = parseDataDemo != null ? parseDataDemo.playerTextuerShow : null;
-            var textureBridge = playerTextureShow != null
-                ? playerTextureShow.GetComponent<AndroidTextureBridgeBase>()
-                : null;
-            if (textureBridge == null)
-            {
-                return;
-            }
-
-            // PartitionView 约定下标0为主画面，下标1~4依次对应准备界面的四个玩家槽位。
-            var cameraViews = new CameraTextureView[m_MaxPreparePlayerCount + 1];
-            cameraViews[0] = textureBridge.GetCameraView(0);
-            for (int seatId = 0; seatId < m_MaxPreparePlayerCount; seatId++)
-            {
-                var slotBridge = GetSlotBridge(seatId);
-                cameraViews[seatId + 1] = slotBridge != null
-                    ? slotBridge.GetComponentInChildren<CameraTextureView>(true)
-                    : null;
-            }
-
-            textureBridge.SetCameraViews(cameraViews);
-        }
-
         private void InitFaceController()
         {
             var headButtons = new LUIButton[m_MaxPreparePlayerCount];
@@ -1499,87 +1529,301 @@ namespace GameHot
             return m_SlotViews[index];
         }
 
-        // 订阅 SDK 准备和挥手换角色事件，正式开战前统一要求本局选择的人数全部准备完成。
-        private void SubscribeSdkEvents()
+        // 把新 SDK 的 CameraImageView 归位到界面座位节点下（必须在窗口 Canvas 内才能随界面渲染）。
+        private void BindFrameworkCameraViews(BattleStartupRequest request)
         {
-            if (m_HasSubscribedSdkEvents)
+            int playerCount = Mathf.Clamp(request.ReadPreparePlayerCount(), 0, m_MaxPreparePlayerCount);
+            if (m_LastBoundFrameworkPlayerCount == playerCount)
             {
                 return;
             }
 
-            var parseDataDemo = AndroidParseDataDemo.Instance;
-            if (parseDataDemo == null)
+            var splitViews = GameProductUiAdapter.SplitCameraViews;
+            if (splitViews == null)
+            {
+                Debug.LogWarning("[新SDK整合] prepare bind camera views skipped: SplitCameraViews is null.");
+                return;
+            }
+
+            if (GameProductUiAdapter.SplitCameraLayout != null)
+            {
+                // 视图交给界面座位承载后，模板布局不再负责排布，避免两套布局互相覆盖。
+                GameProductUiAdapter.SplitCameraLayout.enabled = false;
+            }
+
+            // 相机由大厅逻辑层在打开准备窗前统一进入；这里只负责把视图挂到座位节点上。
+
+            for (int seatId = 0; seatId < playerCount && seatId < splitViews.Length; seatId++)
+            {
+                var view = splitViews[seatId];
+                var slotBridge = GetSlotBridge(seatId);
+                if (view == null || slotBridge == null)
+                {
+                    Debug.LogWarning("[新SDK整合] prepare bind camera view skipped, seat=" + seatId +
+                                     " view=" + (view != null) + " slot=" + (slotBridge != null));
+                    continue;
+                }
+
+                // 老版相机画面挂在座位下的 mask 节点内（Mask 裁剪溢出），新视图保持同位。
+                var mount = slotBridge.transform.Find("mask");
+                if (mount == null)
+                {
+                    mount = slotBridge.transform;
+                }
+
+                if (!slotBridge.gameObject.activeSelf)
+                {
+                    slotBridge.gameObject.SetActive(true);
+                }
+
+                if (!mount.gameObject.activeSelf)
+                {
+                    mount.gameObject.SetActive(true);
+                }
+
+                var viewRect = view.transform as RectTransform;
+                if (viewRect != null)
+                {
+                    viewRect.SetParent(mount, false);
+                    viewRect.anchorMin = Vector2.zero;
+                    viewRect.anchorMax = Vector2.one;
+                    viewRect.offsetMin = Vector2.zero;
+                    viewRect.offsetMax = Vector2.zero;
+                    viewRect.localScale = Vector3.one;
+                }
+
+                var rawImage = view.GetComponent<RawImage>();
+                if (rawImage != null)
+                {
+                    rawImage.color = Color.white;
+                }
+
+                view.gameObject.SetActive(true);
+                GameSdkLog.Info("[新SDK整合] prepare bind camera view seat=" + seatId +
+                          " view=" + view.name + " mount=" + mount.name +
+                          " active=" + view.gameObject.activeInHierarchy);
+            }
+
+            // 人数不足 4 时剩余视图无人布局管理，隐藏防止漏出游离画面。
+            for (int seatId = playerCount; seatId < splitViews.Length; seatId++)
+            {
+                if (splitViews[seatId] != null)
+                {
+                    splitViews[seatId].gameObject.SetActive(false);
+                }
+            }
+
+            // 原生纹理绑定由 GameProductUiAdapter.EnterPrepareCamera 统一处理。
+
+            var cameraStatus = YoudooGame.CameraImage.CameraImage.Status;
+            GameSdkLog.Info("[新SDK整合] prepare camera views bound playerCount=" + playerCount +
+                      " camera=" + cameraStatus.State + "/" + cameraStatus.GraphicsApi +
+                      " error=" + cameraStatus.Error + " msg=" + cameraStatus.Message +
+                      " views=" + BuildFrameworkViewSummary(splitViews, playerCount));
+            m_LastBoundFrameworkPlayerCount = playerCount;
+        }
+
+        // 座位视图被重新挂到界面节点下，这里回读框架算出的分区 UV 与实际父节点，
+        // 用于判断画面是否还在框架布局的槽位几何里，而不必连真机猜。
+        private static string BuildFrameworkViewSummary(CameraImageView[] views, int playerCount)
+        {
+            if (views == null)
+            {
+                return "null";
+            }
+
+            var builder = new StringBuilder();
+            for (int i = 0; i < views.Length; i++)
+            {
+                var view = views[i];
+                if (view == null)
+                {
+                    builder.Append(i).Append(":null ");
+                    continue;
+                }
+
+                builder.Append(i)
+                    .Append(":uv=").Append(view.CurrentUvRegion.x).Append(',').Append(view.CurrentUvRegion.y)
+                    .Append(',').Append(view.CurrentUvRegion.width).Append(',').Append(view.CurrentUvRegion.height)
+                    .Append(" partition=").Append(view.HasPartitionUvBounds)
+                    .Append(" tex=").Append(view.HasPresentation)
+                    .Append(" parent=").Append(view.transform.parent != null ? view.transform.parent.name : "none")
+                    .Append(" active=").Append(view.gameObject.activeInHierarchy)
+                    .Append(i < playerCount ? " (seat)" : " (idle)")
+                    .Append(' ');
+            }
+
+            return builder.ToString();
+        }
+
+        // 框架会话模式：快照推送驱动刷新，不再订阅旧 Demo 事件。
+        private void SubscribeFrameworkUiEvents()
+        {
+            if (m_HasSubscribedFrameworkUi)
             {
                 return;
             }
 
-            parseDataDemo.onCanGameStart += OnClickConfirm;
-            parseDataDemo.onPlayerIsReady += OnSdkPlayerReadyChanged;
-            parseDataDemo.onPlayerCancelReady += OnSdkPlayerStateChanged;
-            parseDataDemo.onPlayerNotInReadyArea += OnSdkPlayerStateChanged;
-            parseDataDemo.onNoneIsArea += OnSdkPlayerStateChanged;
-            parseDataDemo.onPlayerDisappeared += OnSdkPlayersChanged;
-            parseDataDemo.onPlayerReviced += OnSdkPlayersChanged;
-            parseDataDemo.onPlayerSelectRoleLeft += OnSdkPlayerSelectRoleLeft;
-            parseDataDemo.onPlayerSelectRoleRight += OnSdkPlayerSelectRoleRight;
-            parseDataDemo.SetPrepareRoleSelectWaveSpeedRatio(m_PrepareRoleSelectWaveSpeedRatioReference);
-            m_HasSubscribedSdkEvents = true;
-
-            if (parseDataDemo.playerTextuerShow != null)
+            var adapter = GameProductUiAdapter.Instance;
+            if (adapter == null)
             {
-                parseDataDemo.playerTextuerShow.SetRegionLinesVisible(false);
+                Debug.LogWarning("[新SDK整合] prepare subscribe skipped: framework adapter is null.");
+                return;
+            }
+
+            adapter.UiSnapshotChanged += OnFrameworkUiSnapshotChanged;
+            adapter.AvatarSelectionChanged += OnFrameworkAvatarSelectionChanged;
+            if (GameControllerInputBridge.Instance != null)
+            {
+                GameControllerInputBridge.Instance.NavigateReceived += OnFrameworkNavigate;
+                GameControllerInputBridge.Instance.SubmitReceived += OnFrameworkSubmit;
+                GameControllerInputBridge.Instance.CancelReceived += OnFrameworkCancel;
+            }
+            else
+            {
+                Debug.LogWarning("[新SDK整合] prepare navigate subscribe skipped: input bridge is null.");
+            }
+
+            m_HasSubscribedFrameworkUi = true;
+            m_WaveDetector = PrepareRoleWaveDetector.Ensure();
+            m_WaveDetector.RoleSwitchRequested += OnFrameworkWaveRoleSwitch;
+            m_WaveDetector.Active = true;
+            GameSdkLog.Info("[新SDK整合] prepare framework UI subscribed, inputBridge=" +
+                      (GameControllerInputBridge.Instance != null) +
+                      " waveDetector=" + (m_WaveDetector != null));
+        }
+
+        private void OnFrameworkNavigate(Vector2 direction)
+        {
+            if (m_FaceController != null)
+            {
+                m_FaceController.HandleFrameworkNavigate(direction);
             }
         }
 
-        // 窗口销毁时解除真机 SDK 订阅，避免残留回调。
-        private void UnsubscribeSdkEvents()
+        private void OnFrameworkSubmit()
         {
-            if (!m_HasSubscribedSdkEvents)
-            {
-                return;
-            }
-
-            m_HasSubscribedSdkEvents = false;
-            var parseDataDemo = AndroidParseDataDemo.Instance;
-            if (parseDataDemo == null)
-            {
-                return;
-            }
-
-            parseDataDemo.onCanGameStart -= OnClickConfirm;
-            parseDataDemo.onPlayerIsReady -= OnSdkPlayerReadyChanged;
-            parseDataDemo.onPlayerCancelReady -= OnSdkPlayerStateChanged;
-            parseDataDemo.onPlayerNotInReadyArea -= OnSdkPlayerStateChanged;
-            parseDataDemo.onNoneIsArea -= OnSdkPlayerStateChanged;
-            parseDataDemo.onPlayerDisappeared -= OnSdkPlayersChanged;
-            parseDataDemo.onPlayerReviced -= OnSdkPlayersChanged;
-            parseDataDemo.onPlayerSelectRoleLeft -= OnSdkPlayerSelectRoleLeft;
-            parseDataDemo.onPlayerSelectRoleRight -= OnSdkPlayerSelectRoleRight;
+            m_FaceController?.HandleFrameworkSubmit();
         }
 
-        private void OnSdkPlayerReadyChanged(int seatId, int curFrame, int needFrame)
+        private void OnFrameworkCancel()
         {
+            m_FaceController?.HandleFrameworkCancel();
+        }
+
+        // 选角状态机一旦变化就重绘座位提示，界面不缓存自己的选角标记。
+        private void OnFrameworkAvatarSelectionChanged(MatchAvatarSelectionSnapshot selection)
+        {
+            GameSdkLog.Info("[新SDK整合] prepare avatar selection state=" +
+                      (selection != null ? selection.ManualState.ToString() : "null") +
+                      " selectedSlot=" + (selection != null ? selection.SelectedSlotIndex : -1) +
+                      " selectable=" + (selection != null ? selection.SelectableSlotCount : 0));
             RefreshView();
         }
 
-        private void OnSdkPlayerStateChanged(int seatId)
+        // 框架模式下左右挥手切换本座位的出战角色，等价旧 SDK 的
+        // onPlayerSelectRoleLeft/Right -> ChangeSelectedRole。
+        private void OnFrameworkWaveRoleSwitch(int seatId, int delta)
         {
+            if (!m_UseFrameworkSession || m_IsWaitingBattleLoading)
+            {
+                return;
+            }
+
+            if (m_FaceController != null && m_FaceController.IsFrameworkManualSelecting)
+            {
+                return;
+            }
+
+            ChangeSelectedRole(seatId, delta);
+        }
+
+        private void UnsubscribeFrameworkUiEvents()
+        {
+            if (!m_HasSubscribedFrameworkUi)
+            {
+                return;
+            }
+
+            m_HasSubscribedFrameworkUi = false;
+            var adapter = GameProductUiAdapter.Instance;
+            if (adapter != null)
+            {
+                adapter.UiSnapshotChanged -= OnFrameworkUiSnapshotChanged;
+                adapter.AvatarSelectionChanged -= OnFrameworkAvatarSelectionChanged;
+            }
+
+            if (GameControllerInputBridge.Instance != null)
+            {
+                GameControllerInputBridge.Instance.NavigateReceived -= OnFrameworkNavigate;
+                GameControllerInputBridge.Instance.SubmitReceived -= OnFrameworkSubmit;
+                GameControllerInputBridge.Instance.CancelReceived -= OnFrameworkCancel;
+            }
+
+            if (m_WaveDetector != null)
+            {
+                m_WaveDetector.RoleSwitchRequested -= OnFrameworkWaveRoleSwitch;
+                m_WaveDetector.Active = false;
+                m_WaveDetector = null;
+            }
+        }
+
+        private void OnFrameworkUiSnapshotChanged()
+        {
+            LogFrameworkSnapshot("change");
             RefreshView();
         }
 
-        private void OnSdkPlayersChanged(int[] seatIds)
+        private void LogFrameworkSnapshot(string stage)
         {
-            RefreshView();
-        }
+            var snapshot = GameProductUiAdapter.Instance != null
+                ? GameProductUiAdapter.Instance.UiSnapshot
+                : null;
+            if (snapshot == null)
+            {
+                if (m_LastFrameworkSnapshotLogKey != "none")
+                {
+                    m_LastFrameworkSnapshotLogKey = "none";
+                    GameSdkLog.Info("[新SDK整合] prepare " + stage + " snapshot=none");
+                }
 
-        private void OnSdkPlayerSelectRoleLeft(int seatId)
-        {
-            ChangeSelectedRole(seatId, -1);
-        }
+                return;
+            }
 
-        private void OnSdkPlayerSelectRoleRight(int seatId)
-        {
-            ChangeSelectedRole(seatId, 1);
+            var key = new StringBuilder(96);
+            var detail = new StringBuilder(320);
+            key.Append(snapshot.SessionPhase);
+            for (int i = 0; i < snapshot.Slots.Count; i++)
+            {
+                var slot = snapshot.Slots[i];
+                key.Append('[').Append(slot.VisualSlotIndex)
+                    .Append(':').Append(slot.State)
+                    .Append(':').Append(slot.IsReady ? '1' : '0')
+                    .Append(':').Append(slot.HasObservation ? '1' : '0')
+                    .Append(':').Append(slot.AvatarSyncState)
+                    .Append(']');
+                detail.Append("[v").Append(slot.VisualSlotIndex)
+                    .Append(" s").Append(slot.SlotIndex)
+                    .Append(" p").Append(slot.PersonId)
+                    .Append(' ').Append(slot.State)
+                    .Append(" obs=").Append(slot.HasObservation ? '1' : '0')
+                    .Append(" ready=").Append(slot.IsReady ? '1' : '0')
+                    .Append(" prog=").Append(slot.Progress01.ToString("F2"))
+                    .Append(" stable=").Append(slot.StableFrameCount).Append('/').Append(slot.StableFramesRequired)
+                    .Append(" readyF=").Append(slot.ReadyFrameCount).Append('/').Append(slot.ReadyFramesRequired)
+                    .Append(" missing=").Append(slot.MissingFrameCount)
+                    .Append("] ");
+            }
+
+            string keyText = key.ToString();
+            if (keyText == m_LastFrameworkSnapshotLogKey)
+            {
+                return;
+            }
+
+            m_LastFrameworkSnapshotLogKey = keyText;
+            GameSdkLog.Info("[新SDK整合] prepare " + stage + " phase=" + snapshot.SessionPhase +
+                      " slots=" + detail);
         }
 
         private LUIButton GetSlotToggleButton(int index)

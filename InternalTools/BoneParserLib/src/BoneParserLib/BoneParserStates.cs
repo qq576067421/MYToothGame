@@ -16,7 +16,6 @@ namespace CompanyInternalTools.BoneParserLib
         public int m_MissingFrameCount;
         public long m_LastFrameTimeMs;
         public float m_CachedRotationOffset;
-        public float m_MaxObservedShoulderWidth;
         public BoneAimTrackingState m_AimTrackingState = BoneAimTrackingState.未跟踪;
         public bool m_HasAimOutput;
         public float m_LastAimAngleDegrees;
@@ -24,7 +23,9 @@ namespace CompanyInternalTools.BoneParserLib
         public int m_AimMissingFrameCount;
         public int m_AimCandidatePersonId = BoneTrackedLayout.m_InvalidPersonId;
         public int m_AimCandidateStableFrameCount;
-        public bool m_IsAimOutsideCenterDeadZone;
+        public bool m_HasFilteredShoulderAngle;
+        public float m_FilteredShoulderAngleDegrees;
+        public float m_ShoulderAngleTurnSmoothVelocityDegrees;
 
         public T ReadGestureState<T>(string stateKey) where T : class, IBoneGestureRuntimeState, new()
         {
@@ -49,7 +50,6 @@ namespace CompanyInternalTools.BoneParserLib
             m_MissingFrameCount = 0;
             m_LastFrameTimeMs = 0L;
             m_CachedRotationOffset = 0f;
-            m_MaxObservedShoulderWidth = 0f;
             ResetAimState();
             m_GestureStates.Clear();
         }
@@ -60,7 +60,6 @@ namespace CompanyInternalTools.BoneParserLib
             m_MissingFrameCount = 0;
             m_LastFrameTimeMs = 0L;
             m_CachedRotationOffset = 0f;
-            m_MaxObservedShoulderWidth = 0f;
             ResetAimState();
             m_GestureStates.Clear();
         }
@@ -74,7 +73,14 @@ namespace CompanyInternalTools.BoneParserLib
             m_AimMissingFrameCount = 0;
             m_AimCandidatePersonId = BoneTrackedLayout.m_InvalidPersonId;
             m_AimCandidateStableFrameCount = 0;
-            m_IsAimOutsideCenterDeadZone = false;
+            ResetShoulderAngleTurnState();
+        }
+
+        public void ResetShoulderAngleTurnState()
+        {
+            m_HasFilteredShoulderAngle = false;
+            m_FilteredShoulderAngleDegrees = 0f;
+            m_ShoulderAngleTurnSmoothVelocityDegrees = 0f;
         }
     }
 }

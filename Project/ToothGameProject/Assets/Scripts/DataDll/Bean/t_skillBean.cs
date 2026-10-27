@@ -45,8 +45,8 @@ private static string m_FileName = "t_skillBean.csv";
     public int t_bullet_id{ get { return _t_bullet_id; }}
     private List<long> _t_skill_selfbuff_id;
     public ReadOnlyCollection<long> t_skill_selfbuff_id;
-    private long _t_split_bullet_id;
-    public long t_split_bullet_id{ get { return _t_split_bullet_id; }}
+    private long _t_summon;
+    public long t_summon{ get { return _t_summon; }}
     private static List<long> m_Keys = new List<long>();
     public static List<long> GetKeys()
     {
@@ -112,7 +112,7 @@ private static string m_FileName = "t_skillBean.csv";
         _t_bullet_id = source._t_bullet_id;
         _t_skill_selfbuff_id = source._t_skill_selfbuff_id;
         t_skill_selfbuff_id = source.t_skill_selfbuff_id;
-        _t_split_bullet_id = source._t_split_bullet_id;
+        _t_summon = source._t_summon;
     }
     private static t_skillBean GetCSVConfigImp(long key)
     {
@@ -138,7 +138,7 @@ private static string m_FileName = "t_skillBean.csv";
             bean._t_bullet_id = ReadInt(datas[index++]);
             bean._t_skill_selfbuff_id = ReadLongArray(datas[index++]);
             bean.t_skill_selfbuff_id = GetReadOnlyArray(bean._t_skill_selfbuff_id);
-            bean._t_split_bullet_id = ReadLong(datas[index++]);
+            bean._t_summon = ReadLong(datas[index++]);
         }
         if(bean == null)
         {
@@ -172,7 +172,7 @@ private static string m_FileName = "t_skillBean.csv";
             bean._t_bullet_id = SqliteDataManager_ReadInt();
             bean._t_skill_selfbuff_id = SqliteDataManager_ReadLongArray();
             bean.t_skill_selfbuff_id = GetReadOnlyArray(bean._t_skill_selfbuff_id);
-            bean._t_split_bullet_id = SqliteDataManager_ReadLong();
+            bean._t_summon = SqliteDataManager_ReadLong();
         }
         SqliteDataManager_EndRead();
         StringBuilder.Clear();

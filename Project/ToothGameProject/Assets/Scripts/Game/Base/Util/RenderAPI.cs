@@ -2925,12 +2925,19 @@ public class RenderAPI
         Time.maximumParticleDeltaTime = 0.1f;
         Time.fixedDeltaTime = 0.02f;
     }
+    // 画质偏好存于 SDK 存档；存档未就绪时按默认（开启）处理。
+    private static bool ReadSavedGraphicsAsync()
+    {
+        var saveService = GameSaveService.Instance;
+        return saveService == null || !saveService.IsReady || saveService.Root.m_GraphicsAsync != 0;
+    }
+
     public static void SetFrameRate()
     {
         QualitySettings.vSyncCount = 0;
         //默认开启高帧率
         int fps = 55;
-        var open_async = PlayerPrefs.GetInt("pic_async", 1) == 1;
+        var open_async = ReadSavedGraphicsAsync();
         if (open_async)
         {
             fps = 144;

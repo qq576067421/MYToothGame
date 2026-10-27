@@ -1,8 +1,7 @@
-D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.deps.json
-D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.dll
-D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.pdb
-D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.GeneratedMSBuildEditorConfig.editorconfig
-D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.csproj.CoreCompileInputs.cache
-D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.sourcelink.json
-D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.dll
-D:\lichunlin\MYToothGame\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.pdb
+D:\tooth_git\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.deps.json
+D:\tooth_git\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.dll
+D:\tooth_git\InternalTools\BoneParserLib\src\BoneParserLib\bin\Debug\netstandard2.1\BoneParserLib.pdb
+D:\tooth_git\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.GeneratedMSBuildEditorConfig.editorconfig
+D:\tooth_git\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.csproj.CoreCompileInputs.cache
+D:\tooth_git\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.dll
+D:\tooth_git\InternalTools\BoneParserLib\src\BoneParserLib\obj\Debug\netstandard2.1\BoneParserLib.pdb

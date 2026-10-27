@@ -32,6 +32,14 @@ namespace GameHot
         _3ddrag
 
     }
+    // 新手引导进度（按设备账号存于 SDK 存档的 m_GuideJson）
+    [Serializable]
+    public class GuideSaveData
+    {
+        public int m_SaveVersion = 1;
+        public int m_CurGroup;
+        public int m_LastGuideId;
+    }
     public class GuideStep
     {
         //配置表id
@@ -86,6 +94,8 @@ namespace GameHot
         private Func<int, bool> m_ParseGuideDoCall;
         //当前引导管理器是否是按需触发（非必然触发的常规引导）
         private bool m_IsEvent = false;
+        private GuideSaveData m_SaveData;
+        private bool m_IsSaveReadySubscribed;
         public void SetGuideSaveCall(Action<guide_group> call)
         {
             m_GuideSaveCall = call;
@@ -114,9 +124,13 @@ namespace GameHot
             m_GuideSaveCall = null;
             m_ParseGuideDoCall = null;
             m_IsEvent = false;
+            m_SaveData = null;
 
-            //暂时注释掉，这个是用来保存新手引导步骤的回调
-            //LobbyPlayer.GuideMgr.SetGuideSaveCall(LoginMessage.GetInstance().Send_CSC_SaveGuideGroup);
+            // 新手引导进度改存 SDK 存档（原服务器回调已废弃）。
+            m_GuideSaveCall = SaveGuideToSdk;
+            m_ParseGuideDoCall = IsGuideGroupDone;
+            LoadGuideSave();
+
             m_EnableGuide = true;
             if (m_GuideWnd == null || m_GuideWnd.IsLogicClosed())
             {
@@ -143,6 +157,92 @@ namespace GameHot
             m_GuideSaveCall = null;
             m_ParseGuideDoCall = null;
             m_IsEvent = false;
+            UnsubscribeSaveReady();
+            m_SaveData = null;
+        }
+
+        private void LoadGuideSave()
+        {
+            var saveService = GameSaveService.Instance;
+            if (saveService == null || !saveService.IsReady)
+            {
+                SubscribeSaveReady();
+                return;
+            }
+
+            ApplyGuideSave();
+        }
+
+        private void ApplyGuideSave()
+        {
+            var saveService = GameSaveService.Instance;
+            if (saveService == null)
+            {
+                return;
+            }
+
+            m_SaveData = saveService.ParseData<GuideSaveData>(saveService.Root.m_GuideJson);
+            if (m_SaveData == null)
+            {
+                m_SaveData = new GuideSaveData();
+                return;
+            }
+
+            m_CurGroup = (guide_group)m_SaveData.m_CurGroup;
+            m_LastGuideId = (guide_step_id)m_SaveData.m_LastGuideId;
+        }
+
+        private void SubscribeSaveReady()
+        {
+            if (m_IsSaveReadySubscribed)
+            {
+                return;
+            }
+
+            m_IsSaveReadySubscribed = true;
+            GameSaveService.SaveDataReady += OnGuideSaveDataReady;
+        }
+
+        private void UnsubscribeSaveReady()
+        {
+            if (!m_IsSaveReadySubscribed)
+            {
+                return;
+            }
+
+            m_IsSaveReadySubscribed = false;
+            GameSaveService.SaveDataReady -= OnGuideSaveDataReady;
+        }
+
+        private void OnGuideSaveDataReady()
+        {
+            UnsubscribeSaveReady();
+            ApplyGuideSave();
+        }
+
+        private void SaveGuideToSdk(guide_group nextGroup)
+        {
+            var saveService = GameSaveService.Instance;
+            if (saveService == null || !saveService.IsReady)
+            {
+                return;
+            }
+
+            if (m_SaveData == null)
+            {
+                m_SaveData = new GuideSaveData();
+            }
+
+            m_SaveData.m_SaveVersion = 1;
+            m_SaveData.m_CurGroup = (int)nextGroup;
+            m_SaveData.m_LastGuideId = (int)m_LastGuideId;
+            saveService.Root.m_GuideJson = saveService.SerializeData(m_SaveData);
+            saveService.QueueSaveRoot();
+        }
+
+        private bool IsGuideGroupDone(int group)
+        {
+            return m_SaveData != null && m_SaveData.m_CurGroup > group;
         }
 
         public override void OnReceivedMainStartMessage(object msg)

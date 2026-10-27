@@ -10,15 +10,20 @@ namespace CompanyInternalTools.BoneParserLib
         {
             BoneGestureRecognizerRegistry registry = new BoneGestureRecognizerRegistry();
             registry.Register(new BonePoseGestureRecognizer());
-            registry.Register(new AlternatingSwingFlowRecognizer());
+            registry.Register(new UpDownSwingFlowRecognizer());
             registry.Register(new LargeAlternatingSwingFlowRecognizer());
-            registry.Register(new OverheadPressReleaseFlowRecognizer());
+            registry.Register(new HandsAboveNoseFlowRecognizer());
             registry.Register(new CrossChestExpandFlowRecognizer());
             registry.Register(new SingleHandPullDownFlowRecognizer());
             registry.Register(new HandsOnHipRaiseFlowRecognizer());
             registry.Register(new CrouchStandRaiseFlowRecognizer());
             registry.Register(new ChestClosePushFlowRecognizer());
             registry.Register(new HandsExpandHoldFlowRecognizer());
+            registry.Register(new LeftLeanFlowRecognizer());
+            registry.Register(new RightLeanFlowRecognizer());
+            registry.Register(new JumpFlowRecognizer());
+            registry.Register(new CrouchDownFlowRecognizer());
+            registry.Register(new SingleHandSideSweepFlowRecognizer());
             return registry;
         }
 

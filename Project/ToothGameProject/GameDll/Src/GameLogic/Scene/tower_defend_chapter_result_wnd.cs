@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Video;
 using GameDll;
-using MonoBean;
+using DG.Tweening;
 
 namespace GameHot
 {
@@ -207,21 +207,34 @@ namespace GameHot
             if(result.m_WinGroup == GroupId.GuardGroupId)
             {
                 RenderAPI.SetTextLan(m_View.m_text, m_result_endless_win);
+                m_View.m_ConfettiBurst.gameObject.SetActive(true);
             }
             else
             {
                 RenderAPI.SetTextLan(m_View.m_text, m_result_endless_fail);
+                m_View.m_ConfettiBurst.gameObject.SetActive(false);
             }
 
-            RenderAPI.SetTextLan(m_View.m_unchoose_continue,
+            RenderAPI.SetTextLan(m_View.m_continue_txt,
                 result.m_WinGroup == GroupId.GuardGroupId ? m_LanTdResultContinueChallenge : m_LanTdResultRetryChallenge);
-            RenderAPI.SetTextLan(m_View.m_unchoose_continue_new1,
+            RenderAPI.SetTextLan(m_View.m_continue_choose_txt,
                 result.m_WinGroup == GroupId.GuardGroupId ? m_LanTdResultContinueChallenge : m_LanTdResultRetryChallenge);
+            RenderAPI.SetTextLan(m_View.m_return_txt, "td_result_return");
+            RenderAPI.SetTextLan(m_View.m_return_choose_txt, "td_result_return");
+            RenderAPI.SetTextLan(m_View.m_txt_totalcoin, "td_result_clear_reward");
+            RenderAPI.SetTextLan(m_View.m_txt_killcoin, "td_result_kill_reward");
+            RenderAPI.SetTextLan(m_View.m_stage_win_txt, "td_result_stage");
+            RenderAPI.SetTextLan(m_View.m_stage_txt, "td_result_stage");
+            RenderAPI.SetTextLan(m_View.m_win_txt_title, "td_result_chapter_win_title");
+            RenderAPI.SetTextLan(m_View.m_fail_txt_title, "td_result_chapter_fail_title");
+            RenderAPI.SetTextLan(m_View.m_fail_txt_title2, "td_result_chapter_fail_title2");
+
             RenderAPI.SetTextNumber(m_View.m_txt_level, result.m_Stage);
             RenderAPI.SetTextNumber(m_View.m_txt_level_new1, result.m_Stage);
             RenderAPI.SetTextNumber(m_View.m_txt_reward_kill, result.m_KillRewardGold);
             RenderAPI.SetTextNumber(m_View.m_txt_reward_total, result.m_ClearRewardGold);
             SetStar(result);
+            AddCounter(2300, 1, () => { AudioManager.GetInstance().Play2D(4); });
             //RenderAPI.SetTextLan(m_View.m_txt_star, m_LanTdChapterResultStar, result.m_StarCount);
             //RenderAPI.SetTextLan(m_View.m_txt_base_hp, m_LanTdChapterResultBase, result.m_BaseHealth, result.m_BaseMaxHealth);
             //RenderAPI.SetTextLan(
@@ -242,35 +255,31 @@ namespace GameHot
         //设置结算几颗星星
         private void SetStar(BattleResultData result)
         {
-            // 计算需要激活的数量（0~3）
-            int activeCount = 0;
+            // 星级在结算落档时已统一计算
+            int activeCount = Mathf.Clamp(result.m_StarCount, 0, 3);
             EnsureResultVideoComponents();
             VideoPlayer videoPlayer = m_ResultVideoPlayer;
             string abName;
-            if (result.m_BaseHealth >= t_globalBean.GetConfig(100307).t_int)
+            if (activeCount >= 3)
             {
-                activeCount = 3;
                 abName = "video/star3.mp4";
                 AddCounter(3080, 1, () => { AudioManager.GetInstance().Play2D(106); });
                 AddCounter(3240, 1, () => { AudioManager.GetInstance().Play2D(106); });
                 AddCounter(3400, 1, () => { AudioManager.GetInstance().Play2D(106); });
             }
-            else if (result.m_BaseHealth >= t_globalBean.GetConfig(100308).t_int)
+            else if (activeCount >= 2)
             {
-                activeCount = 2;
                 abName = "video/star2.mp4";
                 AddCounter(3080, 1, () => { AudioManager.GetInstance().Play2D(106); });
                 AddCounter(3240, 1, () => { AudioManager.GetInstance().Play2D(106); });
             }
-            else if (result.m_BaseHealth >= t_globalBean.GetConfig(100309).t_int)
+            else if (activeCount >= 1)
             {
-                activeCount = 1;
                 abName = "video/star1.mp4";
                 AddCounter(3080, 1, () => { AudioManager.GetInstance().Play2D(106); });
             }
             else
             {
-                activeCount = 0;
                 abName = "video/faill.mp4";
             }
 
@@ -281,7 +290,14 @@ namespace GameHot
             }
             else
             {
-                PlayResultVideo(videoPlayer, abName);
+                var video = PlayResultVideo(videoPlayer, abName);
+                AddCounter(2000,1,()=> 
+                {
+                    //设置展示牙齿渐显效果
+                    m_View.m_raw_texture.DOFade(0f, 0.5f).From().SetLink(m_View.m_raw_texture.gameObject,LinkBehaviour.KillOnDestroy);
+
+                    video.Play();
+                });
             }
 
             // 根据数量设置每个元素的激活状态
@@ -301,7 +317,7 @@ namespace GameHot
             m_ResultVideoImage = m_View.m_raw_texture.GetComponent<RawImage>();
         }
 
-        private void PlayResultVideo(VideoPlayer videoPlayer, string abName)
+        private VideoPlayer PlayResultVideo(VideoPlayer videoPlayer, string abName)
         {
             //LCL.UIRes.LoadPrefabAsync(
             //    typeof(VideoClip),
@@ -362,6 +378,8 @@ namespace GameHot
             videoPlayer.url = path;
             m_IsWaitingResultVideoFirstFrame = true;
             videoPlayer.Prepare();
+
+            return videoPlayer;
         }
 
         private void HideResultVideo()
@@ -437,7 +455,7 @@ namespace GameHot
                 return;
             }
 
-            source.Play();
+            //source.Play();
         }
     }
 }

@@ -5,6 +5,7 @@ using System.Collections.Generic;
 using System.Runtime.InteropServices.ComTypes;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using YoudooGame.Framework;
 
 namespace GameHot
 {
@@ -194,7 +195,7 @@ namespace GameHot
 
         private object OnTowerDefendPauseOpenRequest(Action onResume, Action onRestart, Action onReturn)
         {
-            var wnd = UIManager.OpenWindowEX<tower_defend_pause_wnd>(null);
+            var wnd = UIManager.OpenWindowEX<tower_defend_battle_pause_wnd>(null);
             wnd.SetCallbacks(onResume, onRestart, onReturn);
             return wnd;
         }
@@ -294,7 +295,71 @@ namespace GameHot
                 result.m_FightId));
 
             ApplyBattleResultToLocalProfile(result);
+            ReportFrameworkSettlement(result);
             ShowBattleResultInScene(result);
+        }
+
+        // 框架会话模式：战斗结束时先把共享成绩（章节=星级，无尽=最佳波次）
+        // 上报到每个已绑定的 SDK 槽位，再通知新 SDK 进入结算阶段。
+        private static void ReportFrameworkSettlement(BattleResultData result)
+        {
+            if (!GameProductUiAdapter.HasLiveSession)
+            {
+                return;
+            }
+
+            var snapshot = GameProductUiAdapter.Instance.UiSnapshot;
+            if (snapshot != null)
+            {
+                int score = result != null && result.m_GameMode == BattleGameMode.Endless
+                    ? Mathf.Max(0, result.m_BestEndlessWave)
+                    : Mathf.Max(0, result.m_StarCount);
+                for (int i = 0; i < snapshot.Slots.Count; i++)
+                {
+                    var slot = snapshot.Slots[i];
+                    if (slot.IsReady)
+                    {
+                        YoudooAPI.TryAddScore(slot.SlotIndex, score);
+                    }
+                }
+            }
+
+            if (!YoudooAPI.CompleteGameplay())
+            {
+                Debug.LogError("[tower_defend] Framework CompleteGameplay failed.");
+            }
+        }
+
+        private static bool NotifyFrameworkReturnToMatching()
+        {
+            if (!GameProductUiAdapter.HasLiveSession)
+            {
+                return true;
+            }
+
+            bool returned = YoudooAPI.ReturnToMatching();
+            if (!returned)
+            {
+                Debug.LogError("[tower_defend] Framework ReturnToMatching failed.");
+            }
+
+            return returned;
+        }
+
+        private static bool NotifyFrameworkRestartGameplay()
+        {
+            if (!GameProductUiAdapter.HasLiveSession)
+            {
+                return true;
+            }
+
+            bool restarted = YoudooAPI.RestartGameplay();
+            if (!restarted)
+            {
+                Debug.LogError("[tower_defend] Framework RestartGameplay failed.");
+            }
+
+            return restarted;
         }
 
         private void ShowBattleResultInScene(BattleResultData result)
@@ -442,16 +507,16 @@ namespace GameHot
             }
 
             var threshold = headTopY - shoulderWidth * m_ResultGestureOverheadMarginRatio;
-            return ReadIsTrackedJointOverY(person, YouDooSDKConstants.KeyPointIndex.Leftwrist, threshold) ||
-                   ReadIsTrackedJointOverY(person, YouDooSDKConstants.KeyPointIndex.Rightwrist, threshold);
+            return ReadIsTrackedJointOverY(person, BoneBodyJointType.左手腕, threshold) ||
+                   ReadIsTrackedJointOverY(person, BoneBodyJointType.右手腕, threshold);
         }
 
         private static bool TryReadResultGestureMetrics(BonePersonData person, out float shoulderWidth, out float headTopY)
         {
             shoulderWidth = 0f;
             headTopY = 0f;
-            if (!TryReadTrackedBodyJoint(person, YouDooSDKConstants.KeyPointIndex.Leftshoulder, out var leftShoulder) ||
-                !TryReadTrackedBodyJoint(person, YouDooSDKConstants.KeyPointIndex.Rightshoulder, out var rightShoulder))
+            if (!TryReadTrackedBodyJoint(person, BoneBodyJointType.左肩, out var leftShoulder) ||
+                !TryReadTrackedBodyJoint(person, BoneBodyJointType.右肩, out var rightShoulder))
             {
                 return false;
             }
@@ -463,15 +528,15 @@ namespace GameHot
             }
 
             var hasHeadTop = false;
-            TryMergeHeadTopY(person, YouDooSDKConstants.KeyPointIndex.Nose, ref headTopY, ref hasHeadTop);
-            TryMergeHeadTopY(person, YouDooSDKConstants.KeyPointIndex.Lefteye, ref headTopY, ref hasHeadTop);
-            TryMergeHeadTopY(person, YouDooSDKConstants.KeyPointIndex.Righteye, ref headTopY, ref hasHeadTop);
+            TryMergeHeadTopY(person, BoneBodyJointType.鼻尖, ref headTopY, ref hasHeadTop);
+            TryMergeHeadTopY(person, BoneBodyJointType.左眼, ref headTopY, ref hasHeadTop);
+            TryMergeHeadTopY(person, BoneBodyJointType.右眼, ref headTopY, ref hasHeadTop);
             return hasHeadTop;
         }
 
         private static void TryMergeHeadTopY(
             BonePersonData person,
-            YouDooSDKConstants.KeyPointIndex jointIndex,
+            BoneBodyJointType jointIndex,
             ref float headTopY,
             ref bool hasHeadTop)
         {
@@ -486,7 +551,7 @@ namespace GameHot
 
         private static bool ReadIsTrackedJointOverY(
             BonePersonData person,
-            YouDooSDKConstants.KeyPointIndex jointIndex,
+            BoneBodyJointType jointIndex,
             float thresholdY)
         {
             return TryReadTrackedBodyJoint(person, jointIndex, out var joint) &&
@@ -495,7 +560,7 @@ namespace GameHot
 
         private static bool TryReadTrackedBodyJoint(
             BonePersonData person,
-            YouDooSDKConstants.KeyPointIndex jointIndex,
+            BoneBodyJointType jointIndex,
             out BoneJointData joint)
         {
             joint = null;
@@ -527,6 +592,11 @@ namespace GameHot
                 return;
             }
 
+            if (!NotifyFrameworkReturnToMatching())
+            {
+                ClearLoadingTransition(BattleSceneLoadingTransition.ReturnLobby);
+                return;
+            }
             loading_wnd.SetLoadingInfo(0.0f, RenderAPI.GetTextByLanId(m_LanTdLoadingReturnLobby));
             loading_wnd.OpenLoading(m_BattleLoadingMinVisibleSeconds, BeginReturnToLobbyAfterLoading);
         }
@@ -553,6 +623,7 @@ namespace GameHot
                 return;
             }
 
+            // OpenPrepareWindow resets the canonical Host when the next matching round begins.
             loading_wnd.SetLoadingInfo(0.0f, RenderAPI.GetTextByLanId(m_LanTdLoadingReturnLobby));
             loading_wnd.OpenLoading(m_BattleLoadingMinVisibleSeconds, BeginBattleResultPrepareAfterLoading);
         }
@@ -623,6 +694,23 @@ namespace GameHot
             return lastRequest.m_StageId > 0 ? lastRequest.m_StageId : result.m_Stage;
         }
 
+        private static int CalcBattleStarCount(int baseHealth)
+        {
+            if (baseHealth >= MonoBean.t_globalBean.GetConfig(100307).t_int)
+            {
+                return 3;
+            }
+            if (baseHealth >= MonoBean.t_globalBean.GetConfig(100308).t_int)
+            {
+                return 2;
+            }
+            if (baseHealth >= MonoBean.t_globalBean.GetConfig(100309).t_int)
+            {
+                return 1;
+            }
+            return 0;
+        }
+
         private void ApplyBattleResultToLocalProfile(BattleResultData result)
         {
             var profile = LobbyPlayer.GetInstance();
@@ -637,11 +725,19 @@ namespace GameHot
                 profile.AddCoin(result.m_TotalRewardGold);
             }
 
+            if (result.m_GameMode == BattleGameMode.Chapter)
+            {
+                result.m_StarCount = CalcBattleStarCount(result.m_BaseHealth);
+            }
+
             if (result.m_GameMode == BattleGameMode.Chapter &&
                 result.m_WinGroup == GroupId.GuardGroupId)
             {
-                result.m_UnlockedStage = Mathf.Max(profile.GetUnlockedStage(), result.m_Stage + 1);
+                // result.m_Stage 是章内序号(1~5)，存档进度用全局关卡号
+                int globalStageId = (tower_defend_chapter_wnd.m_chapterId - 1) * tower_defend_lvchoose_wnd.m_levelCount + result.m_Stage;
+                result.m_UnlockedStage = Mathf.Max(profile.GetUnlockedStage(), globalStageId + 1);
                 profile.SetUnlockedStage(result.m_UnlockedStage);
+                profile.SetStageStar(globalStageId, result.m_StarCount);
             }
             else
             {
@@ -667,8 +763,18 @@ namespace GameHot
                 return;
             }
 
+            // 直接重开沿用战斗中已经完成补位的骨骼绑定，不能退回准备阶段的旧 personId。
+            var towerDefendScene = CBattleLogic.GetInstance().GetScene() as TowerDefendBattleScene;
+            towerDefendScene?.WriteCurrentBonePersonIds(request);
+
             if (!TryBeginLoadingTransition(BattleSceneLoadingTransition.RestartBattle))
             {
+                return;
+            }
+
+            if (!NotifyFrameworkRestartGameplay())
+            {
+                ClearLoadingTransition(BattleSceneLoadingTransition.RestartBattle);
                 return;
             }
 
@@ -688,6 +794,12 @@ namespace GameHot
         {
             if (!TryBeginLoadingTransition(BattleSceneLoadingTransition.ReturnLobby))
             {
+                return;
+            }
+
+            if (!NotifyFrameworkReturnToMatching())
+            {
+                ClearLoadingTransition(BattleSceneLoadingTransition.ReturnLobby);
                 return;
             }
 
@@ -791,7 +903,9 @@ namespace GameHot
         {
             CloseWindowImmediately(nameof(tower_defend_chapter_result_wnd));
             CloseWindowImmediately(nameof(tower_defend_endless_result_wnd));
-            CloseWindowImmediately(nameof(tower_defend_pause_wnd));
+            CloseWindowImmediately(nameof(tower_defend_battle_pause_wnd));
+            CloseWindowImmediately(nameof(tower_defend_battle_hud_wnd));
+            CloseWindowImmediately(nameof(tower_defend_wave_notice_wnd));
         }
 
         private static void CloseWindowImmediately(string windowName)
@@ -811,7 +925,7 @@ namespace GameHot
             //CBattleLogic.GetInstance().StopBattleLogic();
             //BackLoginCommon();
 
-            UIManager.OpenWindowEX<tower_defend_setting_wnd>(null);
+            UIManager.OpenWindowEX<tower_defend_pause_wnd>(null);
             //CGameProcedure.SetNextProc(CGameProcedure.s_ProcLobby);
             //CGameProcedure.s_ProcLobby.SetStatus((int)LoginStatus.EnterLoginScene);
         }

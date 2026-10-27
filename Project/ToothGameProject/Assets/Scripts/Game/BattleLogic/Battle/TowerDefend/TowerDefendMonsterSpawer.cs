@@ -107,6 +107,7 @@ namespace GameDll
         private const int m_WaveBatchSpawnMinCount = 2;
         private const int m_WaveBatchSpawnMaxCount = 3;
         private const int m_WaveBatchLaneGap = 2;
+        private const int m_SummonCloneLaneGap = 2;
         private const int m_PreferredNormalLaneOccupancy = 3;
         private const float m_MinMonsterReachRadius = 0.8f;
         private const float m_MonsterPreloadMaxWaitSeconds = 8.0f;
@@ -137,6 +138,8 @@ namespace GameDll
         private readonly Dictionary<int, MonsterPresentationFadeRuntime> m_MonsterPresentationFadeRuntimes = new Dictionary<int, MonsterPresentationFadeRuntime>();
         private readonly Dictionary<MonsterRecycleKey, Queue<PropertyEntity>> m_RecycledMonsters = new Dictionary<MonsterRecycleKey, Queue<PropertyEntity>>();
         private readonly HashSet<int> m_ReadyRecycleMonsterIds = new HashSet<int>();
+        private readonly HashSet<int> m_SummonCloneEntityIds = new HashSet<int>();
+        private readonly List<int> m_SummonCloneLaneOrder = new List<int>();
         private int m_MonsterPreloadSessionId = 0;
         private int m_MonsterPreloadTotalCount = 0;
         private int m_MonsterPreloadLoadedCount = 0;
@@ -365,6 +368,7 @@ namespace GameDll
             m_Monsters.Clear();
             m_MonsterKinds.Clear();
             m_MonsterLaneIndices.Clear();
+            m_SummonCloneEntityIds.Clear();
             m_CurrentWaveHasElite = false;
             m_CurrentWaveHasBoss = false;
             m_LastSpecialMonsterLaneIndex = -1;
@@ -474,6 +478,7 @@ namespace GameDll
         {
             RemoveMonsterPresentationFadeRuntime(entityId, false);
             m_ReadyRecycleMonsterIds.Remove(entityId);
+            m_SummonCloneEntityIds.Remove(entityId);
             m_MonsterKinds.Remove(entityId);
             m_MonsterLaneIndices.Remove(entityId);
             m_Monsters.RemoveAt(monsterIndex);
@@ -1015,6 +1020,33 @@ namespace GameDll
             TrySpawnScheduledWave();
             UpdateQueuedSpawnGroups(0f);
             return true;
+        }
+
+        // GM：无尽模式直接跳到指定波次并立即刷出。
+        // 会丢弃旧波次还没刷完的排队，避免跳波后旧波继续补刷；已经在场上的怪物保留。
+        public bool GM_TrySetCurrentWave(int wave)
+        {
+            if (m_GameMode != BattleGameMode.Endless ||
+                m_SendFinish ||
+                m_IsMonsterSuspended ||
+                m_Groups == null)
+            {
+                return false;
+            }
+
+            int targetWave = Mathf.Clamp(wave, 1, Mathf.Max(1, m_MaxVave));
+            m_Groups.Clear();
+            m_RuntimeQueuedBatchSpawnRemain = 0;
+            m_RuntimeQueuedNextSpawnDelay = 0f;
+            m_RuntimeQueuedBatchLaneIndices.Clear();
+            m_CurWave = targetWave;
+            m_NextWave = targetWave;
+            m_WaveIndex = targetWave;
+            m_WaitSpawWaveTime = 0f;
+            m_LastWaveSpawed = false;
+            TrySpawnScheduledWave();
+            UpdateQueuedSpawnGroups(0f);
+            return m_CurWave == targetWave;
         }
 
         public bool GM_TrySpawnBossNow()
@@ -1933,6 +1965,10 @@ namespace GameDll
             if (m_CurWave > 0 && m_Monsters.Count == 0 && m_WaitSpawWaveTime > 0)
             {
                 m_WaitSpawWaveTime = 0;
+                if (m_Battle != null)
+                {
+                    m_Battle.NotifyTalentWaveCleared(m_CurWave);
+                }
             }
 
             if (m_WaitSpawWaveTime <= 0)
@@ -2012,7 +2048,50 @@ namespace GameDll
             }
 
             m_CurrentWaveMonsterPoolIndex = -1;
-            return ResolveConfiguredSpawnData(monsterPoolCfg.EndlessMonsterPool, -1);
+            var waveStageCfg = ResolveEndlessWaveStageCfg(wave);
+            if (waveStageCfg == null)
+            {
+                return new List<SpawData>();
+            }
+
+            return ResolveConfiguredSpawnData(waveStageCfg.EndlessMonsterPool, -1);
+        }
+
+        // 无尽模式第 N 波读表第 N 行，波次超过表尾后用最后一行数据继续。
+        private TowerDefendStageConfigAdapter ResolveEndlessWaveStageCfg(int wave)
+        {
+            if (wave <= 1)
+            {
+                return ResolveActiveStageCfg();
+            }
+
+            int waveStageId = Mathf.Min(wave, ResolveEndlessMaxStageId());
+            if (waveStageId == m_StageId)
+            {
+                return ResolveActiveStageCfg();
+            }
+
+            return TowerDefendStageConfigResolver.Resolve(waveStageId, m_GameMode);
+        }
+
+        private int ResolveEndlessMaxStageId()
+        {
+            var stageIds = t_endlessStageBean.GetKeys();
+            if (stageIds == null || stageIds.Count == 0)
+            {
+                return m_StageId;
+            }
+
+            int maxStageId = stageIds[0];
+            for (int i = 1; i < stageIds.Count; i++)
+            {
+                if (stageIds[i] > maxStageId)
+                {
+                    maxStageId = stageIds[i];
+                }
+            }
+
+            return maxStageId;
         }
 
         private List<SpawData> ResolveConfiguredSpawnData(
@@ -2255,6 +2334,112 @@ namespace GameDll
 
             return ResolveConfiguredSpawnData(activeStageCfg.EndlessMonsterPool, targetTotalCount);
         }
+
+        public bool ReadIsSummonClone(int entityId)
+        {
+            return m_SummonCloneEntityIds.Contains(entityId);
+        }
+
+        public void SpawnSummonedBossClones(MasterHero sourceBoss, int count)
+        {
+            if (sourceBoss == null || count <= 0 || sourceBoss.ReadHP() <= 0)
+            {
+                return;
+            }
+
+            var cfg = sourceBoss.GetMonsterBean();
+            if (cfg == null)
+            {
+                return;
+            }
+
+            float cloneHp = Mathf.Max(1f, sourceBoss.ReadHP() / count);
+            int laneCount = m_MonsterSpawers.Count;
+            RebuildSummonCloneLaneOrder();
+            var data = new SpawData();
+            data.m_MonsterCfgId = cfg.t_id;
+            data.m_Level = sourceBoss.ReadLevel();
+            data.m_Num = count;
+            data.m_BaseHpValue = Mathf.Max(1, Mathf.RoundToInt(cloneHp));
+            data.m_MonsterKind = MonsterType.Boss;
+
+            for (int i = 0; i < count; i++)
+            {
+                int laneIndex = ResolveSummonCloneLaneIndex(i, count);
+                var pos = laneCount > 0 ? m_MonsterSpawers[laneIndex] : sourceBoss.GetPosition();
+                var initialForward = ResolveMonsterAdvanceDirectionByLaneIndex(laneIndex, pos);
+                if (initialForward == Vector3.zero)
+                {
+                    initialForward = Vector3.back;
+                }
+
+                PropertyEntity monster;
+                bool reused = TryTakeRecycledMonster(cfg.t_id, MonsterType.Boss, out monster);
+                if (!reused)
+                {
+                    monster = CreateMonsterEntity(cfg, MonsterType.Boss);
+                }
+                else
+                {
+                    monster.SetBean(cfg);
+                }
+
+                if (monster == null)
+                {
+                    continue;
+                }
+
+                ActivateMonster(
+                    monster,
+                    reused,
+                    pos,
+                    laneIndex,
+                    data,
+                    MonsterType.Boss,
+                    initialForward,
+                    1000,
+                    cloneHp);
+                // 分身只用于吸引火力，不释放技能也不普攻。
+                monster.GetSkillManager().ClearSkills();
+                m_SummonCloneEntityIds.Add(monster.ReadId());
+            }
+        }
+
+        private void RebuildSummonCloneLaneOrder()
+        {
+            m_SummonCloneLaneOrder.Clear();
+            int laneCount = m_MonsterSpawers.Count;
+            for (int i = 0; i < laneCount; i++)
+            {
+                m_SummonCloneLaneOrder.Add(i);
+            }
+
+            // 场景里的出生点是“中间向两侧”交替编号的，直接按下标排布会让分身挤在同一侧，
+            // 这里按出生点 x 重排成从左到右的真实顺序。
+            m_SummonCloneLaneOrder.Sort((a, b) => m_MonsterSpawers[a].x.CompareTo(m_MonsterSpawers[b].x));
+        }
+
+        private int ResolveSummonCloneLaneIndex(int index, int count)
+        {
+            int laneCount = m_SummonCloneLaneOrder.Count;
+            if (laneCount <= 0)
+            {
+                return 0;
+            }
+
+            int laneGap = m_SummonCloneLaneGap;
+            int slotCount = (laneCount + laneGap - 1) / laneGap;
+            if (count > slotCount)
+            {
+                // 分身数超过隔道排布能容纳的数量时，退化为从最左道开始逐道排布。
+                laneGap = 1;
+                slotCount = laneCount;
+            }
+
+            int slot = index % slotCount;
+            return m_SummonCloneLaneOrder[Mathf.Clamp(slot * laneGap, 0, laneCount - 1)];
+        }
+
         private void SpawMonster(Vector3 pos, int laneIndex, SpawData data, MonsterType monsterKind)
         {
             if (data == null)

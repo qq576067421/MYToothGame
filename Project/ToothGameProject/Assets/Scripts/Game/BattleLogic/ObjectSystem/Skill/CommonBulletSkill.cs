@@ -19,11 +19,18 @@ namespace GameDll
 
         protected Vector3 m_StartPos;
         protected t_bullet m_BulletBean;
+        // 激光普攻（t_trajectory=3）的存活光束：单次作用时间内再次触发只续期这颗激光，不重新发弹
+        private BulletObj m_ActiveLaserBullet;
+        // 本次发弹是否复用了存活光束（续发）；OnCastPoint 据此跳过开火特效
+        private bool m_LastCastRenewedLaser;
         protected List<RenderEff> m_KeepShootEffs = new List<RenderEff>();
         private List<Transform> m_KeepShootEffParentTransforms = new List<Transform>();
         protected float m_KeepShootStartTime = -1;
         protected HitDetectionData m_KeepShootHitData = new HitDetectionData();
         protected readonly List<KeepShootTargetCandidate> m_KeepShootCandidates = new List<KeepShootTargetCandidate>();
+        private int m_BoneShotsFired;
+        private int m_BonePendingCastCount;
+        private float m_BoneKeepShootEndTime;
 
         public override void InitTemplate(int classId, long templateId)
         {
@@ -66,9 +73,62 @@ namespace GameDll
             base.OnEnter();
 
             SetCurAction();
-            PlayAction(m_CurAction.t_ac_name);
+            if (ReadIsBoneNormalAttack())
+            {
+                m_BoneShotsFired = 0;
+                m_BonePendingCastCount = 0;
+                m_BoneKeepShootEndTime = -1f;
+            }
+            // 激光普攻：施法入场时光束仍存活，本次施法将按续发结算——不重播攻击动画，
+            // 发弹点的攻击音效与开火特效同样按续发跳过（见 ShootBullet/OnCastPoint）。
+            // 常规手势普攻在输入层续发、不会进入施法，这里覆盖的是直连 AttackDir 的施法路径。
+            if (!ReadHasAliveLaserBullet())
+            {
+                PlayAction(m_CurAction.t_ac_name);
+            }
             //Debug.Log("开始播放子弹动画时间：" + Time.realtimeSinceStartup);
             m_CastStatus =  SkillCastStatus.warming_up;
+        }
+
+        public bool TryRenewBoneKeepShoot(Vector3 faceForward, Vector3 moveDirection)
+        {
+            if (!CanRenewBoneKeepShoot())
+            {
+                return false;
+            }
+
+            float now = BattleManager.ReadBattleTime();
+            m_Attacker.RefreshDirSkillInput(this, faceForward, moveDirection);
+            var battleTool = BattleManager.GetBattleTool();
+            battleTool.ConsumeSkillPreconditionIfNeeded(m_Attacker, m_SkillBean);
+            if (m_CastStatus == SkillCastStatus.cast_keep)
+            {
+                // 只延后结束时间，不重置发弹节拍、施法标识、前摇和已经运行的特效。
+                m_BoneKeepShootEndTime = now + GetKeepShootDurationSecond();
+                battleTool.AddSkillCastBuffs(m_Attacker, m_SkillBean);
+            }
+            else
+            {
+                // 前摇期间收到的有效输入只累计施法次数，在首发时结算，不排队重播攻击。
+                m_BonePendingCastCount++;
+            }
+            return true;
+        }
+
+        public bool CanRenewBoneKeepShoot()
+        {
+            return ReadIsBoneNormalAttack() && UseKeepShootMode() &&
+                (m_CastStatus == SkillCastStatus.warming_up ||
+                 m_CastStatus == SkillCastStatus.cast_point ||
+                 m_CastStatus == SkillCastStatus.cast_keep);
+        }
+
+        /// <summary>
+        /// 当前技能的一次释放是否会按配置间隔连续生成多颗子弹。
+        /// </summary>
+        public bool ReadIsContinuousBulletCast()
+        {
+            return UseKeepShootMode();
         }
 
 
@@ -92,8 +152,12 @@ namespace GameDll
                 return;
             }
 
-            var cfg = GetSkillDescBean();
-            PlayAttackSound(cfg != null ? cfg.t_attackSound : 0, m_Attacker.GetPosition());
+            // 激光续发（复用存活光束）时整次触发静默：攻击音效在此跳过，开火特效在 OnCastPoint 跳过
+            if (m_BulletBean == null || m_BulletBean.t_trajectory != 3 || !ReadHasAliveLaserBullet())
+            {
+                var cfg = GetSkillDescBean();
+                PlayAttackSound(cfg != null ? cfg.t_attackSound : 0, m_Attacker.GetPosition());
+            }
 
 
             if (!BattleManager.ReadIsEntityValide(m_MainDefender))
@@ -118,6 +182,13 @@ namespace GameDll
 
         protected virtual void CreateBullet(PropertyEntity defender, bool useCurrentAttackerForward)
         {
+            // 激光普攻兜底：施法流程走到发弹点而上一发光束仍存活时（如升级挑战直连 AttackDir 的普攻），
+            // 复用光束续发，表现连续而结算口径与重新发弹一致；常规手势普攻已在 TryAttackBoneDir 输入层续发
+            if (TryRenewActiveLaserBullet(defender))
+            {
+                return;
+            }
+
             var attacker = m_Attacker;
             var cfg = GetSkillBean();
 
@@ -145,6 +216,72 @@ namespace GameDll
             bullet.SetFlyDist(GetCastDistance());
 
 
+            ApplyBulletCastPayload(bullet, defender);
+
+            var bulletBean = bullet.GetBulletBean();
+            if (bulletBean != null)
+            {
+                bullet.SetBulletConfig(
+                    bulletBean.t_penetrate,
+                    bulletBean.t_size,
+                    bulletBean.t_trajectory,
+                    bulletBean.t_tracking_range,
+                    bulletBean.t_bullet_hittarget_buff_id,
+                    bulletBean.t_trigger_bullet_id,
+                    bulletBean.t_trigger_bullet_count,
+                    bulletBean.t_trigger_type
+                );
+            }
+
+            int defenderId = defender != null ? defender.ReadId() : 0;
+            int bulletId = bulletBean != null ? bulletBean.t_id : 0;
+            //Debug.Log(
+            //    $"[技能发弹] skillId={cfg.t_id}，bulletId={bulletId}，attackerId={m_AttackerId}，defenderId={defenderId}，" +
+            //    $"needTarget={bullet.GetHurtInfo().m_NeedTarget}，startPos={m_StartPos}，forward={forward}，" +
+            //    $"triggerBulletId={(bulletBean != null ? bulletBean.t_trigger_bullet_id : 0)}，" +
+            //    $"triggerCount={(bulletBean != null ? bulletBean.t_trigger_bullet_count : 0)}，" +
+            //    $"triggerType={(bulletBean != null ? bulletBean.t_trigger_type : 0)}");
+
+            if (m_BulletBean != null && m_BulletBean.t_trajectory == 3)
+            {
+                m_ActiveLaserBullet = bullet;
+            }
+
+            objMgr.AddEffObject(bullet);
+        }
+
+        // 返回 true 表示已复用存活光束完成本次续发；返回 false 表示需要正常发弹。
+        // 激光本质上仍是一颗一颗的子弹：续发只复用光束表现，超时时间、怪物去重、
+        // 伤害快照与命中音效全部按本次触发重建，与重新发一颗激光没有区别。
+        private bool TryRenewActiveLaserBullet(PropertyEntity defender)
+        {
+            if (m_BulletBean == null || m_BulletBean.t_trajectory != 3 || !ReadHasAliveLaserBullet())
+            {
+                return false;
+            }
+
+            m_LastCastRenewedLaser = true;
+            m_ActiveLaserBullet.RenewLaserLifeTime();
+            m_ActiveLaserBullet.SetFlyDist(GetCastDistance());
+            ApplyBulletCastPayload(m_ActiveLaserBullet, defender);
+            return true;
+        }
+
+        // 光束是否仍存活；已死则顺手清空引用，避免残留对象干扰后续判断
+        private bool ReadHasAliveLaserBullet()
+        {
+            if (m_ActiveLaserBullet == null || !m_ActiveLaserBullet.ReadIsLaserBeamAlive())
+            {
+                m_ActiveLaserBullet = null;
+                return false;
+            }
+
+            return true;
+        }
+
+        // 每次触发的结算数据（伤害快照、命中音效、目标）：首发与激光续发共用，保证口径一致
+        private void ApplyBulletCastPayload(BulletObj bullet, PropertyEntity defender)
+        {
             var desc_cfg = GetSkillDescBean();
             bullet.SetHitSound(desc_cfg != null ? desc_cfg.t_hitSound : 0);
             var hurtInfo = bullet.GetHurtInfo();
@@ -160,59 +297,182 @@ namespace GameDll
             hurtInfo.m_NeedTarget = 0;
             hurtInfo.m_Group = m_AttackerGroup;
             hurtInfo.m_AttackerId = m_AttackerId;
-            hurtInfo.m_Attacker = attacker;
-            if (attacker != null)
+            hurtInfo.m_Attacker = m_Attacker;
+            if (m_Attacker != null)
             {
-                hurtInfo.m_HurtGroup = attacker.ReadHurtGroup();
+                hurtInfo.m_HurtGroup = m_Attacker.ReadHurtGroup();
             }
             else
             {
                 hurtInfo.m_HurtGroup = m_AttackerGroup;
             }
-            hurtInfo.skillCfg = cfg;
+            hurtInfo.skillCfg = GetSkillBean();
             hurtInfo.skillDescCfg = desc_cfg;
             bullet.SetDefender(defender);
             if (defender != null)
             {
                 bullet.SetDefenderPos(defender.ReadHitPoint());
             }
+        }
 
-            var bulletBean = bullet.GetBulletBean();
-            if (bulletBean != null)
+        // 持续施法期间的循环音效（技能描述表 t_keepSound）：施法开始播放、施法结束或被打断时停止。
+        // 连点期间由输入层续射顺延窗口，声音随施法连续不断；停手后随 StopKeepShoot 立即停止。
+        private AudioHandle m_KeepSoundHandle;
+
+        private void StartKeepShootSound()
+        {
+            if (!UseKeepShootMode() || m_SkillDescBean == null || m_SkillDescBean.t_keepSound == 0)
             {
-                long hitBuffId = 0;
-                if (bulletBean.t_bullet_hittarget_buff_id != null && bulletBean.t_bullet_hittarget_buff_id.Count > 0)
-                {
-                    hitBuffId = bulletBean.t_bullet_hittarget_buff_id[0];
-                }
-
-                bullet.SetBulletConfig(
-                    bulletBean.t_penetrate,
-                    bulletBean.t_size,
-                    bulletBean.t_trajectory,
-                    bulletBean.t_tracking_range,
-                    hitBuffId,
-                    bulletBean.t_trigger_bullet_id,
-                    bulletBean.t_trigger_bullet_count,
-                    bulletBean.t_trigger_type
-                );
+                return;
             }
 
-            int defenderId = defender != null ? defender.ReadId() : 0;
-            int bulletId = bulletBean != null ? bulletBean.t_id : 0;
-            //Debug.Log(
-            //    $"[技能发弹] skillId={cfg.t_id}，bulletId={bulletId}，attackerId={m_AttackerId}，defenderId={defenderId}，" +
-            //    $"needTarget={hurtInfo.m_NeedTarget}，startPos={m_StartPos}，forward={forward}，" +
-            //    $"triggerBulletId={(bulletBean != null ? bulletBean.t_trigger_bullet_id : 0)}，" +
-            //    $"triggerCount={(bulletBean != null ? bulletBean.t_trigger_bullet_count : 0)}，" +
-            //    $"triggerType={(bulletBean != null ? bulletBean.t_trigger_type : 0)}");
+            var attacker = ReadAttacker();
+            if (attacker == null)
+            {
+                return;
+            }
 
-            objMgr.AddEffObject(bullet);
+            // 调用时序由上游保证单实例：OnCastPoint 每个施法周期仅进入一次；
+            // resumeFromCastBack 到达 cast_back 前必经 StopKeepShoot（旧声已停）。
+            m_KeepSoundHandle = AudioManager.GetInstance().Play3DLoop(
+                m_SkillDescBean.t_keepSound,
+                attacker.GetPosition());
+        }
+
+        private void StopKeepShootSound()
+        {
+            if (!AudioManager.GetInstance().IsAudioHandleValid(m_KeepSoundHandle))
+            {
+                m_KeepSoundHandle = default(AudioHandle);
+                return;
+            }
+
+            AudioManager.GetInstance().StopAudio(m_KeepSoundHandle);
+            m_KeepSoundHandle = default(AudioHandle);
+        }
+
+        // 持续释放期间每帧/每次续射都要重新确认释放条件仍然满足。
+        // 例如“自动动作技能替换普攻”依赖的前置 buff 到期后，必须立即停掉当前持续释放，
+        // 让后续普攻回到原配置技能（普攻也是持续型时继续接上）。
+        protected virtual bool ReadKeepShootConditionStillMet()
+        {
+            if (!BattleManager.ReadIsEntityValide(m_Attacker))
+            {
+                return false;
+            }
+
+            if (m_Attacker.ReadIsBeingControlled())
+            {
+                return false;
+            }
+
+            var battleTool = BattleManager.GetBattleTool();
+            return battleTool == null || battleTool.CheckKeepSkillPrecondition(m_Attacker, m_SkillBean);
+        }
+
+        // 自动动作技能（t_auto_action_skill_id，cast_style == 0）作为普攻替换时，
+        // 持续释放结束后如果玩家仍在连续攻击、且普攻本身也是持续型，
+        // 请求在技能真正结束后自动接续普攻，不需要玩家再点一次。
+        private void TryRequestAutoNormalAttackContinue()
+        {
+            if (!(m_Attacker is PlayerHero hero) || m_SkillBean == null)
+            {
+                return;
+            }
+
+            if (!hero.IsTowerDefendAutoActionSkillSlot(ReadSlot()) || ReadCastStyle() != 0)
+            {
+                return;
+            }
+
+            if (!hero.ReadIsNormalAttackInputActive(PlayerHero.NormalAttackInputActiveWindowSeconds))
+            {
+                return;
+            }
+
+            var skillManager = hero.GetSkillManager();
+            var normalSkill = skillManager != null ? skillManager.ReadSkillBySlot(0) : null;
+            if (normalSkill is CommonBulletSkill normalBullet && normalBullet.ReadIsContinuousBulletCast())
+            {
+                hero.RequestAutoNormalAttackContinue();
+            }
+        }
+
+        // 任意持续型子弹技能的续射判断：cast_keep 正常顺延；cast_back（窗口刚结束、
+        // 仍在宽限期内）拉回发弹状态。激光和“自动动作技能替换普攻”的持续释放都走这里。
+        public bool CanRenewKeepShoot()
+        {
+            return UseKeepShootMode() &&
+                ReadKeepShootConditionStillMet() &&
+                (m_CastStatus == SkillCastStatus.cast_keep || m_CastStatus == SkillCastStatus.cast_back);
+        }
+
+        // 激光持续发弹的续射判断（保持原语义：只对 t_trajectory == 3 生效）
+        public bool CanRenewLaserKeepShoot()
+        {
+            return UseKeepShootMode() && m_BulletBean != null && m_BulletBean.t_trajectory == 3 &&
+                CanRenewKeepShoot();
+        }
+
+        // 顺延发弹窗口续射：不重开施法、不重置发弹节拍，光束由后续子弹继续续期；
+        // 前置条件消耗/施法 buff/伤害快照按一次真实攻击结算，与 TryRenewBoneKeepShoot 的续射口径一致。
+        public bool TryRenewKeepShoot()
+        {
+            if (!CanRenewKeepShoot())
+            {
+                return false;
+            }
+
+            bool resumeFromCastBack = m_CastStatus == SkillCastStatus.cast_back;
+            var battleTool = BattleManager.GetBattleTool();
+            battleTool.ConsumeSkillPreconditionIfNeeded(m_Attacker, m_SkillBean);
+            battleTool.AddSkillCastBuffs(m_Attacker, m_SkillBean);
+            SetAtk(m_Attacker);
+            m_KeepShootStartTime = BattleManager.ReadBattleTime();
+            m_CastStatus = SkillCastStatus.cast_keep;
+            if (resumeFromCastBack)
+            {
+                RenderEvent.Event.KeepSkill(this.GetCastId(), true);
+                // 宽限期续射：循环音效已随窗口结束停止，重新播放
+                StartKeepShootSound();
+            }
+            return true;
+        }
+
+        public bool TryRenewLaserKeepShoot()
+        {
+            return m_BulletBean != null && m_BulletBean.t_trajectory == 3 && TryRenewKeepShoot();
+        }
+
+        // 输入层激光普攻续发入口：上一发光束仍在单次作用时间内时，直接续发现有光束并返回 true，
+        // 本次触发不再进入施法流程——不重播攻击动画、攻击音效和开火特效。
+        // 续发只复用光束表现：超时时间、怪物去重、伤害快照全部按本次触发重建，与重新发一颗激光没有区别；
+        // 前置条件消耗与施法 buff 也按一次真实攻击结算，与 TryRenewBoneKeepShoot 的续射口径一致。
+        public bool TryRenewLaserNormalAttack(PropertyEntity attacker)
+        {
+            if (m_BulletBean == null || m_BulletBean.t_trajectory != 3 || !ReadHasAliveLaserBullet())
+            {
+                return false;
+            }
+
+            SetAtk(attacker);
+            var battleTool = BattleManager.GetBattleTool();
+            battleTool.ConsumeSkillPreconditionIfNeeded(m_Attacker, m_SkillBean);
+            battleTool.AddSkillCastBuffs(m_Attacker, m_SkillBean);
+            m_ActiveLaserBullet.RenewLaserLifeTime();
+            m_ActiveLaserBullet.SetFlyDist(GetCastDistance());
+            ApplyBulletCastPayload(m_ActiveLaserBullet, null);
+            return true;
         }
 
         public override void Update(float dt)
         {
             base.Update(dt);
+            if (ReadIsBoneNormalAttack())
+            {
+                UpdateBoneNormalAttack();
+                return;
+            }
             float skillUsedTime = GetSkillUsedTime();
 
             switch (m_CastStatus)
@@ -236,6 +496,15 @@ namespace GameDll
                     }
                 case SkillCastStatus.cast_keep:
                     {
+                        // 持续释放期间前置条件不再满足（如依赖 buff 到期）时立即结束，
+                        // 不再按剩余 keep 时间继续出伤害。
+                        if (!ReadKeepShootConditionStillMet())
+                        {
+                            TryRequestAutoNormalAttackContinue();
+                            OnCastOver();
+                            break;
+                        }
+
                         var keepTime = GetKeepShootDurationSecond();
                         var keepUsedTime = BattleManager.ReadBattleTime() - m_KeepShootStartTime;
                         if (keepUsedTime > keepTime)
@@ -273,21 +542,118 @@ namespace GameDll
             }
         }
 
+        private void UpdateBoneNormalAttack()
+        {
+            if (m_CastStatus == SkillCastStatus.end || m_Attacker == null ||
+                m_Attacker.ReadCurrentSkill() != this)
+            {
+                return;
+            }
+            if (!BattleManager.ReadIsEntityValide(m_Attacker) || m_Attacker.ReadIsBeingControlled())
+            {
+                Stop();
+                return;
+            }
+
+            float progress = ReadBoneActionFrameProgress();
+            int castFrame = Mathf.Max(0, m_CurAction.t_ac_cast_point);
+            float finishFrame = Mathf.Max(castFrame + 1f, m_CurAction.t_ac_finish);
+            if ((m_CastStatus == SkillCastStatus.warming_up || m_CastStatus == SkillCastStatus.cast_point) &&
+                progress >= castFrame)
+            {
+                // 先标记首发，重复更新不能重新开始本轮攻击。
+                m_BoneShotsFired = 1;
+                m_CastStatus = SkillCastStatus.cast_back;
+                OnCastPoint();
+            }
+            if (m_CastStatus == SkillCastStatus.cast_keep)
+            {
+                // 前置条件不再满足时立即结束持续释放（与普通 Update 口径一致）。
+                if (!ReadKeepShootConditionStillMet())
+                {
+                    TryRequestAutoNormalAttackContinue();
+                    OnCastOver();
+                    return;
+                }
+
+                float now = BattleManager.ReadBattleTime();
+                bool emissionFinished;
+                if (UseKeepShootMode())
+                {
+                    float interval = GetKeepShootIntervalSecond();
+                    float dueTime = Mathf.Min(now, m_BoneKeepShootEndTime);
+                    // 发弹使用战斗时间，不受动画加速和续期影响；低帧率只补结算结束前已到期的子弹。
+                    while (m_KeepShootStartTime + m_BoneShotsFired * interval <= dueTime + 0.0001f)
+                    {
+                        m_BoneShotsFired++;
+                        AgainShootBullet();
+                    }
+                    emissionFinished = now >= m_BoneKeepShootEndTime;
+                }
+                else
+                {
+                    // 单发特效从实际出弹时保留一帧，避免跨帧更新时刚创建就被停止。
+                    emissionFinished = now >= m_KeepShootStartTime + ResolveAttackEffectDurationSecond();
+                }
+
+                if (emissionFinished)
+                {
+                    StopKeepShoot();
+                    m_CastStatus = SkillCastStatus.cast_back;
+                }
+                else
+                {
+                    foreach (var eff in m_KeepShootEffs)
+                    {
+                        eff.SetParticleSpeed(ReadBoneActionSpeed());
+                    }
+                }
+            }
+            if (m_CastStatus == SkillCastStatus.cast_back && progress >= finishFrame)
+            {
+                OnCastOver();
+            }
+        }
+
+        protected override float ReadBoneNormalAttackTargetSpeed()
+        {
+            // 连射通过续期维持，不需要反复加快或重播前摇；单发仍按输入频率调整动作。
+            return UseKeepShootMode() ? 1f : base.ReadBoneNormalAttackTargetSpeed();
+        }
+
         private void OnCastPoint()
         {
             ApplySkillCastBuffIfNeeded();
-            FirstShootBullet();
-            if (UseKeepShootMode())
+            while (m_BonePendingCastCount > 0)
             {
+                m_BonePendingCastCount--;
+                BattleManager.GetBattleTool().AddSkillCastBuffs(m_Attacker, m_SkillBean);
+            }
+            m_LastCastRenewedLaser = false;
+            FirstShootBullet();
+            if (UseKeepShootMode() || ReadIsBoneNormalAttack())
+            {
+                // keep 型开火特效在续发时沿用还挂着的实例（见 StartKeepShootEffect），不会重播闪烁
                 StartKeepShootEffect();
+                StartKeepShootSound();
                 m_KeepShootStartTime = BattleManager.ReadBattleTime();
+                if (ReadIsBoneNormalAttack() && UseKeepShootMode())
+                {
+                    m_BoneKeepShootEndTime = m_KeepShootStartTime + GetKeepShootDurationSecond();
+                }
 
                 m_CastStatus = SkillCastStatus.cast_keep;
-                RenderEvent.Event.KeepSkill(this.GetCastId(), true);
+                if (UseKeepShootMode())
+                {
+                    RenderEvent.Event.KeepSkill(this.GetCastId(), true);
+                }
             }
             else
             {
-                StartShootEffect();
+                if (!m_LastCastRenewedLaser)
+                {
+                    StartShootEffect();
+                }
                 m_CastStatus = SkillCastStatus.cast_back;
             }
         }
@@ -330,6 +696,11 @@ namespace GameDll
 
         protected virtual float ResolveAttackEffectDurationSecond()
         {
+            if (ReadIsBoneNormalAttack())
+            {
+                return UseKeepShootMode() ? GetKeepShootDurationSecond() :
+                    1f / (GetActionFrameRate() * ReadBoneActionSpeed());
+            }
             if (UseKeepShootMode())
             {
                 return Mathf.Max(0.1f, GetKeepShootDurationSecond());
@@ -562,6 +933,16 @@ namespace GameDll
 
         protected virtual void StartKeepShootEffect()
         {
+            // 上一轮的开火特效还挂着（未被回收）时直接沿用——连点续发/轮间衔接期间炮口特效不闪断。
+            // 回收只发生在 StopKeepShootEffect，因此这里看到未回池实例即表示施法连续、特效仍在展示。
+            foreach (var existing in m_KeepShootEffs)
+            {
+                if (existing != null && !existing.m_IsPooled)
+                {
+                    return;
+                }
+            }
+
             StopKeepShootEffect();
             if (m_SkillDescBean == null || m_SkillDescBean.t_atk_eff == 0)
             {
@@ -597,7 +978,12 @@ namespace GameDll
                         eff.ShowEff(false, pos, rot, scale);
                     }
                     eff.SetDuringTime(effectDuration);
-                    RenderEffManager.GetInstance().SetAutoPool(eff);
+                    if (ReadIsBoneNormalAttack())
+                    {
+                        eff.SetParticleSpeed(ReadBoneActionSpeed());
+                    }
+                    // keep 型特效不走 SetAutoPool：自动回收时长固定为首发窗口，续射顺延后会中途消失；
+                    // 统一由 StopKeepShootEffect 在施法结束时回收
                     m_KeepShootEffs.Add(eff);
                     hasMounted = true;
                 }
@@ -611,7 +997,10 @@ namespace GameDll
                 m_KeepShootEffParentTransforms.Add(null);
                 eff.ShowEffDir(false, ResolveAimOrigin(), ReadKeepShootForward(), Vector3.one);
                 eff.SetDuringTime(effectDuration);
-                RenderEffManager.GetInstance().SetAutoPool(eff);
+                if (ReadIsBoneNormalAttack())
+                {
+                    eff.SetParticleSpeed(ReadBoneActionSpeed());
+                }
                 m_KeepShootEffs.Add(eff);
             }
         }
@@ -672,7 +1061,14 @@ namespace GameDll
         {
             foreach (var eff in m_KeepShootEffs)
             {
-                RenderEffManager.GetInstance().PoolRenderEff(eff);
+                if (ReadIsBoneNormalAttack())
+                {
+                    RenderEffManager.GetInstance().StopEmissionAndAutoPool(eff);
+                }
+                else
+                {
+                    RenderEffManager.GetInstance().PoolRenderEff(eff);
+                }
             }
             m_KeepShootEffs.Clear();
             m_KeepShootEffParentTransforms.Clear();
@@ -680,8 +1076,21 @@ namespace GameDll
 
         protected virtual void StopKeepShoot()
         {
+            // 激光持续发弹结束：光束随施法一起立即收回——发弹窗口就是光束的可见时长。
+            // 连点期间窗口由输入层续射顺延（TryRenewLaserKeepShoot），施法不会结束、光束不断；
+            // 只有真正停手（超过一个窗口没有点击）才走到这里，立即收束不留视觉尾巴。
+            if (UseKeepShootMode() && m_BulletBean != null && m_BulletBean.t_trajectory == 3 &&
+                m_ActiveLaserBullet != null)
+            {
+                m_ActiveLaserBullet.FinishLaserBeam();
+                m_ActiveLaserBullet = null;
+            }
+
+            StopKeepShootSound();
             StopKeepShootEffect();
             m_KeepShootStartTime = -1;
+            m_BonePendingCastCount = 0;
+            m_BoneKeepShootEndTime = -1f;
             RenderEvent.Event.KeepSkill(this.GetCastId(), false);
         }
 
@@ -694,6 +1103,8 @@ namespace GameDll
         public override void Destroy()
         {
             StopKeepShoot();
+            // 销毁后 Update 不再驱动，宽限停止计划无人执行，必须立即停
+            StopKeepShootSound();
             base.Destroy();
         }
 
@@ -706,6 +1117,8 @@ namespace GameDll
         public override void OnSkillUnregister()
         {
             StopKeepShoot();
+            // 注销后 Update 不再驱动，宽限停止计划无人执行，必须立即停
+            StopKeepShootSound();
         }
     }
 }

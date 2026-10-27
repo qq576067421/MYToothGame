@@ -51,6 +51,8 @@ private static string m_FileName = "t_monsterBean.csv";
     public int t_die_time{ get { return _t_die_time; }}
     private int _t_die_effect_start_time;
     public int t_die_effect_start_time{ get { return _t_die_effect_start_time; }}
+    private List<int> _t_die_sound;
+    public ReadOnlyCollection<int> t_die_sound;
     private static List<long> m_Keys = new List<long>();
     public static List<long> GetKeys()
     {
@@ -119,6 +121,8 @@ private static string m_FileName = "t_monsterBean.csv";
         _t_td_boss_skill_prepare_ms = source._t_td_boss_skill_prepare_ms;
         _t_die_time = source._t_die_time;
         _t_die_effect_start_time = source._t_die_effect_start_time;
+        _t_die_sound = source._t_die_sound;
+        t_die_sound = source.t_die_sound;
     }
     private static t_monsterBean GetCSVConfigImp(long key)
     {
@@ -147,6 +151,8 @@ private static string m_FileName = "t_monsterBean.csv";
             bean._t_td_boss_skill_prepare_ms = ReadInt(datas[index++]);
             bean._t_die_time = ReadInt(datas[index++]);
             bean._t_die_effect_start_time = ReadInt(datas[index++]);
+            bean._t_die_sound = ReadIntArray(datas[index++]);
+            bean.t_die_sound = GetReadOnlyArray(bean._t_die_sound);
         }
         if(bean == null)
         {
@@ -183,6 +189,8 @@ private static string m_FileName = "t_monsterBean.csv";
             bean._t_td_boss_skill_prepare_ms = SqliteDataManager_ReadInt();
             bean._t_die_time = SqliteDataManager_ReadInt();
             bean._t_die_effect_start_time = SqliteDataManager_ReadInt();
+            bean._t_die_sound = SqliteDataManager_ReadIntArray();
+            bean.t_die_sound = GetReadOnlyArray(bean._t_die_sound);
         }
         SqliteDataManager_EndRead();
         StringBuilder.Clear();

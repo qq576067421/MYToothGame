@@ -15,8 +15,13 @@ Id,同时播放的最低时间间隔(毫秒),
 11,100,sound/short_effect/world/player/_out_player0_hit.jpg
 12,100,sound/short_effect/world/player/_out_player0_special_shoot.jpg
 13,100,sound/short_effect/world/player/_out_player0_special_hit.jpg
+20,100,sound/short_effect/world/player/_out_player1_shoot.jpg
+21,100,sound/short_effect/world/player/_out_player1_hit.jpg
 30,100,sound/short_effect/world/player/_out_player2_shoot.jpg
 31,100,sound/short_effect/world/player/_out_player2_hit.jpg
+40,100,sound/short_effect/world/player/_out_player3_shoot.jpg
+41,100,sound/short_effect/world/player/_out_player3_hit.jpg
+42,100,sound/short_effect/world/player/_out_player3_superhit.jpg
 100,100,sound/short_effect/world/effect/_out_ice_split.jpg
 101,100,sound/short_effect/world/effect/_out_ice_broken.jpg
 102,100,sound/short_effect/ui/_out_sound_countdown.jpg
@@ -26,6 +31,10 @@ Id,同时播放的最低时间间隔(毫秒),
 106,100,sound/short_effect/ui/_out_sound_star.jpg
 200,100,sound/compressed/voice/_out_speech_boss_0.jpg
 201,100,sound/compressed/voice/_out_speech_boss_1.jpg
+202,100,sound/compressed/voice/_out_boss1_die.jpg
+203,100,sound/compressed/voice/_out_monster1_die.jpg
+204,100,sound/compressed/voice/_out_monster2_die.jpg
+205,100,sound/compressed/voice/_out_monster3_die.jpg
 300,0,sound/streaming/music/_out_bgm_home.jpg
 301,0,sound/streaming/music/_out_bgm_sence1.jpg
 302,0,sound/streaming/music/_out_bgm_sence1.jpg

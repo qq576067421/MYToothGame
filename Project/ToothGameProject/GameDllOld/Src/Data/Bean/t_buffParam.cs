@@ -21,6 +21,8 @@ private static string m_FileName = "t_buffParam.csv";
     public long t_id{ get { return _t_id; }}
     private int _t_buff_maxnum;
     public int t_buff_maxnum{ get { return _t_buff_maxnum; }}
+    private int _t_buff_damage;
+    public int t_buff_damage{ get { return _t_buff_damage; }}
     private int _t_atk;
     public int t_atk{ get { return _t_atk; }}
     private int _t_atk_percen;
@@ -98,6 +100,7 @@ private static string m_FileName = "t_buffParam.csv";
     {
         _t_id = source._t_id;
         _t_buff_maxnum = source._t_buff_maxnum;
+        _t_buff_damage = source._t_buff_damage;
         _t_atk = source._t_atk;
         _t_atk_percen = source._t_atk_percen;
         _t_hp = source._t_hp;
@@ -122,6 +125,7 @@ private static string m_FileName = "t_buffParam.csv";
             bean = new t_buffParam();
             bean._t_id = ReadLong(datas[index++]);
             bean._t_buff_maxnum = ReadInt(datas[index++]);
+            bean._t_buff_damage = ReadInt(datas[index++]);
             bean._t_atk = ReadInt(datas[index++]);
             bean._t_atk_percen = ReadInt(datas[index++]);
             bean._t_hp = ReadInt(datas[index++]);
@@ -154,6 +158,7 @@ private static string m_FileName = "t_buffParam.csv";
             bean = new t_buffParam();
             bean._t_id = SqliteDataManager_ReadLong();
             bean._t_buff_maxnum = SqliteDataManager_ReadInt();
+            bean._t_buff_damage = SqliteDataManager_ReadInt();
             bean._t_atk = SqliteDataManager_ReadInt();
             bean._t_atk_percen = SqliteDataManager_ReadInt();
             bean._t_hp = SqliteDataManager_ReadInt();

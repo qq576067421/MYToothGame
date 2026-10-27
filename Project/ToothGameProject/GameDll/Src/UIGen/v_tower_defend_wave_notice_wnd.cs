@@ -1,6 +1,6 @@
 ﻿//功能：tower_defend_wave_notice_wnd的窗口配置文件
 //工具作者：lichunlin
-//生成时间：08/20/2026 11:17:51
+//生成时间：10/16/2026 10:29:20
 //描述：以下文件是自动生成的，任何手动修改都会被下次自动生成覆盖。
 
 using System;
@@ -52,6 +52,12 @@ namespace GameHot
           //tower_defend_wave_notice_wnd/WindowContent/center/waveNotice/bossNotice/bossNoticeBg/bossArrow
           public LUIImage m_bossArrow;
 
+          //tower_defend_wave_notice_wnd/WindowContent/center/waveNotice/wave/wave_txt/wave_text
+          public LUITextMesh m_wave_text;
+
+          //tower_defend_wave_notice_wnd/WindowContent/center/waveNotice/bossNotice/boss_txt/boss_text
+          public LUITextMesh m_boss_text;
+
           public override void InitComponent(GameObject go)
           {
                m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
@@ -66,6 +72,8 @@ namespace GameHot
                m_waveBg = m_Bridge.GetControl(8) as LUIImage;
                m_bossNoticeBg = m_Bridge.GetControl(9) as LUIImage;
                m_bossArrow = m_Bridge.GetControl(10) as LUIImage;
+               m_wave_text = m_Bridge.GetControl(11) as LUITextMesh;
+               m_boss_text = m_Bridge.GetControl(12) as LUITextMesh;
           }
      }
 }

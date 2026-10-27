@@ -1,8 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using UnityEngine;
+﻿using UnityEngine;
+
 namespace GameDll
 {
     class MoveBuff : SceneBuff
@@ -11,28 +8,25 @@ namespace GameDll
         public override void Update(float dt)
         {
             base.Update(dt);
-            if (mObjBuffLoop == null || m_TargetEnt == null)
+            if (m_Effect == null || m_TargetEnt == null)
             {
                 return;
             }
 
-            if (m_TargetEnt.GetStateManager().GetCurrentState().m_StateType == emEntityState.em_EntityState_Move)
+            bool shouldShow = m_TargetEnt.GetStateManager().GetCurrentState().m_StateType == emEntityState.em_EntityState_Move;
+            if (m_Effect.IsActive() != shouldShow)
             {
-                mObjBuffLoop.SetActive(true);
-            }
-            else
-            {
-                mObjBuffLoop.SetActive(false);
+                m_Effect.SetActive(shouldShow);
             }
 
-            var effectGo = mObjBuffLoop.GetShowObj() as GameObject;
+            var effectGo = m_Effect.GetRenderObj();
             if (effectGo != null && effectGo.transform.parent != null)
             {
                 effectGo.transform.localPosition = m_LoopEffectPosOffset;
             }
             else
             {
-                mObjBuffLoop.SetPosition(ReadBuffEffectPosition() + m_LoopEffectPosOffset);
+                m_Effect.SetPosition(ReadBuffEffectPosition() + m_LoopEffectPosOffset);
             }
         }
     }

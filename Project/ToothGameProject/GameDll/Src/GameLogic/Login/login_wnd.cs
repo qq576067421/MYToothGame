@@ -430,12 +430,14 @@ namespace GameHot
             m_Wnd = new v_login_wnd();
             m_Wnd.InitComponent(__GetWindowObj());
 
+            tower_defend_setting_wnd.InitLanguage();
+
             RenderAPI.AddButtonClick(m_Wnd.m_btnStartGame, OnClickStartGame);
             RenderAPI.AddButtonClick(m_Wnd.m_btnYear, OnClickYear);
 
             m_GMTrigger = new GMTrigger();
             m_GMTrigger.Init(this, m_Wnd.m_GMTrigger);
-
+            OnInitLanguage();
         }
 
         private void OnClickYear()
@@ -443,8 +445,18 @@ namespace GameHot
             UIManager.OpenWindowEX<year_wnd>(null);
         }
 
+        private void OnSaveDataReadyForStart()
+        {
+            GameSaveService.SaveDataReady -= OnSaveDataReadyForStart;
+            m_CanStartGame = true;
+            SetStartButtonInteractable(true);
+            // 预加载先完成、存档后到时，仍需关闭启动 loading，否则会停在遮挡界面。
+            DoCloseLoading();
+        }
+
         protected override void OnDestroy()
         {
+            GameSaveService.SaveDataReady -= OnSaveDataReadyForStart;
             m_GMTrigger.Destroy();
             m_GMTrigger = null;
             base.OnDestroy();
@@ -458,6 +470,10 @@ namespace GameHot
             SetStartButtonInteractable(false);
             m_LoginFilePreloadHandler = new FilePreloadHandler(this, OnFilePreloadFinished);
             m_LoginFilePreloadHandler.Start();
+
+            var saveService = GameSaveService.Instance;
+            Debug.Log("login_wnd: OnOpen saveReady=" + (saveService != null && saveService.IsReady)
+                + " hasSaveService=" + (saveService != null));
 
             UIManager.ChangeGlobalCanvasRenderMode(RenderMode.ScreenSpaceCamera);
 
@@ -515,6 +531,15 @@ namespace GameHot
             AudioManager.GetInstance().Play2D(4);
             Debug.Log("播放lobby_main_wnd 4 音效");
         }
+        private void OnInitLanguage()
+        {
+            RenderAPI.SetTextLan(m_Wnd.m_StartGame_txt, "td_login_start_text");
+            RenderAPI.SetTextLan(m_Wnd.m_StartGameChoose_txt, "td_login_start_text");
+            RenderAPI.SetTextLan(m_Wnd.m_txtAdvice, "td_login_txtadvice_title");
+            RenderAPI.SetTextLan(m_Wnd.m_txtAdvice_txt_1, "td_login_txtadvice_txt_1");
+            RenderAPI.SetTextLan(m_Wnd.m_txtAdvice_txt_2, "td_login_txtadvice_txt_2");
+            RenderAPI.SetTextLan(m_Wnd.m_year_txt, "td_login_year_Instruction_title");
+        }
         public void OnClickStartGame()
         {
             if (m_StartGameRequested)
@@ -524,7 +549,7 @@ namespace GameHot
 
             if (!m_CanStartGame)
             {
-                Debug.Log("login_wnd: 登录资源尚未准备完成");
+                Debug.Log("login_wnd: 登录资源或SDK存档尚未准备完成");
                 return;
             }
 
@@ -546,9 +571,20 @@ namespace GameHot
 
         private void OnFilePreloadFinished()
         {
+            var saveService = GameSaveService.Instance;
+            if (saveService != null && !saveService.IsReady)
+            {
+                // 开始游戏硬前置：SDK 存档获取完成（含确认无档）前保持按钮禁用。
+                Debug.Log("login_wnd: 等待SDK存档就绪后开放开始按钮");
+                GameSaveService.SaveDataReady += OnSaveDataReadyForStart;
+                return;
+            }
+
             m_CanStartGame = true;
             SetStartButtonInteractable(true);
             DoCloseLoading();
+            Debug.Log("login_wnd: 资源预加载完成，开始按钮已开放 saveReady="
+                + (saveService != null && saveService.IsReady));
         }
 
         private void SetStartButtonInteractable(bool interactable)

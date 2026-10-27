@@ -47,12 +47,19 @@ namespace GameDll
             {
                 hurt *= Mathf.Max(0, hurtInfo.m_CritDamageScale);
             }
-            var nextHp = Math.Max(0, hp - hurt);
+            hurt *= defender.ReadDamageTakenAmpPercent();
+            var hpDamage = hurt;
+            var buffMgr = defender.GetBuffManager();
+            if (buffMgr != null)
+            {
+                hpDamage = buffMgr.AbsorbDamage(hpDamage);
+            }
+            var nextHp = Math.Max(0, hp - hpDamage);
             defender.SetHpRuntime(nextHp);
             defender.OnHpChanged();
-            if (hurt > 0)
+            if (hpDamage > 0)
             {
-                ShowDamageNumber(attacker, defender, hurt, worldPos, hurtInfo.m_IsCrit);
+                ShowDamageNumber(attacker, defender, hpDamage, worldPos, hurtInfo.m_IsCrit);
             }
             hurtInfo.ClearDamageNumberWorldPos();
             TryHandleMonsterDeathStarsEffect(defender);

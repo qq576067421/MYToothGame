@@ -247,6 +247,18 @@ namespace GameDll
 
         public void NotifyChallengeHit(Vector3 hitPoint)
         {
+            NotifyChallengeHit(hitPoint, hitPoint, false);
+        }
+
+        // 表现（视觉）口径受击：激光（角色2）传视觉接触点并关闭 Curve World 弯折，
+        // 与瞄准线/激光光束/受击特效同口径；hitPoint 仍为逻辑锚点，用于算环值与结算。
+        public void NotifyChallengeHit(Vector3 hitPoint, Vector3 visualEffectPoint)
+        {
+            NotifyChallengeHit(hitPoint, visualEffectPoint, true);
+        }
+
+        private void NotifyChallengeHit(Vector3 hitPoint, Vector3 visualEffectPoint, bool bendOffHitEffect)
+        {
             if (m_FinalShatterTriggered)
             {
                 return;
@@ -258,7 +270,7 @@ namespace GameDll
                 return;
             }
 
-            PlayChallengeHitEffect(hitPoint);
+            PlayChallengeHitEffect(visualEffectPoint, bendOffHitEffect);
             if (TryResolvePreviewStageByHealth(out var previewStage, out var targetPreviewScale))
             {
                 if (previewStage > m_LastPreviewAudioStage)
@@ -276,7 +288,7 @@ namespace GameDll
             }
         }
 
-        private void PlayChallengeHitEffect(Vector3 hitPoint)
+        private void PlayChallengeHitEffect(Vector3 hitPoint, bool bendOff)
         {
             if (m_HitEffectId == 0)
             {
@@ -296,6 +308,14 @@ namespace GameDll
             }
 
             effect.ShowEff(false, hitPoint, Vector3.zero, Vector3.one);
+            if (bendOff)
+            {
+                // 激光表现口径：特效放在视觉点，材质关闭 Curve World 弯折，避免二次弯折造成 Y 偏移；
+                // 资源异步加载时先登记，加载完成后再补一次。
+                CurveWorldVisualUtility.SetBendOff(effect, true);
+                effect.AddLoadedCall(() => CurveWorldVisualUtility.SetBendOff(effect, true));
+            }
+
             effect.SetDuringTime(m_HitEffectDuration);
             m_ChallengeHitEffects.Add(effect);
         }
@@ -393,6 +413,48 @@ namespace GameDll
             }
 
             return false;
+        }
+
+        // 表现（视觉）口径：MeshCollider 是弯折前的逻辑形体，画面上的形体是完整弯折后的结果。
+        // 弯折位移只随位置变化，用“上一次命中点的位移”对射线做不动点迭代（两次即可收敛），
+        // 终点即画面上射线与棒棒糖的交点；避免常量偏移近似在棒棒糖升降/位移后失准。
+        public override bool TryIntersectVisualSegment(
+            Vector3 segmentStart,
+            Vector3 segmentEnd,
+            float extraRadius,
+            out float hitT,
+            out Vector3 hitPoint)
+        {
+            return TryIntersectVisualSegmentWithAnchor(segmentStart, segmentEnd, out hitT, out hitPoint, out _);
+        }
+
+        // 表现（视觉）口径求交，并同时给出逻辑锚点（结算/算环值用）：
+        // 迭代收敛后 anchorPoint 落在逻辑形体上，visualPoint 为其完整弯折后的画面位置。
+        public bool TryIntersectVisualSegmentWithAnchor(
+            Vector3 segmentStart,
+            Vector3 segmentEnd,
+            out float hitT,
+            out Vector3 visualPoint,
+            out Vector3 anchorPoint)
+        {
+            hitT = 0.0f;
+            visualPoint = segmentEnd;
+            anchorPoint = segmentEnd;
+            var offset = CurveWorldVisualUtility.ReadVisualOffset(ReadCenterPosition());
+            for (int i = 0; i < 2; i++)
+            {
+                if (!TryIntersectVisualMesh(segmentStart - offset, segmentEnd - offset, out hitT, out anchorPoint))
+                {
+                    visualPoint = segmentEnd;
+                    anchorPoint = segmentEnd;
+                    return false;
+                }
+
+                offset = CurveWorldVisualUtility.ReadVisualOffset(anchorPoint);
+            }
+
+            visualPoint = anchorPoint + offset;
+            return true;
         }
 
         private void UpdateVisual(float dt)

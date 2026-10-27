@@ -1,6 +1,6 @@
 ﻿//功能：tower_defend_chapter_result_wnd的窗口配置文件
 //工具作者：lichunlin
-//生成时间：08/13/2026 17:41:31
+//生成时间：10/16/2026 14:21:23
 //描述：以下文件是自动生成的，任何手动修改都会被下次自动生成覆盖。
 
 using System;
@@ -19,8 +19,8 @@ namespace GameHot
           //tower_defend_chapter_result_wnd/
           public ComponentBridge m_Bridge;
 
-          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/titlebg_win/txt_title
-          public LUITextMesh m_txt_title;
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/titlebg_win/win_txt_title
+          public LUITextMesh m_win_txt_title;
 
           //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/reward/killBg/killcoin/txt_reward_kill
           public LUITextMesh m_txt_reward_kill;
@@ -52,11 +52,11 @@ namespace GameHot
           //tower_defend_chapter_result_wnd/WindowContent/result_wnd/titlebg_fail
           public LUIImage m_titlebg_fail;
 
-          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/bottom_layout/btn_continue/unchoose_continue
-          public LUITextMesh m_unchoose_continue;
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/bottom_layout/btn_continue/continue_txt
+          public LUITextMesh m_continue_txt;
 
-          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/bottom_layout/btn_return/unchoose_return
-          public LUITextMesh m_unchoose_return;
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/bottom_layout/btn_return/return_txt
+          public LUITextMesh m_return_txt;
 
           //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/star/0
           public Image m_0;
@@ -88,13 +88,37 @@ namespace GameHot
           //tower_defend_chapter_result_wnd/WindowContent/result_wnd/mask/raw_texture
           public RawImage m_raw_texture;
 
-          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/bottom_layout/btn_continue/choose/unchoose_continue
-          public LUITextMesh m_unchoose_continue_new1;
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/bottom_layout/btn_continue/choose/continue_choose_txt
+          public LUITextMesh m_continue_choose_txt;
+
+          //tower_defend_chapter_result_wnd/WindowContent/background/ConfettiBurst
+          public LUIImage m_ConfettiBurst;
+
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/bottom_layout/btn_return/choose/return_choose_txt
+          public LUITextMesh m_return_choose_txt;
+
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/reward/totalBg/txt_totalcoin
+          public LUITextMesh m_txt_totalcoin;
+
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/center/reward/killBg/txt_killcoin
+          public LUITextMesh m_txt_killcoin;
+
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/titlebg_fail/stage_txt
+          public LUITextMesh m_stage_txt;
+
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/titlebg_fail/fail_txt_title2
+          public LUITextMesh m_fail_txt_title2;
+
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/titlebg_fail/fail_txt_title
+          public LUITextMesh m_fail_txt_title;
+
+          //tower_defend_chapter_result_wnd/WindowContent/result_wnd/titlebg_win/stage_win_txt
+          public LUITextMesh m_stage_win_txt;
 
           public override void InitComponent(GameObject go)
           {
                m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
-               m_txt_title = m_Bridge.GetControl(0) as LUITextMesh;
+               m_win_txt_title = m_Bridge.GetControl(0) as LUITextMesh;
                m_txt_reward_kill = m_Bridge.GetControl(1) as LUITextMesh;
                m_txt_reward_total = m_Bridge.GetControl(2) as LUITextMesh;
                m_btn_continue = m_Bridge.GetControl(3) as LUIButton;
@@ -105,8 +129,8 @@ namespace GameHot
                m_background = m_Bridge.GetControl(8) as LUIImage;
                m_titlebg_win = m_Bridge.GetControl(9) as LUIImage;
                m_titlebg_fail = m_Bridge.GetControl(10) as LUIImage;
-               m_unchoose_continue = m_Bridge.GetControl(11) as LUITextMesh;
-               m_unchoose_return = m_Bridge.GetControl(12) as LUITextMesh;
+               m_continue_txt = m_Bridge.GetControl(11) as LUITextMesh;
+               m_return_txt = m_Bridge.GetControl(12) as LUITextMesh;
                m_0 = m_Bridge.GetControl(13) as Image;
                m_2 = m_Bridge.GetControl(14) as Image;
                m_txt_level_new1 = m_Bridge.GetControl(15) as LUITextMesh;
@@ -117,7 +141,15 @@ namespace GameHot
                m_choose_new1 = m_Bridge.GetControl(20) as LUIImage;
                m_imgRaise = m_Bridge.GetControl(21) as LUIImage;
                m_raw_texture = m_Bridge.GetControl(22) as RawImage;
-               m_unchoose_continue_new1 = m_Bridge.GetControl(23) as LUITextMesh;
+               m_continue_choose_txt = m_Bridge.GetControl(23) as LUITextMesh;
+               m_ConfettiBurst = m_Bridge.GetControl(24) as LUIImage;
+               m_return_choose_txt = m_Bridge.GetControl(25) as LUITextMesh;
+               m_txt_totalcoin = m_Bridge.GetControl(26) as LUITextMesh;
+               m_txt_killcoin = m_Bridge.GetControl(27) as LUITextMesh;
+               m_stage_txt = m_Bridge.GetControl(28) as LUITextMesh;
+               m_fail_txt_title2 = m_Bridge.GetControl(29) as LUITextMesh;
+               m_fail_txt_title = m_Bridge.GetControl(30) as LUITextMesh;
+               m_stage_win_txt = m_Bridge.GetControl(31) as LUITextMesh;
           }
      }
 }

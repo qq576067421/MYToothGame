@@ -15,7 +15,8 @@
             BoneGestureType gestureType,
             BoneGesturePhase phase,
             int personId,
-            int frameSerial)
+            int frameSerial,
+            BoneGestureTriggerHand triggerHand = BoneGestureTriggerHand.未知)
         {
             if (result == null)
             {
@@ -26,13 +27,14 @@
             {
                 m_GestureType = gestureType,
                 m_Phase = phase,
+                m_TriggerHand = triggerHand,
                 m_SlotIndex = result.m_SlotIndex,
                 m_BindingId = result.m_BindingId,
                 m_PersonId = personId,
                 m_FrameSerial = frameSerial,
             });
 
-            return AddActionEvent(seatDefinition, result, gestureType, phase, personId, frameSerial);
+            return AddActionEvent(seatDefinition, result, gestureType, phase, personId, frameSerial, triggerHand);
         }
 
         public void AddBooleanGestureEvent(
@@ -90,7 +92,8 @@
             BoneGestureType gestureType,
             BoneGesturePhase phase,
             int personId,
-            int frameSerial)
+            int frameSerial,
+            BoneGestureTriggerHand triggerHand)
         {
             BoneActionBinding actionBinding = FindFirstActionBinding(seatDefinition, gestureType, phase);
             if (actionBinding == null)
@@ -104,6 +107,7 @@
                 m_ActionId = actionBinding.m_ActionId,
                 m_GestureType = gestureType,
                 m_Phase = phase,
+                m_TriggerHand = triggerHand,
                 m_SlotIndex = result.m_SlotIndex,
                 m_BindingId = result.m_BindingId,
                 m_PersonId = personId,

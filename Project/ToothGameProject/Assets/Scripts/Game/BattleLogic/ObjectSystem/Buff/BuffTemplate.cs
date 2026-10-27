@@ -27,29 +27,36 @@ namespace GameDll
             var classId = bBean.t_class_id;
             Buff buff = null;
 
-            switch(classId)
+            if (IsShieldBuff(bBean))
             {
-                case BuffClassId.ChangePropertyBuff:
-                    {
-                        buff = new ChangePropertyBuff();
-                        break;
-                    }
-                case BuffClassId.RecoveryBuff:
-                    {
-                        buff = new RecoveryBuff();
-                        break;
-                    }
-                case BuffClassId.InstantDamageBuff:
-                case BuffClassId.DamageBuff:
-                    {
-                        buff = new DamageBuff();
-                        break;
-                    }
-                case BuffClassId.ActionBuff:
-                    {
-                        buff = new ActionBuff();
-                        break;
-                    }
+                buff = new ShieldBuff();
+            }
+            else
+            {
+                switch (classId)
+                {
+                    case BuffClassId.ChangePropertyBuff:
+                        {
+                            buff = new ChangePropertyBuff();
+                            break;
+                        }
+                    case BuffClassId.RecoveryBuff:
+                        {
+                            buff = new RecoveryBuff();
+                            break;
+                        }
+                    case BuffClassId.InstantDamageBuff:
+                    case BuffClassId.DamageBuff:
+                        {
+                            buff = new DamageBuff();
+                            break;
+                        }
+                    case BuffClassId.ActionBuff:
+                        {
+                            buff = new ActionBuff();
+                            break;
+                        }
+                }
             }
 
             if (buff == null)
@@ -59,6 +66,17 @@ namespace GameDll
             }
             buff.InitTemplate(buffId, classId);
             return buff;
+        }
+
+        private static bool IsShieldBuff(t_buff bBean)
+        {
+            if (bBean == null || bBean.t_buff_param_id == null || bBean.t_buff_param_id.Count <= 0)
+            {
+                return false;
+            }
+
+            var paramCfg = t_buffParam.GetConfig(bBean.t_buff_param_id[0], false);
+            return paramCfg != null && paramCfg.t_buff_damage == 2;
         }
     }
 }

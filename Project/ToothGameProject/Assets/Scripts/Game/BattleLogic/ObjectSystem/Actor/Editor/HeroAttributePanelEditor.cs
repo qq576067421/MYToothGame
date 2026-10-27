@@ -99,6 +99,8 @@ namespace GameDll
             DrawSeparator();
             DrawCombatAttributes(hero);
             DrawSeparator();
+            DrawTalents(hero);
+            DrawSeparator();
             DrawSkills(hero);
             DrawSeparator();
             DrawBuffs(hero);
@@ -265,6 +267,62 @@ namespace GameDll
             EditorGUILayout.EndVertical();
         }
 
+        private void DrawTalents(PlayerHero hero)
+        {
+            EditorGUILayout.BeginVertical(m_BoxStyle);
+            EditorGUILayout.LabelField("天赋加成", m_TitleStyle);
+
+            var battle = BattleManager.GetBattle() as TowerDefendBattle;
+            if (battle == null)
+            {
+                EditorGUILayout.LabelField("  无战斗实例", m_LabelStyle);
+                EditorGUILayout.EndVertical();
+                return;
+            }
+
+            var player = battle.GetPlayer(hero.ReadBattlePlayerId());
+            var bonus = battle.ReadPlayerTalentBonus(hero.ReadBattlePlayerId());
+            if (bonus == null || bonus.ReadIsEmpty())
+            {
+                EditorGUILayout.LabelField("  无天赋加成", m_LabelStyle);
+                EditorGUILayout.EndVertical();
+                return;
+            }
+
+            if (player != null && player.m_Talents.Count > 0)
+            {
+                string talentIds = string.Join(",", player.m_Talents);
+                DrawKeyValue("已解锁天赋", $"{player.m_Talents.Count} 个（{talentIds}）");
+            }
+
+            if (player != null && player.m_TalentBranches.Count > 0)
+            {
+                string branchIds = string.Join(",", player.m_TalentBranches);
+                DrawKeyValue("已解锁天赋分支", $"{player.m_TalentBranches.Count} 个（{branchIds}）");
+            }
+
+            var buffMgr = hero.GetBuffManager();
+            float liveAtk = buffMgr != null ? buffMgr.ReadTalentProperty((int)PropertyType.atk) : 0f;
+            string atkText = bonus.m_PeakAtkPerWave > 0
+                ? $"+{bonus.m_AtkAdd:F0}（当前生效 +{liveAtk:F0}，含巅峰叠加）"
+                : $"+{bonus.m_AtkAdd:F0}";
+            DrawKeyValue("攻击力加成", atkText);
+            DrawKeyValue("暴击率加成", $"+{bonus.m_CritAdd * 100f:F1}%");
+            DrawKeyValue("暴击伤害加成", $"+{bonus.m_CritDamageAdd * 100f:F1}%");
+            DrawKeyValue("伤害加深加成", $"+{bonus.m_AmpAdd * 100f:F1}%");
+            DrawKeyValue("状态持续时间", $"+{bonus.m_DurationAddSeconds:F1}s");
+            DrawKeyValue("技能CD减免", $"-{bonus.m_SkillCdReduceSeconds:F1}s");
+            DrawKeyValue("技能充能速度", $"+{bonus.m_ChargeSpeedAddPermillePerSecond / 200f:F1}点/s（基础1点/s）");
+            DrawKeyValue("基地健康度", $"+{bonus.m_BaseHealthAdd}（全队共享取最大，当前基地 {battle.ReadBaseHealth()}/{battle.ReadBaseMaxHealth()}）");
+
+            if (bonus.m_PeakAtkPerWave > 0)
+            {
+                DrawKeyValue("巅峰天赋", $"每清波全体攻击 +{bonus.m_PeakAtkPerWave}（无尽模式，当前波次 {battle.ReadCurrentWave()}）");
+            }
+
+            EditorGUILayout.EndVertical();
+        }
+
         private void DrawSkills(PlayerHero hero)
         {
             EditorGUILayout.BeginVertical(m_BoxStyle);
@@ -297,16 +355,27 @@ namespace GameDll
             }
 
             int autoSkillSlot = hero.ReadTowerDefendAutoSkillSlot();
+            bool hasAutoActionSlots = hero.TryGetTowerDefendAutoActionSkillSlots(out int autoActionFirstSlot, out int autoActionLastSlot);
 
             foreach (var kvp in groupedSkills)
             {
                 int slot = kvp.Key;
                 var slotSkills = kvp.Value;
+                bool isAutoActionSlot = hasAutoActionSlots && slot >= autoActionFirstSlot && slot <= autoActionLastSlot;
                 string slotName = slot == 0
                     ? "普攻"
-                    : (slot == autoSkillSlot ? "自动技能" : $"技能槽{slot}");
-                string autoFlag = slot == autoSkillSlot ? " [自动]" : "";
+                    : (slot == autoSkillSlot ? "自动技能"
+                        : (isAutoActionSlot ? $"动作技能{slot - autoActionFirstSlot + 1}" : $"技能槽{slot}"));
+                string autoFlag = slot == autoSkillSlot ? " [自动]"
+                    : (isAutoActionSlot ? " [程序触发]" : "");
                 EditorGUILayout.LabelField($"  [{slotName}]{autoFlag} 数量:{slotSkills.Count}", m_ValueStyle);
+
+                if (isAutoActionSlot)
+                {
+                    EditorGUILayout.LabelField(
+                        "      触发方式: 自身条件满足后，玩家的下一次普攻替换为该技能施放（配置多个时按顺序取第一个满足条件的）",
+                        m_LabelStyle);
+                }
 
                 for (int i = 0; i < slotSkills.Count; i++)
                 {

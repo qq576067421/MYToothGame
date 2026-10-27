@@ -264,22 +264,46 @@ public class GMTools : EditorWindow
             "DefaultTowerDefendNoTargetAimClampForwardOffset",
             () => BattleConst.TowerDefendNoTargetAimClampForwardOffset,
             value => BattleConst.TowerDefendNoTargetAimClampForwardOffset = value),
+        new BattleConstFloatBinding(
+            "激光下压最低角度：",
+            "作用对象：角色2激光的瞄准线、自动吸附与光束方向。含义：方向朝下时最多允许向下俯这么多度，超过则压回该下限。修改后立即生效。值越大，越容易压到近处低目标；值越小，远处低目标越难锁定。",
+            "DefaultTowerDefendLaserMaxDownPitchDegrees",
+            () => BattleConst.TowerDefendLaserMaxDownPitchDegrees,
+            value => BattleConst.TowerDefendLaserMaxDownPitchDegrees = value),
     };
 
     private static readonly BattleConstFloatBinding[] s_BattleConstTrackingSpreadBindings = new BattleConstFloatBinding[]
     {
         new BattleConstFloatBinding(
             "多发生成左右分散角：",
-            "作用对象：一发主子弹触发出来的多发追踪子弹。生效时机：子弹生成瞬间，从发射点开始就按这个角度左右展开，不是飞一段后再分开。值越大，左右展开越明显。",
+            "作用对象：一发主子弹触发出来的多发追踪子弹。生效时机：子弹生成瞬间，从发射点开始就按这个角度左右展开，不是飞一段后再分开。含义：单侧扇面总角，值越大整排子弹张开越宽。",
             "DefaultSpawnYawSpread",
             () => BattleConst.SpawnYawSpread,
             value => BattleConst.SpawnYawSpread = value),
         new BattleConstFloatBinding(
             "多发生成左右抖动：",
-            "作用对象：多发追踪子弹。含义：在左右分散角基础上再叠加一层随机偏转，让每发子弹不完全整齐。值越大，散布越随机。",
+            "作用对象：多发追踪子弹。含义：在左右分散角基础上再给每发子弹叠加一层随机偏转，让每发子弹不完全整齐。值越大，散布越随机；过大会让相邻子弹叠在一起。",
             "DefaultSpawnYawJitter",
             () => BattleConst.SpawnYawJitter,
             value => BattleConst.SpawnYawJitter = value),
+        new BattleConstFloatBinding(
+            "多发最小左右间隔角：",
+            "作用对象：多发追踪子弹。含义：相邻两发子弹之间至少张开的水平角度，用来兜底避免挤在一起。子弹数量越多时，扇面按分散角摊薄后仍然不会小于这个间隔。",
+            "DefaultSpawnMinYawSeparation",
+            () => BattleConst.SpawnMinYawSeparation,
+            value => BattleConst.SpawnMinYawSeparation = value),
+        new BattleConstFloatBinding(
+            "单目标扇面放大系数：",
+            "作用对象：多发追踪子弹。生效时机：发射时场上的可选目标只有 1 个或没有时。含义：此时子弹最终都会收拢到同一点，把整个扇面按这个系数放大，保证还能看出散开。值越大，单目标时张开越夸张。",
+            "DefaultSpawnSingleTargetSpreadScale",
+            () => BattleConst.SpawnSingleTargetSpreadScale,
+            value => BattleConst.SpawnSingleTargetSpreadScale = value),
+        new BattleConstFloatBinding(
+            "多发跨轮错开比例：",
+            "作用对象：连续快速发弹时，前后多轮触发子弹之间的错开。生效时机：每一轮生成瞬间。含义：按相邻子弹间隔角的比例给整轮一个错位，让后一轮插进前一轮的空隙，避免轮与轮压在同一条线上。0 表示不错开。",
+            "DefaultSpawnVolleyYawOffsetRatio",
+            () => BattleConst.SpawnVolleyYawOffsetRatio,
+            value => BattleConst.SpawnVolleyYawOffsetRatio = value),
         new BattleConstFloatBinding(
             "多发生成上偏最小角：",
             "作用对象：多发追踪子弹。生效时机：子弹生成瞬间，从发射点开始就带着上偏角飞出。边缘子弹更接近最小角，中间子弹更接近最大角，只会上偏不会下偏。",
@@ -310,6 +334,12 @@ public class GMTools : EditorWindow
             "DefaultTriggerTrackingStartHoldTimeMax",
             () => BattleConst.TriggerTrackingStartHoldTimeMax,
             value => BattleConst.TriggerTrackingStartHoldTimeMax = value),
+        new BattleConstFloatBinding(
+            "等待分配平滑回正速度：",
+            "作用对象：多发追踪子弹里暂时没分到目标、只朝目标方向引导的子弹。含义：这些子弹在等待期间朝目标收拢的平滑速度，不再是瞬间对准。值越大收拢越快、散开保留越短；值越小越晚收拢、散开越明显。",
+            "DefaultSpawnPendingTurnSpeed",
+            () => BattleConst.SpawnPendingTurnSpeed,
+            value => BattleConst.SpawnPendingTurnSpeed = value),
     };
 
     private static readonly BattleConstFloatBinding[] s_BattleConstUpgradeChallengeShatterBindings = new BattleConstFloatBinding[]
@@ -449,11 +479,11 @@ public class GMTools : EditorWindow
     private int m_GuideGroup = 0;
     private bool m_LowFrameRate = false;
     private int m_GmEnterStageId = 1;
+    private int m_GmEndlessWave = 0;
     private Vector2 m_ScrollPosition;
 
     private bool m_DebugMobile = false;
     private bool m_ShowLog = true;
-
     private void OnEnable()
     {
         saveChangesMessage = BattleSettingsUnsavedChangesMessage;
@@ -513,14 +543,11 @@ public class GMTools : EditorWindow
 
     private static readonly BoneTurnTuningFloatBinding[] s_BoneTurnTuningFloatBindings =
     {
-        new BoneTurnTuningFloatBinding(nameof(BoneTurnTuning.m_MaxAngle), nameof(BoneTurnTuning.m_DefaultMaxAngle), () => BoneTurnTuning.m_MaxAngle, value => BoneTurnTuning.m_MaxAngle = value),
-        new BoneTurnTuningFloatBinding(nameof(BoneTurnTuning.m_RotationAmplifyFactor), nameof(BoneTurnTuning.m_DefaultRotationAmplifyFactor), () => BoneTurnTuning.m_RotationAmplifyFactor, value => BoneTurnTuning.m_RotationAmplifyFactor = value),
-        new BoneTurnTuningFloatBinding(nameof(BoneTurnTuning.m_ShoulderTurnJitterDeadZone), nameof(BoneTurnTuning.m_DefaultShoulderTurnJitterDeadZone), () => BoneTurnTuning.m_ShoulderTurnJitterDeadZone, value => BoneTurnTuning.m_ShoulderTurnJitterDeadZone = value),
     };
 
     private static readonly BoneTurnTuningBoolBinding[] s_BoneTurnTuningBoolBindings =
     {
-        new BoneTurnTuningBoolBinding(nameof(BoneTurnTuning.m_InvertDirection), nameof(BoneTurnTuning.m_DefaultInvertDirection), () => BoneTurnTuning.m_InvertDirection, value => BoneTurnTuning.m_InvertDirection = value),
+        new BoneTurnTuningBoolBinding(nameof(BoneTurnTuning.m_BlockNormalAttackWhileTurning), nameof(BoneTurnTuning.m_DefaultBlockNormalAttackWhileTurning), () => BoneTurnTuning.m_BlockNormalAttackWhileTurning, value => BoneTurnTuning.m_BlockNormalAttackWhileTurning = value),
     };
 
     private static IEnumerable<BoneTurnTuningFloatBinding> EnumerateBoneTurnTuningFloatBindings()
@@ -1359,7 +1386,6 @@ public class GMTools : EditorWindow
         m_ScrollPosition = GUILayout.BeginScrollView(m_ScrollPosition);
 
         m_SelectedTab = GUILayout.Toolbar(m_SelectedTab, m_TabNames);
-
         switch (m_SelectedTab)
         {
             case 0:
@@ -1499,7 +1525,42 @@ public class GMTools : EditorWindow
         }
         GUILayout.EndVertical();
 
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("无尽模式波次调试", EditorStyles.boldLabel);
+        DrawEndlessWaveDebugSection();
         GUILayout.EndVertical();
+
+        GUILayout.EndVertical();
+    }
+
+    private void DrawEndlessWaveDebugSection()
+    {
+        var towerDefendBattle = BattleManager.GetBattle() as TowerDefendBattle;
+        if (towerDefendBattle == null)
+        {
+            EditorGUILayout.LabelField("当前没有进行中的塔防战斗。");
+            return;
+        }
+
+        if (towerDefendBattle.ReadGameMode() != BattleGameMode.Endless)
+        {
+            EditorGUILayout.LabelField("仅在无尽模式战斗中可用。");
+            return;
+        }
+
+        EditorGUILayout.LabelField("当前波次：", towerDefendBattle.ReadCurrentWave().ToString());
+        if (m_GmEndlessWave <= 0)
+        {
+            m_GmEndlessWave = Mathf.Max(1, towerDefendBattle.ReadCurrentWave());
+        }
+
+        m_GmEndlessWave = Mathf.Max(1, EditorGUILayout.IntField("目标波次：", m_GmEndlessWave));
+        if (GUILayout.Button(new GUIContent("设置当前波次", "立即把无尽模式的当前波次设为上面的目标波次，并刷出该波。旧波次还没刷完的排队会被丢弃，已经在场上的怪物保留。")))
+        {
+            TrySetCurrentTowerDefendWave(m_GmEndlessWave);
+        }
     }
 
     private void DrawBoneRemoteDebugSection()
@@ -1571,15 +1632,12 @@ public class GMTools : EditorWindow
     private void DrawBoneTurnTuningSection()
     {
         GUILayout.BeginVertical(EditorStyles.helpBox);
-        EditorGUILayout.LabelField("骨骼转向调参", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("角色 Y 轴转向调参", EditorStyles.boldLabel);
 
         EditorGUI.BeginChangeCheck();
         EditorGUILayout.Space(2f);
-        BoneTurnTuning.m_MaxAngle = EditorGUILayout.FloatField("最大转角：", BoneTurnTuning.m_MaxAngle);
-        BoneTurnTuning.m_InvertDirection = EditorGUILayout.Toggle("左右方向反转：", BoneTurnTuning.m_InvertDirection);
-        BoneTurnTuning.m_RotationAmplifyFactor = EditorGUILayout.FloatField("旋转放大量：", BoneTurnTuning.m_RotationAmplifyFactor);
-        BoneTurnTuning.m_ShoulderTurnJitterDeadZone = EditorGUILayout.Slider("肩部抖动死区：", BoneTurnTuning.m_ShoulderTurnJitterDeadZone, 0f, 1f);
-        EditorGUILayout.HelpBox("转向按鼻尖与双肩中线偏移计算。放大 1 表示保持当前量级。", MessageType.Info);
+        BoneTurnTuning.m_BlockNormalAttackWhileTurning = EditorGUILayout.Toggle(new GUIContent("转身时屏蔽普攻：", "关闭时允许角色转身和普攻同时发生；开启时仅屏蔽转身期间的普通攻击，主动技能不受影响。"), BoneTurnTuning.m_BlockNormalAttackWhileTurning);
+        EditorGUILayout.HelpBox("侧身角度、最大转角、方向、防抖和缓动参数统一由全局表 100313 至 100322 控制。", MessageType.Info);
 
         if (EditorGUI.EndChangeCheck())
         {
@@ -1775,6 +1833,29 @@ public class GMTools : EditorWindow
         {
             Debug.LogWarning("[GMTools] 当前关卡配置里没有可直接刷出的 Boss，或刷怪器尚未完成可用初始化。");
         }
+    }
+
+    private static void TrySetCurrentTowerDefendWave(int wave)
+    {
+        var towerDefendBattle = TryReadCurrentTowerDefendBattle("设置当前波次");
+        if (towerDefendBattle == null)
+        {
+            return;
+        }
+
+        if (towerDefendBattle.ReadGameMode() != BattleGameMode.Endless)
+        {
+            Debug.LogWarning("[GMTools] 当前不是无尽模式，无法直接设置波次。");
+            return;
+        }
+
+        if (!towerDefendBattle.GM_TrySetCurrentWave(wave))
+        {
+            Debug.LogWarning("[GMTools] 设置波次失败：刷怪器当前处于暂停、挂起或已结束状态。");
+            return;
+        }
+
+        Debug.Log(string.Format("[GMTools] 无尽模式当前波次已设置为 {0}。", towerDefendBattle.ReadCurrentWave()));
     }
 
     private void DrawGuideTab()

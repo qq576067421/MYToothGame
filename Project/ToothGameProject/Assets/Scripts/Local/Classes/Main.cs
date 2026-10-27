@@ -205,7 +205,7 @@ public class Main : MonoBehaviour
             return;
         }
         AudioManager.GetInstance().SetSystemPaused(pauseStatus);
-        if(AndroidServerInfoDemo.Instance) AndroidServerInfoDemo.Instance.OnDestroyAudioPlayer();
+        // 旧 SDK Demo 播放器已移除；Package Host 管理 SDK 的前后台生命周期。
     }
 
     public void NextFrameCall(Action call)

@@ -7,6 +7,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.Video;
 using UnityUI;
+using YoudooGame.Framework;
 
 namespace GameHot
 {
@@ -37,6 +38,7 @@ namespace GameHot
             m_Wnd = new v_lobby_main_wnd();
             m_Wnd.InitComponent(__GetWindowObj());
 
+
             RenderAPI.AddButtonClick(m_Wnd.m_btnModeChapter, () =>
             {
                 CGameProcedure.s_ProcLobby.SetSelectedGameMode(BattleGameMode.Chapter);
@@ -50,12 +52,13 @@ namespace GameHot
             });
             RenderAPI.AddButtonClick(m_Wnd.m_btnToothFactory, () =>
             {
-                //OnClickOpenToothFactory();
+                OnClickOpenToothFactory();
             });
             RenderAPI.AddButtonClick(m_Wnd.m_btnSetting, () =>
             {
-                //OnClickSetting();
+                OnClickSetting();
             });
+            OnInitLanguage();
         }
         private void OnClickOpenToothFactory()
         {
@@ -73,25 +76,26 @@ namespace GameHot
                 Debug.LogError("无法打开战斗准备界面：大厅当前选择没有形成有效的战斗启动请求。");
                 return;
             }
-
-            var lvChooseWnd = UIManager.OpenWindowEX<tower_defend_lvchoose_wnd>(this);
-            lvChooseWnd.SetRequest(
+            if(request.m_GameMode == BattleGameMode.Chapter)
+            {
+                var lvChooseWnd = UIManager.OpenWindowEX<tower_defend_chapter_wnd>(this);
+                lvChooseWnd.SetRequest(
                 request,
                 () =>
                 {
-                    if (request.m_GameMode == BattleGameMode.Chapter)
-                    {
-                        var chapterWnd = UIManager.OpenWindowEX<tower_defend_chapter_wnd>(this);
-                        chapterWnd.SetRequest(
-                            request,
-                            () => OpenPlayerCountWindow(request),
-                            null);
-                        return chapterWnd;
-                    }
-
-                    return OpenPlayerCountWindow(request);
+                    var chapterWnd = UIManager.OpenWindowEX<tower_defend_lvchoose_wnd>(this);
+                    chapterWnd.SetRequest(
+                        request,
+                        () => OpenPlayerCountWindow(request),
+                        null);
+                    return chapterWnd;
                 },
                 null);
+            }
+            else
+            {
+                OpenPlayerCountWindow(request);
+            }
         }
 
         private tower_defend_player_count_wnd OpenPlayerCountWindow(BattleStartupRequest request)
@@ -106,6 +110,25 @@ namespace GameHot
 
         private tower_defend_prepare_wnd OpenPrepareWindow(BattleStartupRequest request)
         {
+            // 每次新开准备界面都开始一轮全新的匹配，清掉上次准备/战斗留下的槽位状态。
+            // 重置后再应用本次人数，避免复用同人数时 SetPlayerCount 不触发重配。
+            if (request != null && GameFrameworkBootstrap.CompositionRoot != null)
+            {
+                var compositionRoot = GameFrameworkBootstrap.CompositionRoot;
+                bool reset = !GameProductUiAdapter.HasLiveSession || YoudooAPI.ResetSession();
+                bool playerCountApplied = GameFrameworkBootstrap.TrySetSessionPlayerCount(request.ReadPreparePlayerCount());
+                Debug.Log("[新SDK整合] prepare session begin reset=" +
+                          (GameProductUiAdapter.HasLiveSession ? (reset ? "1" : "0") : "skip") +
+                          " playerCount=" + request.ReadPreparePlayerCount() +
+                          " applied=" + (playerCountApplied ? "1" : "0"));
+            }
+
+            // 相机生命周期只在大厅入口启动一次；窗口 OnOpen 负责视图绑定，避免重复重启流程。
+            if (GameProductUiAdapter.HasLiveSession)
+            {
+                GameProductUiAdapter.EnterPrepareCamera("prepare-open");
+            }
+
             var prepareWnd = UIManager.OpenWindowEX<tower_defend_prepare_wnd>(this);
             prepareWnd.SetRequest(request);
             return prepareWnd;
@@ -210,7 +233,17 @@ namespace GameHot
             AudioManager.GetInstance().Play2D(4);
             Debug.Log("播放lobby_main_wnd 4 音效");
         }
-
+        private void OnInitLanguage()
+        {
+            RenderAPI.SetTextLan(m_Wnd.m_btnModeChapter_txt, "td_mode_chapter");
+            RenderAPI.SetTextLan(m_Wnd.m_btnModeChapterChoose_txt, "td_mode_chapter");
+            RenderAPI.SetTextLan(m_Wnd.m_btnModeEndless_txt, "td_mode_endless");
+            RenderAPI.SetTextLan(m_Wnd.m_btnModeEndlessChoose_txt, "td_mode_endless");
+            RenderAPI.SetTextLan(m_Wnd.m_btnToothFactory_txt, "td_mode_giftedness");
+            RenderAPI.SetTextLan(m_Wnd.m_btnToothFactoryChoose_txt, "td_mode_giftedness");
+            RenderAPI.SetTextLan(m_Wnd.m_btnSetting_txt, "td_mode_setting");
+            RenderAPI.SetTextLan(m_Wnd.m_btnSettingChoose_txt, "td_mode_setting");
+        }
 
 
         private void OnMoneyChanged()

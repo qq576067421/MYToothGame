@@ -292,8 +292,7 @@ namespace GameDll
         protected virtual void OnCastOver()
         {
             m_CastStatus = SkillCastStatus.end;
-
-
+            RestoreBoneNormalAttackAnimation();
         }
 
         private int m_SkillLevel = 0;
@@ -316,6 +315,105 @@ namespace GameDll
         private float m_LastCheckAtkChangeTime = 0;
         protected int m_CastId = 0;//该技能被实体释放的次数标识
         private bool m_SkillCastBuffApplied = false;
+        private bool m_NextCastIsBoneNormalAttack;
+        private bool m_IsBoneNormalAttack;
+        private float m_BoneNormalAttackInputInterval;
+        private float m_BoneActionFrameProgress;
+        private float m_BoneActionProgressTime;
+        private float m_BoneAnimationSpeedTime;
+        private float m_BoneActionSpeed = 1f;
+        private float m_BoneTargetActionSpeed = 1f;
+
+        public bool ReadIsBoneNormalAttack()
+        {
+            return m_IsBoneNormalAttack;
+        }
+
+        public void PrepareBoneNormalAttack(float inputInterval)
+        {
+            m_NextCastIsBoneNormalAttack = m_Slot == 0 && this is CommonBulletSkill;
+            m_BoneNormalAttackInputInterval = inputInterval;
+        }
+
+        protected float ReadBoneActionFrameProgress()
+        {
+            return m_BoneActionFrameProgress;
+        }
+
+        protected float ReadBoneActionSpeed()
+        {
+            return m_BoneActionSpeed;
+        }
+
+        protected virtual float ReadBoneNormalAttackTargetSpeed()
+        {
+            float finishFrame = Mathf.Max(m_CurAction.t_ac_cast_point + 1f, m_CurAction.t_ac_finish);
+            float inputInterval = Mathf.Max(TowerDefendBoneAttackTuning.ReadMinAttackInterval(),
+                m_BoneNormalAttackInputInterval);
+            // 只在实际输入间隔短于完整动作时加速，不能把最快允许频率当作每次攻击的速度。
+            return Mathf.Max(1f, finishFrame / (GetActionFrameRate() * inputInterval));
+        }
+
+        private void StartBoneNormalAttackAnimation()
+        {
+            float now = BattleManager.ReadBattleTime();
+            float recoveryTime = Mathf.Max(0f, now - m_BoneAnimationSpeedTime);
+            m_BoneActionSpeed = Mathf.Lerp(1f, m_BoneActionSpeed,
+                Mathf.Exp(-recoveryTime / TowerDefendBoneAttackTuning.m_AnimationRecoverySecond));
+
+            float frameRate = GetActionFrameRate();
+            m_BoneTargetActionSpeed = ReadBoneNormalAttackTargetSpeed();
+            m_BoneAnimationSpeedTime = now;
+            m_Attacker.GetRender().SetAnimationSpeed(m_BoneActionSpeed * frameRate / 30f);
+        }
+
+        private void UpdateBoneNormalAttackProgress()
+        {
+            if (!m_IsBoneNormalAttack || m_CastStatus == SkillCastStatus.end ||
+                m_Attacker == null || m_Attacker.ReadCurrentSkill() != this)
+            {
+                return;
+            }
+            if (!BattleManager.ReadIsEntityValide(m_Attacker) || m_Attacker.ReadIsBeingControlled() ||
+                m_Attacker.ReadIsFreeze())
+            {
+                Stop();
+                return;
+            }
+
+            float now = BattleManager.ReadBattleTime();
+            float elapsed = Mathf.Max(0f, now - m_BoneActionProgressTime);
+            if (elapsed <= 0f)
+            {
+                return;
+            }
+
+            // 技能管理器可能重复更新同一个技能，只累计尚未处理的战斗时间。
+            m_BoneActionFrameProgress += elapsed * m_BoneActionSpeed * GetActionFrameRate();
+            m_BoneActionProgressTime = now;
+            float targetSpeed = m_Attacker.ReadBoneNormalAttackInterval() >
+                TowerDefendBoneAttackTuning.m_AnimationRecoveryDelaySecond
+                ? 1f : m_BoneTargetActionSpeed;
+            float responseTime = targetSpeed > m_BoneActionSpeed
+                ? TowerDefendBoneAttackTuning.m_AnimationAccelerationSecond
+                : TowerDefendBoneAttackTuning.m_AnimationRecoverySecond;
+            m_BoneActionSpeed = Mathf.Lerp(m_BoneActionSpeed, targetSpeed,
+                1f - Mathf.Exp(-elapsed / responseTime));
+            m_BoneAnimationSpeedTime = now;
+            m_Attacker.GetRender().SetAnimationSpeed(m_BoneActionSpeed * GetActionFrameRate() / 30f);
+        }
+
+        private void RestoreBoneNormalAttackAnimation()
+        {
+            if (m_IsBoneNormalAttack && m_Attacker != null && m_Attacker.ReadCurrentSkill() == this)
+            {
+                var render = m_Attacker.GetRender();
+                if (render != null)
+                {
+                    render.SetAnimationSpeed(m_Attacker.ReadIsFreeze() ? 0f : 1f);
+                }
+            }
+        }
 
         private float m_Atk = 0;
         private float m_LastDamageBaseAttack = 0;
@@ -557,7 +655,9 @@ namespace GameDll
             {
                 return m_Attacker.GetNormalAtkSpeed();
             }
-            return m_AttackSpeed;
+            // m_AttackSpeed 以 100 为基准（100=1 倍速），与普攻的攻速属性同一量纲后参与
+            // 动画速度/施法时间计算，保证普攻与技能的动作节奏走同一套公式。
+            return Mathf.Max(0.01f, m_AttackSpeed / 100f);
         }
 
         //施法动作持续时间
@@ -1019,9 +1119,15 @@ namespace GameDll
 
         }
         protected float m_CooldownTime;
+        private float m_CooldownReduceSeconds;
         public float ReadCooldownTime()
         {
             return m_CooldownTime;
+        }
+
+        public void SetCooldownReduceSeconds(float reduceSeconds)
+        {
+            m_CooldownReduceSeconds = Mathf.Max(0f, reduceSeconds);
         }
 
         protected float GetCooldownTime()
@@ -1061,7 +1167,7 @@ namespace GameDll
                 }
             }
             // 配置表中t_cooldown按秒配置，运行时直接使用秒
-            m_CooldownTime = Mathf.Max(0.001f, m_SkillBean.t_cooldown / 1000.0f);
+            m_CooldownTime = Mathf.Max(0.001f, m_SkillBean.t_cooldown / 1000.0f - m_CooldownReduceSeconds);
 
             return m_CooldownTime;
         }
@@ -1134,10 +1240,18 @@ namespace GameDll
         public virtual void OnEnter()
         {
             m_CastStartTime = BattleManager.ReadBattleTime();
+            m_IsBoneNormalAttack = m_NextCastIsBoneNormalAttack;
+            m_NextCastIsBoneNormalAttack = false;
+            m_BoneActionFrameProgress = 0f;
+            m_BoneActionProgressTime = m_CastStartTime;
             m_AttackSpeed = 100;
             m_CastId++;
             m_SkillCastBuffApplied = false;
             m_HasCastFirePoint = false;
+            // 清掉上一轮施法的上半身转动残留，新一轮按 warming_up 重新启动
+            m_UpperRotLaunched = false;
+            m_UpperRotRestored = false;
+            RestoreUpperBodySpine();
             BattleManager.GetBattleTool().ConsumeSkillPreconditionIfNeeded(m_Attacker, m_SkillBean);
 
             if (m_Attacker is PlayerHero && m_Slot > 0)
@@ -1173,6 +1287,13 @@ namespace GameDll
             {
                 return;
             }
+            if (m_IsBoneNormalAttack)
+            {
+                StartBoneNormalAttackAnimation();
+                m_Attacker.GetRender().PlayAnimation(ani, null,
+                    TowerDefendBoneAttackTuning.m_AnimationBlendSecond);
+                return;
+            }
             var speed = GetAttackSpeed() * GetActionFrameRate() / 30;
             m_Attacker.GetRender().SetAnimationSpeed(speed);
             //Debug.Log($"当前攻击动画速度：{speed}");
@@ -1195,6 +1316,7 @@ namespace GameDll
             }
             if (m_Slot == 0)
             {
+                // 连射可以持续续期，进阶攻击仍应在首发后按原有优先级打断普攻。
                 if(m_CastStatus > SkillCastStatus.cast_point)
                 {
                     return true;
@@ -1213,6 +1335,96 @@ namespace GameDll
         public virtual void Update(float dt)
         {
             OnUpdateCooldown(dt);
+            UpdateBoneNormalAttackProgress();
+            UpdateUpperBodyRotate(dt);
+        }
+
+        // 上半身转动表现（技能描述表 t_upper_rot_params = 角度+缓动毫秒）：
+        // 预热阶段开始把 spine_01.x 转到配置角度（绕局部 X 轴），cast_back 开始以同样时间转回。
+        // spine 被动画每帧驱动，逻辑层只计算目标角度，由渲染层在动画更新后按增量叠加，
+        // 不覆盖动画或其它系统对骨骼的默认控制。
+        private const string UpperBodySpineNodeName = "spine_01.x";
+        private bool m_UpperRotLaunched;
+        private bool m_UpperRotRestored;
+        private bool m_UpperRotTweening;
+        private float m_UpperRotCurrentAngle;
+        private float m_UpperRotFromAngle;
+        private float m_UpperRotToAngle;
+        private float m_UpperRotElapsed;
+        private float m_UpperRotDuration;
+
+        private bool TryReadUpperRotConfig(out float targetAngle, out float durationSecond)
+        {
+            targetAngle = 0f;
+            durationSecond = 0f;
+            if (m_SkillDescBean == null || m_SkillDescBean.t_upper_rot_params == null ||
+                m_SkillDescBean.t_upper_rot_params.Count < 2)
+            {
+                return false;
+            }
+
+            targetAngle = m_SkillDescBean.t_upper_rot_params[0];
+            durationSecond = Mathf.Max(0f, m_SkillDescBean.t_upper_rot_params[1] / 1000.0f);
+            return !Mathf.Approximately(targetAngle, 0f) && durationSecond > 0f;
+        }
+
+        private void UpdateUpperBodyRotate(float dt)
+        {
+            if (!TryReadUpperRotConfig(out var targetAngle, out var durationSecond))
+            {
+                return;
+            }
+
+            if (m_CastStatus == SkillCastStatus.warming_up && !m_UpperRotLaunched)
+            {
+                m_UpperRotLaunched = true;
+                BeginUpperBodyRotate(targetAngle, durationSecond);
+            }
+            else if (m_CastStatus == SkillCastStatus.cast_back && m_UpperRotLaunched && !m_UpperRotRestored)
+            {
+                // 抬起与放下使用同样的缓动时间
+                m_UpperRotRestored = true;
+                BeginUpperBodyRotate(0f, durationSecond);
+            }
+
+            if (!m_UpperRotTweening)
+            {
+                return;
+            }
+
+            m_UpperRotElapsed += dt;
+            float progress = m_UpperRotDuration <= 0f ? 1f : Mathf.Clamp01(m_UpperRotElapsed / m_UpperRotDuration);
+            m_UpperRotCurrentAngle = Mathf.Lerp(m_UpperRotFromAngle, m_UpperRotToAngle, progress);
+            ApplyUpperBodyRotate(m_UpperRotCurrentAngle);
+            if (progress >= 1f)
+            {
+                m_UpperRotTweening = false;
+            }
+        }
+
+        private void BeginUpperBodyRotate(float targetAngle, float durationSecond)
+        {
+            m_UpperRotFromAngle = m_UpperRotCurrentAngle;
+            m_UpperRotToAngle = targetAngle;
+            m_UpperRotElapsed = 0f;
+            m_UpperRotDuration = durationSecond;
+            m_UpperRotTweening = true;
+        }
+
+        private void ApplyUpperBodyRotate(float angle)
+        {
+            m_UpperRotCurrentAngle = angle;
+            if (m_Attacker != null)
+            {
+                (m_Attacker.GetRender() as UActor)?.SetExtraBoneRotation(UpperBodySpineNodeName, angle);
+            }
+        }
+
+        private void RestoreUpperBodySpine()
+        {
+            m_UpperRotTweening = false;
+            m_UpperRotCurrentAngle = 0f;
+            ApplyUpperBodyRotate(0f);
         }
         public virtual void UpdateRender()
         {
@@ -1223,6 +1435,14 @@ namespace GameDll
         /// </summary>
         public virtual void Stop()
         {
+            // 施法被打断时上半身姿态不能停留在转动后的状态
+            RestoreUpperBodySpine();
+            if (m_IsBoneNormalAttack)
+            {
+                m_CastStatus = SkillCastStatus.end;
+                RestoreBoneNormalAttackAnimation();
+                return;
+            }
             if (m_SkillBean != null && m_SkillBean.t_keep_time > 0)
             {
                 RenderEvent.Event.KeepSkill(this.GetCastId(), false);
@@ -1236,6 +1456,8 @@ namespace GameDll
 
         public virtual void Destroy()
         {
+            RestoreBoneNormalAttackAnimation();
+            RestoreUpperBodySpine();
             if (m_CastStatus == SkillCastStatus.warming_up ||
                 m_CastStatus == SkillCastStatus.cast_point ||
                 m_CastStatus == SkillCastStatus.cast_keep ||

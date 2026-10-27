@@ -56,6 +56,8 @@ namespace GameDll
                 battlePlayer.m_SeatId = pp.m_SeatId;
                 battlePlayer.m_HPPercent = pp.m_HPPercent;
                 battlePlayer.m_MagicPercent = pp.m_MagicPercent;
+                battlePlayer.m_Talents.AddRange(pp.m_Talents);
+                battlePlayer.m_TalentBranches.AddRange(pp.m_TalentBranches);
 
                 AddPlayer(battlePlayer);
             }
@@ -147,6 +149,18 @@ namespace GameDll
         public virtual void Update(float dt)
         {
 
+        }
+
+        public void UpdateProjectilePools(float battleTime)
+        {
+            if (m_BulletObjPool != null)
+            {
+                m_BulletObjPool.Update(battleTime);
+            }
+            if (m_PaodanObjPool != null)
+            {
+                m_PaodanObjPool.Update(battleTime);
+            }
         }
 
         public virtual void OnDrawGizmos()

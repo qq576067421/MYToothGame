@@ -318,6 +318,10 @@ namespace GameDll
         {
 
         }
+        public virtual void SetBeamPoints(Vector3[] points, int count)
+        {
+
+        }
 
         protected virtual bool LoadShowObjImp(UnityEngine.Object obj)
         {

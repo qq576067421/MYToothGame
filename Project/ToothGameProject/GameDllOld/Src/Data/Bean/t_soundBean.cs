@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Auto generated, do not edit it
  *Author lichunlin
  * t_soundBean

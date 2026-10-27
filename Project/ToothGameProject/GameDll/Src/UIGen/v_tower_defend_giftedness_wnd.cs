@@ -1,6 +1,6 @@
 ﻿//功能：tower_defend_giftedness_wnd的窗口配置文件
 //工具作者：lichunlin
-//生成时间：2026/7/20 11:26:55
+//生成时间：09/23/2026 18:29:59
 //描述：以下文件是自动生成的，任何手动修改都会被下次自动生成覆盖。
 
 using System;
@@ -10,6 +10,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
 using UnityUI;
+using GameDll;
 namespace GameHot
 {
      public class v_tower_defend_giftedness_wnd:v_base_wnd
@@ -33,6 +34,24 @@ namespace GameHot
           //tower_defend_giftedness_wnd/top/txt_coin
           public LUITextMesh m_txt_coin;
 
+          //tower_defend_giftedness_wnd/ButtonLeft
+          public LUIButton m_ButtonLeft;
+
+          //tower_defend_giftedness_wnd/ButtonRight
+          public LUIButton m_ButtonRight;
+
+          //tower_defend_giftedness_wnd/ButtonUp
+          public LUIButton m_ButtonUp;
+
+          //tower_defend_giftedness_wnd/ButtonDown
+          public LUIButton m_ButtonDown;
+
+          //tower_defend_giftedness_wnd/ButtonClick
+          public LUIButton m_ButtonClick;
+
+          //tower_defend_giftedness_wnd/middle/Viewport/Content/Progress
+          public LUIImage m_Progress;
+
           public override void InitComponent(GameObject go)
           {
                m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
@@ -41,6 +60,12 @@ namespace GameHot
                m_Progress_Fill = m_Bridge.GetControl(2) as LUIImage;
                m_Progress_di = m_Bridge.GetControl(3) as LUIImage;
                m_txt_coin = m_Bridge.GetControl(4) as LUITextMesh;
+               m_ButtonLeft = m_Bridge.GetControl(5) as LUIButton;
+               m_ButtonRight = m_Bridge.GetControl(6) as LUIButton;
+               m_ButtonUp = m_Bridge.GetControl(7) as LUIButton;
+               m_ButtonDown = m_Bridge.GetControl(8) as LUIButton;
+               m_ButtonClick = m_Bridge.GetControl(9) as LUIButton;
+               m_Progress = m_Bridge.GetControl(10) as LUIImage;
           }
           public class v_Item:v_base_wnd
           {
@@ -102,6 +127,18 @@ namespace GameHot
                //item/Branch/branch_btn/unlock/Progress_Fill
                public LUIImage m_Progress_Fill;
 
+               //item/lockCoin/lockCoin_TxtMesh
+               public LUITextMesh m_lockCoin_TxtMesh;
+
+               //item/Branch/branch_btn/lockCoin/lockCoin_TxtMesh
+               public LUITextMesh m_lockCoin_TxtMesh_new1;
+
+               //item/Branch/branch_btn/unlock/branchUnlock_Txt
+               public LUITextMesh m_branchUnlock_Txt;
+
+               //item/Branch/branch_btn/choose/branchChoose_Txt
+               public LUITextMesh m_branchChoose_Txt;
+
                public override void InitComponent(GameObject go)
                {
                     m_Bridge = go.GetComponent(typeof(ComponentBridge)) as ComponentBridge;
@@ -123,6 +160,10 @@ namespace GameHot
                     m_lockImage = m_Bridge.GetControl(15) as LUIImage;
                     m_lockImage_new1 = m_Bridge.GetControl(16) as LUIImage;
                     m_Progress_Fill = m_Bridge.GetControl(17) as LUIImage;
+                    m_lockCoin_TxtMesh = m_Bridge.GetControl(18) as LUITextMesh;
+                    m_lockCoin_TxtMesh_new1 = m_Bridge.GetControl(19) as LUITextMesh;
+                    m_branchUnlock_Txt = m_Bridge.GetControl(20) as LUITextMesh;
+                    m_branchChoose_Txt = m_Bridge.GetControl(21) as LUITextMesh;
                }
           }
      }

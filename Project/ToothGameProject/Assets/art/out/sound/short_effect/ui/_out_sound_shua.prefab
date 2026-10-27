@@ -19,6 +19,11 @@ PrefabInstance:
       value: 
       objectReference: {fileID: 5871666199112967889, guid: 365b4468423c4b9489f564df094ada86,
         type: 2}
+    - target: {fileID: 920424848203678333, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
+        type: 3}
+      propertyPath: reverbZoneMixCustomCurve.m_Curve.Array.data[0].value
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 6415141289833566812, guid: 9ce6a67cd8fe84a40a461ab54fb61262,
         type: 3}
       propertyPath: m_RootOrder

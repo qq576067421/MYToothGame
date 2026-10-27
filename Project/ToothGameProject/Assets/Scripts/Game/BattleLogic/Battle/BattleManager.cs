@@ -331,6 +331,143 @@ namespace GameDll
             return true;
         }
 
+        public static bool IsCanUseBoneSkillDirect(PropertyEntity entity, int slot, bool boneNormalAttack)
+        {
+            if (!ReadIsEntityValide(entity) || entity.ReadIsBeingControlled() || entity.ReadIsFreeze())
+            {
+                return false;
+            }
+
+            var skillManager = entity.GetSkillManager();
+            var skill = skillManager != null ? skillManager.ReadSkillBySlot(slot) : null;
+            if (skill == null)
+            {
+                return false;
+            }
+
+            // 一次释放会连续产生多颗子弹的技能保留原技能节奏，不能由体感输入续期或改变动作速度。
+            bool useFastBoneNormalAttack = boneNormalAttack && (!(skill is CommonBulletSkill continuousBulletSkill) || !continuousBulletSkill.ReadIsContinuousBulletCast());
+            var currentSkill = skillManager.GetCurrentSkill();
+            bool canRenewBoneKeepShoot = useFastBoneNormalAttack && currentSkill == skill &&
+                skill is CommonBulletSkill bulletSkill && bulletSkill.CanRenewBoneKeepShoot();
+
+            if (useFastBoneNormalAttack)
+            {
+                if (slot != 0 || !(skill is CommonBulletSkill) ||
+                    (!canRenewBoneKeepShoot &&
+                     !entity.ReadIsBoneNormalAttackReady(TowerDefendBoneAttackTuning.ReadMinAttackInterval())) ||
+                    entity.CanBoneNormalAttack(skill) != AttackFailedReason.Success)
+                {
+                    return false;
+                }
+            }
+            else if (entity.CanAttack(skill) != AttackFailedReason.Success)
+            {
+                return false;
+            }
+
+            if (currentSkill == null)
+            {
+                return true;
+            }
+            if (currentSkill.ReadSlot() != 0)
+            {
+                return false;
+            }
+
+            // 激光持续发弹期间再次点击：允许进入续射（顺延发弹窗口），不按打断处理
+            if (slot == 0 && currentSkill == skill && skill is CommonBulletSkill laserKeepSkill &&
+                laserKeepSkill.CanRenewLaserKeepShoot())
+            {
+                return true;
+            }
+
+            return useFastBoneNormalAttack || (slot > 0 &&
+                (currentSkill.ReadIsBoneNormalAttack() || currentSkill.IsSkillCanBreakStatus(slot)));
+        }
+
+        public static bool TryAttackBoneDir(int slot, PropertyEntity attacker, Vector3 faceForward,
+            Vector3 moveDirection, bool boneNormalAttack)
+        {
+            if (slot == 0 && boneNormalAttack && attacker is PlayerHero attackInputHero)
+            {
+                attackInputHero.MarkNormalAttackInput();
+            }
+
+            if (!IsCanUseBoneSkillDirect(attacker, slot, boneNormalAttack))
+            {
+                return false;
+            }
+
+            var skillManager = attacker.GetSkillManager();
+            var currentSkill = skillManager.GetCurrentSkill();
+            var skill = skillManager.ReadSkillBySlot(slot);
+            bool useFastBoneNormalAttack = boneNormalAttack && (!(skill is CommonBulletSkill continuousBulletSkill) || !continuousBulletSkill.ReadIsContinuousBulletCast());
+            if (useFastBoneNormalAttack && currentSkill != null && currentSkill.ReadIsBoneNormalAttack())
+            {
+                // 先结算已经到期的子弹；同一个持续普攻只续期，单发仍重新开始一次攻击。
+                currentSkill.Update(0f);
+                if (currentSkill == skill && skill is CommonBulletSkill bulletSkill &&
+                    bulletSkill.TryRenewBoneKeepShoot(faceForward, moveDirection))
+                {
+                    attacker.MarkBoneNormalAttack();
+                    return true;
+                }
+
+                if (!attacker.ReadIsBoneNormalAttackReady(TowerDefendBoneAttackTuning.ReadMinAttackInterval()))
+                {
+                    return false;
+                }
+            }
+
+            // 激光持续发弹期间再次点击：顺延发弹窗口续射，不重开施法，光束与伤害节拍不中断
+            if (!useFastBoneNormalAttack && currentSkill == skill && skill is CommonBulletSkill laserKeepSkill &&
+                laserKeepSkill.TryRenewLaserKeepShoot())
+            {
+                attacker.MarkBoneNormalAttack();
+                return true;
+            }
+
+            // 激光普攻：光束仍在单次作用时间内时直接续发，不重新进入施法流程（不重播攻击动画/音效/开火特效）。
+            if (useFastBoneNormalAttack && skill is CommonBulletSkill laserBulletSkill &&
+                laserBulletSkill.TryRenewLaserNormalAttack(attacker))
+            {
+                attacker.MarkBoneNormalAttack();
+                return true;
+            }
+
+            // 自动动作技能替换普攻后同样要满足“持续释放”：连点/长按普攻时
+            // 顺延该技能自己的发弹窗口，而不是重新施放。
+            if (boneNormalAttack && slot == 0 && attacker is PlayerHero autoActionHero &&
+                autoActionHero.IsAutoActionNormalAttackSkill(currentSkill) &&
+                currentSkill is CommonBulletSkill autoActionSkill &&
+                autoActionSkill.TryRenewKeepShoot())
+            {
+                attacker.MarkBoneNormalAttack();
+                return true;
+            }
+
+            attacker.BreakSkill();
+
+            // 程序触发的动作技能（t_auto_action_skill_id）：自身条件满足时，
+            // 玩家的这一次普攻替换为该技能的完整施放（带动作，不标记骨骼普攻节奏）。
+            if (!TowerDefendBattleSpawer.m_GMDisableAutoSkill &&
+                attacker is PlayerHero replaceHero &&
+                replaceHero.TryResolveAutoActionSkillForNormalAttack(out int autoActionSlot))
+            {
+                AttackDir(autoActionSlot, attacker, faceForward, moveDirection);
+                return true;
+            }
+
+            if (useFastBoneNormalAttack)
+            {
+                skill.PrepareBoneNormalAttack(attacker.ReadBoneNormalAttackInterval());
+                attacker.MarkBoneNormalAttack();
+            }
+            AttackDir(slot, attacker, faceForward, moveDirection);
+            return true;
+        }
+
         public static bool IsCanUseSkill_WillNextUseSkill(PropertyEntity entity, int slot, PropertyEntity defender)
         {
             if (entity == null)
@@ -545,6 +682,7 @@ namespace GameDll
 
         public static void LogicUpdate(float logic_time)
         {
+            m_Battle.UpdateProjectilePools(m_battleTime);
             m_Battle.Update(logic_time);
 
             m_battleTime += logic_time;

@@ -119,6 +119,7 @@ namespace GameDll
         public Action<int, int> OnBattleAddExpSkillPointChanged = (entityId, point) => { };
         public Action<int, int> OnBattleAddExpTalentPointChanged = (entityId, point) => { };
         public Action<Entity> OnBossHealthChanged = (entity) => { };
+        public Action<PropertyEntity> OnShieldChanged = (entity) => { };
         public Action<int, int,bool> OnLollipopHealthChanged = (maxHealth, currentHealth,isShowBlood) => { };
         public Action<int> OnSaveTowerPosition = (entId) => { };
 

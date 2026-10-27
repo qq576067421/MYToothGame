@@ -87,7 +87,6 @@ SpriteAtlas:
     - 452850d7fbb595b4e879419039f85c09: 21300000
     - 06fff87828584d84cb5cbbbdf19fd191: 21300000
     - 75f65fe8644c5a8428f59fd1b565b34c: 21300000
-    - 796bf1094de7cfd4f9021ef18fc7ac43: 21300000
     - ea8121e9f34f27946af1d9a143f35580: 21300000
     - ae1b95e956375104bb8217a082ed00a6: 21300000
     - cfed953a09234674788b8194f4fa5c7f: 21300000
@@ -139,7 +138,6 @@ SpriteAtlas:
   - {fileID: 21300000, guid: 452850d7fbb595b4e879419039f85c09, type: 3}
   - {fileID: 21300000, guid: 06fff87828584d84cb5cbbbdf19fd191, type: 3}
   - {fileID: 21300000, guid: 75f65fe8644c5a8428f59fd1b565b34c, type: 3}
-  - {fileID: 21300000, guid: 796bf1094de7cfd4f9021ef18fc7ac43, type: 3}
   - {fileID: 21300000, guid: ea8121e9f34f27946af1d9a143f35580, type: 3}
   - {fileID: 21300000, guid: ae1b95e956375104bb8217a082ed00a6, type: 3}
   - {fileID: 21300000, guid: cfed953a09234674788b8194f4fa5c7f, type: 3}
@@ -190,7 +188,6 @@ SpriteAtlas:
   - play_16
   - play_27
   - playrank_1001
-  - basshiteff
   - play_17
   - touxiangdaxiao
   - playlevelfill_1002
