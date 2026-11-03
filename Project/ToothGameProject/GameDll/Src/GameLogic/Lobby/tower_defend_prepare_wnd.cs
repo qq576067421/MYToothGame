@@ -882,6 +882,7 @@ namespace GameHot
                 RenderAPI.AddButtonClick(GetSlotRoleRightButton(seatId), () => OnClickChangeSelectedRole(seatId, 1));
                 RenderAPI.AddButtonClick(GetSlotHeadButton(seatId), () => m_FaceController.OnClickHead(seatId));
             }
+            OnInitLanguage();
         }
         protected override void OnDestroy()
         {
@@ -1026,7 +1027,12 @@ namespace GameHot
 
             m_IsWaitingBattleLoading = true;
         }
-
+        private void OnInitLanguage()
+        {
+            RenderAPI.SetTextLan(m_View.m_txtInfo, "td_lobby_prepare_title");
+            RenderAPI.SetTextLan(m_View.m_cut_txt, "td_lobby_prepare_cut");
+            RenderAPI.SetTextLan(m_View.m_prepare_txt, "td_prepare_wait_raise_hand");
+        }
         // 仅编辑器允许手动切换座位；真机会在大厅逻辑里直接拦截。
         private void OnClickToggleSeat(int seatId)
         {

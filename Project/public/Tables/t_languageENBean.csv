@@ -4,7 +4,7 @@ string,string
 Id,
 td_mode_chapter,Level Mode
 td_mode_endless,Endless Mode
-td_mode_giftedness,Dental Health Center
+td_mode_giftedness,Health Center
 td_mode_setting,Setting
 td_lobby_entry,td_lobby_entry
 td_hud_default_player,td_hud_default_player
@@ -269,7 +269,7 @@ td_result_continue_challenge,Continue
 td_result_retry_challenge,Again
 td_result_return,Return Home
 td_prepare_wait_center,td_prepare_wait_center
-td_prepare_face_recognizing,td_prepare_face_recognizing
+td_prepare_face_recognizing,Recognizing a face
 td_prepare_wait_raise_hand,Raise your hand and get ready.
 td_prepare_error_sdk_data_missing,td_prepare_error_sdk_data_missing
 td_prepare_error_all_ready,td_prepare_error_all_ready
@@ -292,7 +292,7 @@ td_error_stage_guard_slot_missing,td_error_stage_guard_slot_missing
 td_error_selected_role_missing,td_error_selected_role_missing
 td_error_battle_player_role_missing,td_error_battle_player_role_missing
 td_prepare_face_enter_area,Please enter the facial recognition area.
-td_prepare_face_wait_avatar_select,td_prepare_face_wait_avatar_select
+td_prepare_face_wait_avatar_select,Wait to select the profile picture
 td_prepare_face_select_avatar,td_prepare_face_select_avatar
 td_login_start_text,StartGame
 td_login_year_Instruction_title,Age Hint

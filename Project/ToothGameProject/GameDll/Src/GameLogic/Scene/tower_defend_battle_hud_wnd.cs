@@ -1809,8 +1809,9 @@ namespace GameHot
             RectTransform shieldRect = m_View.m_Fill_Shield.GetComponent<RectTransform>();
 
             m_View.m_Fill_Shield.value = ratio;
-            shieldRect.offsetMin = new Vector2(baseHpRect.sizeDelta.x * shieldPos, shieldRect.offsetMin.y);
-            shieldRect.offsetMax = new Vector2(baseHpRect.sizeDelta.x * shieldPos, shieldRect.offsetMax.y);
+            if (ratio <= 0) return;
+            shieldRect.offsetMin = new Vector2(baseHpRect.sizeDelta.x * shieldPos-(10), shieldRect.offsetMin.y);
+            shieldRect.offsetMax = new Vector2(baseHpRect.sizeDelta.x * shieldPos+(10* shieldPos/ ratio), shieldRect.offsetMax.y);
         }
         private Dictionary<int, Entity> m_bossDic = new();
         float m_currHP = 0;

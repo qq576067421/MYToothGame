@@ -26,11 +26,12 @@ public sealed class GameSaveService : MonoBehaviour
 {
     private const string kTag = "[GameSaveService]";
     private const float kReadyTimeoutSeconds = 8f;
-    // TODO 存档问题排查期间临时跳过平台存档读写，直接以空档进入游戏；修复后改回 false。
-    private const bool kSkipPlatformSave = true;
 
-    // 开始游戏硬前置：只有 SDK 返回了存档获取结果（成功通知，含平台确认无档）
-    // 才视为就绪；受理失败、失败通知、超时都只重试请求，绝不自行判定无档。
+    // 开始游戏硬前置：只有 SDK 成功通知（含平台确认无档）才视为就绪。
+    // 失败通知/超时只重试，绝不当作「云端无档」；连续 kMaxFetchFailures 次仍未成功时，
+    // 按新账号放行（不卡死登录页），并抑制本次会话上传——云端是否有档未知，
+    // 宁可本次进度不落云（可重来），不可把云端真实进度冲成默认档（不可逆）。
+    private const int kMaxFetchFailures = 3;
 
     public static GameSaveService Instance { get; private set; }
 
@@ -50,6 +51,10 @@ public sealed class GameSaveService : MonoBehaviour
     private string m_PendingData;
     private bool m_FlushQueued;
     private bool m_PlatformSaveUnavailableLogged;
+    private int m_FetchFailureStreak;
+    private bool m_UploadSuppressed;
+    private bool m_UploadSuppressLogged;
+    private bool m_PreReadyFlushDroppedLogged;
 
     private void Awake()
     {
@@ -60,14 +65,6 @@ public sealed class GameSaveService : MonoBehaviour
         }
 
         Instance = this;
-
-        if (kSkipPlatformSave)
-        {
-            // 临时跳过期间不依赖启动流程是否执行到 Initialize，直接以空档就绪。
-            m_FetchRequested = true;
-            Debug.LogWarning(kTag + " platform save temporarily skipped, start with empty save");
-            MarkReady(string.Empty);
-        }
     }
 
     public void Initialize()
@@ -144,13 +141,31 @@ public sealed class GameSaveService : MonoBehaviour
             {
                 if (notification.Success)
                 {
-                    // SDK 明确返回的获取结果（含空档）是唯一就绪依据。
-                    MarkReady(notification.Data as string ?? string.Empty);
+                    if (IsReady)
+                    {
+                        // 迟到的成功回包：内存档已被本会话改写，回灌或解除上传抑制
+                        // 都可能把云端真实进度覆盖成本会话数据，一律不采纳。
+                        Debug.LogWarning(kTag + " late GameSaveLoaded after ready (rawLength="
+                            + (notification.Data as string)?.Length + "), ignored to protect cloud save.");
+                    }
+                    else
+                    {
+                        // SDK 明确返回的获取结果（含空档）是唯一就绪依据。
+                        MarkReady(notification.Data as string ?? string.Empty);
+                    }
                 }
                 else
                 {
+                    m_FetchFailureStreak++;
+                    if (m_FetchFailureStreak >= kMaxFetchFailures)
+                    {
+                        ReleaseAsSuspectedNewAccount();
+                        continue;
+                    }
+
                     // SDK 返回了失败结果：不算获取完成，重新发起请求等待下一次结果。
-                    Debug.LogWarning(kTag + " GameSaveLoaded failed, retrying: "
+                    Debug.LogWarning(kTag + " GameSaveLoaded failed ("
+                        + m_FetchFailureStreak + "/" + kMaxFetchFailures + "), retrying: "
                         + notification.Message);
                     m_ElapsedSeconds = 0f;
                     m_FetchRequested = false;
@@ -183,8 +198,17 @@ public sealed class GameSaveService : MonoBehaviour
         m_ElapsedSeconds += Time.unscaledDeltaTime;
         if (m_ElapsedSeconds >= kReadyTimeoutSeconds)
         {
-            // 长时间没有结果只重新发起请求（请求可能未送达），不代替 SDK 做任何判定。
-            Debug.LogWarning(kTag + " no result yet, re-requesting GetPlatformGameSave.");
+            // 长时间没有结果（请求可能未送达）只重新发起请求，不代替 SDK 做任何判定；
+            // 但连续多次无回包同样计入失败并最终按疑似新号放行，避免静默 SDK 卡死登录页。
+            m_FetchFailureStreak++;
+            if (m_FetchFailureStreak >= kMaxFetchFailures)
+            {
+                ReleaseAsSuspectedNewAccount();
+                return;
+            }
+
+            Debug.LogWarning(kTag + " no result yet ("
+                + m_FetchFailureStreak + "/" + kMaxFetchFailures + "), re-requesting GetPlatformGameSave.");
             m_ElapsedSeconds = 0f;
             m_FetchRequested = false;
             m_NextFetchRetryTime = Time.unscaledTime;
@@ -277,10 +301,30 @@ public sealed class GameSaveService : MonoBehaviour
             return;
         }
 
-        if (kSkipPlatformSave)
+        // 服务级上传闸门：就绪前的 queued 数据是默认/半默认档，绝不发往平台（不依赖调用方自查）。
+        if (!IsReady)
         {
-            // 跳过拉档期间不向平台写档，避免空档/默认档覆盖云端存档。
             m_FlushQueued = false;
+            if (!m_PreReadyFlushDroppedLogged)
+            {
+                m_PreReadyFlushDroppedLogged = true;
+                Debug.LogWarning(kTag + " dropped pre-ready flush; callers must gate writes on IsReady.");
+            }
+
+            return;
+        }
+
+        // 疑似新号会话：云端是否有档未知，上传即赌博。本次会话所有自动写入一律丢弃。
+        if (m_UploadSuppressed)
+        {
+            m_FlushQueued = false;
+            if (!m_UploadSuppressLogged)
+            {
+                m_UploadSuppressLogged = true;
+                Debug.LogError(kTag + " upload suppressed for this session: started as suspected-new-account"
+                    + " (fetch failed " + kMaxFetchFailures + " times), to avoid overwriting real cloud progress.");
+            }
+
             return;
         }
 
@@ -314,6 +358,17 @@ public sealed class GameSaveService : MonoBehaviour
         m_NextFlushRetryTime = Time.unscaledTime + 1f;
     }
 
+    // 连续拉取失败达到上限：按新账号放行（疑似空档），同时抑制本次会话上传。
+    private void ReleaseAsSuspectedNewAccount()
+    {
+        Debug.LogError(kTag + " fetch failed/no-result " + m_FetchFailureStreak
+            + " times in a row; cloud save presence unknown. Releasing as new account to unblock login,"
+            + " auto-upload suppressed for this session.");
+        m_UploadSuppressed = true;
+        m_UploadSuppressLogged = false;
+        MarkReady(string.Empty);
+    }
+
     private void MarkReady(string rawSave)
     {
         if (IsReady)
@@ -324,7 +379,11 @@ public sealed class GameSaveService : MonoBehaviour
         IsReady = true;
         RawSave = rawSave;
         Root = ParseRoot(rawSave);
-        GameSdkLog.Info(kTag + " ready, rawLength=" + (rawSave != null ? rawSave.Length : 0));
+        m_FetchFailureStreak = 0;
+        // 用 LogWarning：GameSdkLog 默认关闭、正式包过滤 Debug.Log，就绪回读是排查丢档的关键线索，必须默认可见。
+        Debug.LogWarning(kTag + " ready, rawLength=" + (rawSave != null ? rawSave.Length : 0)
+            + ", lobbyJson=" + (Root.m_LobbyJson != null ? Root.m_LobbyJson.Length : 0)
+            + ", guideJson=" + (Root.m_GuideJson != null ? Root.m_GuideJson.Length : 0));
         SaveDataReady?.Invoke();
     }
 
