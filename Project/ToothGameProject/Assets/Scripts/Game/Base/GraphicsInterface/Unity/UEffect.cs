@@ -91,6 +91,35 @@ namespace GameDll
             }
         }
 
+        public override float StopParticleEmission()
+        {
+            if (m_GameObject == null)
+            {
+                return 0f;
+            }
+
+            float maxLifetime = 0f;
+            var systems = m_GameObject.GetComponentsInChildren<ParticleSystem>(true);
+            for (int i = 0; i < systems.Length; i++)
+            {
+                var particle = systems[i];
+                if (particle == null)
+                {
+                    continue;
+                }
+
+                particle.Stop(false, ParticleSystemStopBehavior.StopEmitting);
+                var main = particle.main;
+                float lifetime = main.startLifetime.constantMax / Mathf.Max(0.001f, main.simulationSpeed);
+                if (lifetime > maxLifetime)
+                {
+                    maxLifetime = lifetime;
+                }
+            }
+
+            return maxLifetime;
+        }
+
         public override void Update()
         {
             base.Update();

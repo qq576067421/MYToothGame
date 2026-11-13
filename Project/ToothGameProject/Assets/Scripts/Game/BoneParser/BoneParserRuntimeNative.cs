@@ -7,7 +7,7 @@ namespace GameDll
 {
     internal sealed class BoneParserRuntimeNative : IBoneParserRuntime
     {
-        private const int m_ExpectedAbiVersion = 27;
+        private const int m_ExpectedAbiVersion = 32;
         private const int m_BodyJointCount = 18;
         private const int m_MinNativeArrayCapacity = 1;
         private const int m_MaxNativeEventsPerSeat = 64;
@@ -464,6 +464,16 @@ namespace GameDll
             m_NativeConfig.m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio =
                 m_Config.m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio;
             m_NativeConfig.m_TurnUpdateDeltaTimeSeconds = m_Config.m_TurnUpdateDeltaTimeSeconds;
+            m_NativeConfig.m_LeanRebaselineStopSpeedRatioPerSecond = m_Config.m_LeanRebaselineStopSpeedRatioPerSecond;
+            m_NativeConfig.m_LeanRebaselineStopFrames = m_Config.m_LeanRebaselineStopFrames;
+            m_NativeConfig.m_LeanPredictiveLeadSeconds = m_Config.m_LeanPredictiveLeadSeconds;
+            m_NativeConfig.m_LeanPredictiveMinOffsetRatio = m_Config.m_LeanPredictiveMinOffsetRatio;
+            m_NativeConfig.m_LeanPredictiveMinSpeedRatioPerSecond = m_Config.m_LeanPredictiveMinSpeedRatioPerSecond;
+            m_NativeConfig.m_SingleHandSideSweepPredictiveLeadSeconds = m_Config.m_SingleHandSideSweepPredictiveLeadSeconds;
+            m_NativeConfig.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond = m_Config.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond;
+            m_NativeConfig.m_CrouchDownAirborneRiseRatio = m_Config.m_CrouchDownAirborneRiseRatio;
+            m_NativeConfig.m_CrouchDownAirborneHoldFrames = m_Config.m_CrouchDownAirborneHoldFrames;
+            m_NativeConfig.m_SingleHandSideSweepFastTriggerFrames = m_Config.m_SingleHandSideSweepFastTriggerFrames;
         }
 
         private int CopySeatDefinitionsToNative(IList<BoneParserSeatDefinition> seatDefinitions, int seatCount)
@@ -904,6 +914,16 @@ namespace GameDll
             public float m_UpDownSwingPairingWindowSeconds;
             public float m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio;
             public float m_TurnUpdateDeltaTimeSeconds;
+            public float m_LeanRebaselineStopSpeedRatioPerSecond;
+            public float m_LeanRebaselineStopFrames;
+            public float m_LeanPredictiveLeadSeconds;
+            public float m_LeanPredictiveMinOffsetRatio;
+            public float m_LeanPredictiveMinSpeedRatioPerSecond;
+            public float m_SingleHandSideSweepPredictiveLeadSeconds;
+            public float m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond;
+            public float m_CrouchDownAirborneRiseRatio;
+            public int m_CrouchDownAirborneHoldFrames;
+            public int m_SingleHandSideSweepFastTriggerFrames;
         }
 
         [StructLayout(LayoutKind.Sequential)]

@@ -27,9 +27,9 @@ MonoBehaviour:
   uiVisualProfileResourcesPath: YoudooGame/Framework/Profiles/MatchFlow/MatchSessionUiVisualProfile
   cameraPresentation:
     fitMode: 2
-    showBoundSkeletonPoints: 1
-    showBoundPlayerBounds: 1
-    showFullFrameMultiPlayerAreaGuide: 1
+    showBoundSkeletonPoints: 0
+    showBoundPlayerBounds: 0
+    showFullFrameMultiPlayerAreaGuide: 0
     showFullFrameLockAreaGuide: 0
     trackingFocusEnabled: 0
     fullFocusMode: 1

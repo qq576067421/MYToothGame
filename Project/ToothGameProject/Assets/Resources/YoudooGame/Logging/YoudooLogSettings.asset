@@ -14,5 +14,5 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   enableLogging: 1
   usePlatformDefaultLevel: 0
-  minimumLevel: 3
+  minimumLevel: 4
   enabledCategories: 4294967295

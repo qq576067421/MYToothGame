@@ -4,6 +4,7 @@ using YoudooGame.CameraImage;
 using YoudooGame.Core;
 using YoudooGame.Framework;
 using YoudooGame.MatchFlow.Runtime;
+using YoudooGame.SDK.Adapter;
 
 public sealed class GameFrameworkBootstrap : MonoBehaviour
 {
@@ -52,6 +53,19 @@ public sealed class GameFrameworkBootstrap : MonoBehaviour
                   " newHostInitialized=" + YouDooSDK.Native.AndroidServerInfo.IsInitialized +
                   " adapterPresent=" + (GameProductUiAdapter.Instance != null));
 
+        // 采集帧率必须在 CameraImage.Start 之前下发：Start 时才会把该值转给平台 provider。
+        // 调低会减少摄像头解码、纹理上传和骨骼识别的每秒次数，代价是采样间隔变大。
+        YoudooGame.CameraImage.CameraImage.SetTargetFps(GameSdkPerfOptions.CameraTargetFps);
+
+        // 采集档位不在这里下发：启动档已经交给 SDK 的模型选择入口（GameSdkModelSelectionBootstrap），
+        // 它会在帧服务连接后、相机第一次启动前把配置发下去，那时 catalog 已可读，也能校验档位。
+        // 这里再下发一次等于让原生重新初始化一遍 ImageReader（白黑一下），
+        // 而且两个入口写同一份配置，真机排查时也分不清是谁改的档。
+        CameraImageStatus prepareStatus = YoudooGame.CameraImage.CameraImage.Status;
+        Debug.Log("[新SDK整合] camera capture stage=bootstrap-owned state=" + prepareStatus.State +
+                  " requested=" + GameSdkPerfOptions.BootstrapCaptureWidth + "x" +
+                  GameSdkPerfOptions.BootstrapCaptureHeight);
+
         var root = new GameObject("FrameworkRoot");
         DontDestroyOnLoad(root);
 
@@ -86,7 +100,11 @@ public sealed class GameFrameworkBootstrap : MonoBehaviour
 
         root.AddComponent<GameProductUiAdapter>();
         root.AddComponent<GameControllerInputBridge>();
-        root.AddComponent<GameSdkIntegrationDiagnostics>();
+        // 诊断组件每秒做一次反射探测并取帧，只在联调时挂，正式包由 GameSdkPerfOptions 关掉。
+        if (GameSdkPerfOptions.EnableIntegrationDiagnostics)
+        {
+            root.AddComponent<GameSdkIntegrationDiagnostics>();
+        }
         // 先创建组件（Awake 里登记 Instance），等框架/provider 就绪后再拉取存档。
         var saveService = root.AddComponent<GameSaveService>();
 
@@ -154,5 +172,50 @@ public sealed class GameFrameworkBootstrap : MonoBehaviour
                   " adapterInstance=" + (GameProductUiAdapter.Instance != null) +
                   " liveSession=" + GameProductUiAdapter.HasLiveSession +
                   " newHost=" + (FindFirstObjectByType<YouDooSDK.Native.AndroidServerInfo>() != null));
+    }
+}
+
+// 新 SDK 的 CameraImage 没有分辨率接口，采集分辨率只能随“模型选择配置”一起下发给原生层。
+// 必须在 SDK 宿主完成模型选择之前配置，因此挂在 AfterAssembliesLoaded：
+// 它晚于 YouDooBridgeBootstrap 在 SubsystemRegistration 的静态重置，早于 AfterSceneLoad 创建宿主，
+// 也早于任何场景 Awake（挂 bootstrap 的场景不一定是首个加载场景，放 Awake 会赶不上模型选择）。
+//
+// 这里设的是“启动档”，SDK 会在帧服务连接后、相机第一次启动前把它下发给原生层。
+// 不要再指望运行期改档：换档只会改原生采集尺寸，不会重建 Unity 侧的 RenderTexture。
+// 真机日志里 requested=640x480/prepare 与 frame=4048x3040 并存，就是这件事的直接后果——
+// 原生往 4048x3040 的纹理里写 640x480 的画面，准备界面四个座位框各裁 1/4，全落在空白区上。
+internal static class GameSdkModelSelectionBootstrap
+{
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterAssembliesLoaded)]
+    private static void ApplyCameraCaptureResolution()
+    {
+        try
+        {
+            // 启动即定档：确定宽高交给 SDK 的选择器做精确匹配，没命中会按
+            // InvalidSelectionPolicy 回退到设备默认档，所以不会因为某台设备
+            // 没有这一档就起不来。
+            YouDooAdapterRegistration.SetModelSelectionOptions(new YouDooModelSelectionOptions
+            {
+                ResolutionWidth = GameSdkPerfOptions.BootstrapCaptureWidth,
+                ResolutionHeight = GameSdkPerfOptions.BootstrapCaptureHeight,
+                // 只有走 legacy 选择器（本入口）才在档位缺失时回退到设备默认档位；profile 路径是硬失败。
+                InvalidSelectionPolicy = YouDooInvalidSelectionPolicy.FallbackWithWarning,
+                // 必须声明 pose 模型为必需：legacy 路径用它决定上报给帧桥的 capabilities，
+                // 若填 false 会上报 HasPoseModel=false，帧桥会按“纯手部配置”处理，不再下发 SetPlayerID 人员白名单。
+                RequirePoseModel = true,
+                RequireHandModel = true,
+                DisableFiltering = false,
+            });
+            Debug.Log("[新SDK整合] camera capture resolution requested=" +
+                      GameSdkPerfOptions.BootstrapCaptureWidth + "x" +
+                      GameSdkPerfOptions.BootstrapCaptureHeight +
+                      " runtime-stage-switch=" +
+                      (GameSdkPerfOptions.EnableRuntimeCaptureStageSwitch ? "1" : "0") +
+                      " frame-gate=" + (GameSdkPerfOptions.EnableCameraFrameGate ? "1" : "0"));
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogError("[新SDK整合] camera capture resolution request failed: " + exception.Message);
+        }
     }
 }

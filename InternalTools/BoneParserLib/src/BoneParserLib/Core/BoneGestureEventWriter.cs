@@ -86,6 +86,16 @@
             return false;
         }
 
+        // 按"手势 + 阶段"查绑定，等价于 C++ 侧 FindFirstActionBinding 的非空判断。
+        // 表现类事件（例如挥手起手）用它做开关：只有真正绑定了该阶段的玩法才会收到事件。
+        public bool HasActionBinding(
+            BoneParserSeatDefinition seatDefinition,
+            BoneGestureType gestureType,
+            BoneGesturePhase phase)
+        {
+            return FindFirstActionBinding(seatDefinition, gestureType, phase) != null;
+        }
+
         private BoneActionEvent AddActionEvent(
             BoneParserSeatDefinition seatDefinition,
             BoneParserPlayerResult result,

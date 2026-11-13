@@ -233,6 +233,8 @@
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\IBattleScene.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Actor\TowerDefendRoleResolver.cs" />
     <Compile Include="Assets\Scripts\SDK\Framework\GameSdkIntegrationDiagnostics.cs" />
+    <Compile Include="Assets\Scripts\SDK\Framework\GameSdkPerfOptions.cs" />
+    <Compile Include="Assets\Scripts\SDK\Framework\GameSdkCameraCaptureFallback.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Buff\ActionBuff.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\BoneInput\BoneFrameModels.cs" />
     <Compile Include="Assets\Scripts\DataDll\Bean\t_skillDescBean.cs" />

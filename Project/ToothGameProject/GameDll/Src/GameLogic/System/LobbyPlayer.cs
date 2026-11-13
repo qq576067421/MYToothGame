@@ -114,6 +114,9 @@ namespace GameHot
     {
         private const int m_CurrentSaveVersion = 1;
         private const string m_DefaultLocalRoleName = "Player";
+        // 语言偏好的本地即时副本（键名沿用历史 LanVer）：启动阶段同步可读，
+        // 避免登录页在 SDK 存档送达前用默认语言渲染造成闪错；权威数据仍在 SDK 存档。
+        private const string m_LocalLanguageKey = "LanVer";
 
         public static bool IsInitInstance()
         {
@@ -421,6 +424,8 @@ namespace GameHot
             var remoteData = ParseRemoteSaveData(saveService.Root.m_LobbyJson);
             if (remoteData != null)
             {
+                // 记录应用前的生效语言：存档语言不同时需要在应用后重切语言表。
+                var previousLanguage = m_SaveData != null ? m_SaveData.m_languageType : 0;
                 if (m_PendingLanguageChanged && m_SaveData != null)
                 {
                     remoteData.m_languageType = m_SaveData.m_languageType;
@@ -435,6 +440,16 @@ namespace GameHot
                 // 进度载体 PlayerInfo 必须按新档重建，否则旧数据会在下次保存时反覆盖真档。
                 m_PlayerInfo = null;
                 EnsureLocalPlayerInfo();
+                // 存档语言与此前生效语言不同（且用户未在等待期改过语言）时，
+                // 按存档重切语言表并刷新当前全部 UI 文本；否则界面会停留在默认语言。
+                if (!m_PendingLanguageChanged && remoteData.m_languageType != previousLanguage)
+                {
+                    // 云端语言（如换账号/清本地重装）覆盖本地副本并重刷界面。
+                    PlayerPrefs.SetInt(m_LocalLanguageKey, (int)remoteData.m_languageType);
+                    PlayerPrefs.Save();
+                    tower_defend_setting_wnd.InitLanguage();
+                    Debug.Log("SDK玩家存档语言与当前界面不同，已重新应用语言：" + remoteData.m_languageType);
+                }
                 bool pendingFirstStart = m_PendingFirstStartConsumed;
                 m_PendingLanguageChanged = false;
                 m_PendingFirstStartConsumed = false;
@@ -528,6 +543,7 @@ namespace GameHot
             {
                 m_SaveVersion = m_CurrentSaveVersion,
                 m_RoleName = m_DefaultLocalRoleName,
+                m_languageType = (LanguageType)PlayerPrefs.GetInt(m_LocalLanguageKey, 0),
                 m_UnlockedStage = 1,
                 m_MissionStage = 1,
                 m_SelectedGameMode = (int)BattleGameMode.Chapter,
@@ -763,6 +779,9 @@ namespace GameHot
         }
         public void SetLanguageType(LanguageType languageType)
         {
+            // 本地副本立即写入：下次启动登录页在 SDK 存档送达前也能用上该语言。
+            PlayerPrefs.SetInt(m_LocalLanguageKey, (int)languageType);
+            PlayerPrefs.Save();
             m_PendingLanguageChanged = true;
             m_SaveData.m_languageType = languageType;
             SaveSaveData();

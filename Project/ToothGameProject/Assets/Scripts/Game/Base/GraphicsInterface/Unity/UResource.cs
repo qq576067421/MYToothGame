@@ -322,6 +322,11 @@ namespace GameDll
         {
 
         }
+        // 停止粒子发射并返回已发射粒子的最长存活时间，供持续型特效收尾使用。
+        public virtual float StopParticleEmission()
+        {
+            return 0f;
+        }
 
         protected virtual bool LoadShowObjImp(UnityEngine.Object obj)
         {

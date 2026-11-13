@@ -99,6 +99,14 @@ namespace GameDll
                 return;
             }
 
+            // 水柱普攻（trajectory=4）喷射期间瞄准线与水柱重叠观感差：喷水时整线隐藏，
+            // 停喷（含收尾散水）后恢复。激光（trajectory=3）保持原口径——瞄准线与光束常显对齐。
+            if (skill is CommonBulletSkill bulletSkill && bulletSkill.ReadIsSprayStreamActive())
+            {
+                Hide();
+                return;
+            }
+
             m_UseVisualOffsetTargets = bulletCfg.t_trajectory == 3;
             m_LaserPierces = m_UseVisualOffsetTargets && bulletCfg.t_penetrate == 0;
 

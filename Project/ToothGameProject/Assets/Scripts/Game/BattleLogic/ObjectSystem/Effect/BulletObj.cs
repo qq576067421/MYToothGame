@@ -356,7 +356,7 @@ namespace GameDll
     - t_max_time：最大飞行时间，单位毫秒。
     - t_penetrate：0 = 穿透，1 = 命中即停。这个值和直觉相反，最容易配错。
     - t_size：命中半径，单位毫米。0 = 单体；> 0 = 范围命中。范围判定只看 XZ 平面距离，不看高度差。
-    - t_trajectory：0 = 直线，1 = 抛物线，2 = 跟踪。
+    - t_trajectory：0 = 直线，1 = 抛物线，2 = 跟踪，3 = 激光（直线持续光束），4 = 水柱（随世界弯曲的持续喷射）。
     - t_tracking_range：跟踪搜索半径，单位毫米。只对 t_trajectory = 2 生效。搜索圆心是子弹当前位置。
     - t_trigger_bullet_id / t_trigger_bullet_count / t_trigger_type：触发子弹配置。当前 trigger_type = 0 时，会在子弹结束时触发。
     - t_bullet_hittarget_buff_id：命中目标时附加 Buff。没有就不填。
@@ -409,6 +409,16 @@ namespace GameDll
     - 看起来像直飞的“伪跟踪弹”：
       t_trajectory = 2，t_tracking_range = 0，且出生时不传目标
       说明：因为永远找不到目标，所以表现上接近普通直线飞行。一般不建议这样配。
+
+    - 激光持续光束：
+      t_trajectory = 3
+      说明：直线光束，命中按“完整弯折后的画面形体”判定；t_penetrate 决定贯穿还是止于最近目标。
+      说明：材质不走 Curve World 弯折，瞄准线与命中特效同样按直线口径处理。
+
+    - 水柱持续喷射：
+      t_trajectory = 4
+      说明：特效固定在开火点、跟随瞄准方向；命中按逻辑空间求交，水柱与怪物一起随世界弯曲。
+      说明：靠特效自身的粒子碰撞表现喷溅，不再额外播一次性受击/爆炸特效。
 
     四、当前代码里的重要行为约束
     - 跟踪目标在真正锁定前，会优先避开已经被过多跟踪弹占用的怪物。
@@ -509,8 +519,8 @@ namespace GameDll
         {
         }
 
-        // 激光弹道（t_trajectory=3）：真正的位置/命中/表现全部由 UpdateLaserBeam 每帧驱动
-        // （跟随施法者朝向的持续光束），这里只作为工厂占位，不做弹道运动。
+        // 持续光束弹道（t_trajectory=3 激光 / 4 水柱）：真正的位置/命中/表现全部由 UpdateLaserBeam /
+        // UpdateSprayStream 每帧驱动（跟随施法者朝向的持续光束），这里只作为工厂占位，不做弹道运动。
         private sealed class LaserBulletTrajectory : BulletTrajectoryBase
         {
         }
@@ -1301,6 +1311,10 @@ namespace GameDll
                         {
                             UpdateLaserBeam();
                         }
+                        else if (m_Trajectory == 4)
+                        {
+                            UpdateSprayStream();
+                        }
                         else
                         {
                             OnFlying(dt);
@@ -1314,7 +1328,10 @@ namespace GameDll
                     }
                 case BulletState.AfterFinish:
                     {
-
+                        if (m_SprayTailActive)
+                        {
+                            UpdateSprayTail(dt);
+                        }
                         break;
                     }
             }
@@ -1346,6 +1363,11 @@ namespace GameDll
 
         private readonly Dictionary<int, LaserContactEffect> m_LaserContactEffects = new Dictionary<int, LaserContactEffect>();
         private readonly List<int> m_LaserContactStaleIds = new List<int>();
+
+        // 水柱（t_trajectory=4）收尾：停手后先停粒子发射，等已经喷出去的粒子自然消失再回池；
+        // 立即回收会把整条水柱截断。
+        private bool m_SprayTailActive;
+        private float m_SprayTailRemaining;
 
         private void UpdateLaserBeam()
         {
@@ -1594,7 +1616,7 @@ namespace GameDll
             foreach (var kv in actors)
             {
                 var defender = kv;
-                if (!IsLaserSweepCandidate(defender))
+                if (!IsBeamSweepCandidate(defender))
                 {
                     continue;
                 }
@@ -1621,7 +1643,7 @@ namespace GameDll
             return hitTarget != null;
         }
 
-        private bool IsLaserSweepCandidate(PropertyEntity defender)
+        private bool IsBeamSweepCandidate(PropertyEntity defender)
         {
             if (!BattleManager.ReadIsEntityValide(defender))
             {
@@ -1652,7 +1674,7 @@ namespace GameDll
             foreach (var kv in actors)
             {
                 var defender = kv;
-                if (!IsLaserSweepCandidate(defender))
+                if (!IsBeamSweepCandidate(defender))
                 {
                     continue;
                 }
@@ -1827,7 +1849,249 @@ namespace GameDll
             m_LaserEndHitEffect = null;
         }
 
+        // 水柱（t_trajectory=4）：持续喷射——特效固定在开火点，每帧跟随施法者的瞄准方向；
+        // 命中与瞄准线同源，按逻辑空间（未弯折）沿瞄准射线求交，水柱、命中飘字与怪物都在同一套弯曲世界里。
+        // 视觉弯曲交给特效自身处理：这里不写 LineRenderer，也不对特效材质关闭 Curve World。
+        private void UpdateSprayStream()
+        {
+            var attacker = m_HurtInfo != null ? m_HurtInfo.m_Attacker : null;
+            var battle = BattleManager.GetBattle() as TowerDefendBattle;
+            if (battle == null || !BattleManager.ReadIsEntityValide(attacker))
+            {
+                BeginSprayTail();
+                return;
+            }
 
+            var start = BulletFlightConstraintUtility.ResolveConstrainedPosition(
+                m_BulletBean,
+                attacker.ReadResolvedFirePointCenter());
+            // 方向与瞄准线同源：开火点节点朝向会被攻击动画改写，节点朝向只作兜底
+            var forward = Vector3.zero;
+            battle.TryResolveCurrentAutoAimReferenceForward(attacker, out forward);
+            if (forward.sqrMagnitude <= 0.0001f)
+            {
+                forward = attacker.ReadForward();
+            }
+            if (forward.sqrMagnitude <= 0.0001f)
+            {
+                BeginSprayTail();
+                return;
+            }
+
+            var direction = forward.normalized;
+            // 水柱跟着枪口走：只更新特效根节点的位置和朝向，不把根节点搬到射线末端
+            SetPosition(start);
+            SetForward(direction);
+            m_StartPos = start;
+
+            var hitEnd = start + direction * Mathf.Max(0.5f, m_FlyDist);
+            bool hasChallengeHit = TryResolveSprayChallengeHit(
+                battle,
+                start,
+                hitEnd,
+                out var challengeT,
+                out var challengePoint);
+
+            if (m_CanPenetrate)
+            {
+                SweepSprayTargets(start, hitEnd);
+                if (hasChallengeHit)
+                {
+                    HandleSprayChallengeHit(battle, challengePoint);
+                    if (m_BulletState != BulletState.Fly)
+                    {
+                        return;
+                    }
+                }
+            }
+            else
+            {
+                bool hasMonsterHit = FindSprayFirstMonsterHit(
+                    start,
+                    hitEnd,
+                    out var monsterT,
+                    out var monsterPoint,
+                    out var monsterTarget);
+                bool clampToChallenge = hasChallengeHit && (!hasMonsterHit || challengeT <= monsterT);
+                if (clampToChallenge)
+                {
+                    HandleSprayChallengeHit(battle, challengePoint);
+                    if (m_BulletState != BulletState.Fly)
+                    {
+                        return;
+                    }
+                }
+                else if (hasMonsterHit)
+                {
+                    // 非穿透只结算最近的目标；水柱本身不停，持续喷溅由特效碰撞负责
+                    HandleHit(monsterTarget, monsterPoint, monsterPoint);
+                }
+            }
+
+            if (HasTimedOut())
+            {
+                FinishWithoutHit();
+            }
+        }
+
+        private bool FindSprayFirstMonsterHit(
+            Vector3 start,
+            Vector3 end,
+            out float rayT,
+            out Vector3 hitPoint,
+            out PropertyEntity hitTarget)
+        {
+            rayT = float.MaxValue;
+            hitPoint = end;
+            hitTarget = null;
+
+            var actors = BattleManager.GetObjectManager().ReadPropertyEntities();
+            foreach (var kv in actors)
+            {
+                var defender = kv;
+                if (!IsBeamSweepCandidate(defender))
+                {
+                    continue;
+                }
+
+                if (!defender.TryIntersectSegment(start, end, m_DefaultSingleTargetHitRange, out var t, out var point))
+                {
+                    continue;
+                }
+
+                var clampedT = Mathf.Clamp01(t);
+                if (clampedT < rayT)
+                {
+                    rayT = clampedT;
+                    hitTarget = defender;
+                    hitPoint = point;
+                }
+            }
+
+            return hitTarget != null;
+        }
+
+        private void SweepSprayTargets(Vector3 start, Vector3 end)
+        {
+            var actors = BattleManager.GetObjectManager().ReadPropertyEntities();
+            foreach (var kv in actors)
+            {
+                var defender = kv;
+                if (!IsBeamSweepCandidate(defender))
+                {
+                    continue;
+                }
+
+                if (!defender.TryIntersectSegment(start, end, m_DefaultSingleTargetHitRange, out var t, out var point))
+                {
+                    continue;
+                }
+
+                HandleHit(defender, point, point);
+            }
+        }
+
+        private bool TryResolveSprayChallengeHit(
+            TowerDefendBattle battle,
+            Vector3 segmentStart,
+            Vector3 segmentEnd,
+            out float rayT,
+            out Vector3 hitPoint)
+        {
+            rayT = float.MaxValue;
+            hitPoint = segmentEnd;
+            if (battle == null ||
+                (!battle.ReadIsUpgradeChallengeCountdown() && !battle.ReadIsUpgradeChallengeActive()))
+            {
+                return false;
+            }
+
+            var targetEntity = battle.ReadUpgradeChallengeTarget();
+            if (targetEntity == null)
+            {
+                return false;
+            }
+
+            if (!targetEntity.TryIntersectSegment(segmentStart, segmentEnd, m_DefaultSingleTargetHitRange, out var t, out var point))
+            {
+                return false;
+            }
+
+            rayT = Mathf.Clamp01(t);
+            hitPoint = point;
+            return true;
+        }
+
+        // 棒棒糖：水柱与棒棒糖都随世界弯曲，命中直接用逻辑接触点，
+        // 不播子弹爆炸、不关受击特效的 Curve World（这些是直线激光的表现口径）。
+        private void HandleSprayChallengeHit(TowerDefendBattle battle, Vector3 hitPoint)
+        {
+            if (battle == null)
+            {
+                return;
+            }
+
+            var challengeEntity = battle.ReadUpgradeChallengeTarget();
+            if (challengeEntity == null)
+            {
+                return;
+            }
+
+            int challengeId = challengeEntity.ReadId();
+            if (HasAlreadyAffectedEntity(challengeId))
+            {
+                return;
+            }
+
+            MarkAffectedEntity(challengeId);
+            int bulletBbtDamage = m_BulletBean != null ? m_BulletBean.t_bbt_damage : 0;
+            bool targetDefeated = battle.TryHandleUpgradeChallengeHit(
+                m_HurtInfo != null ? m_HurtInfo.m_Attacker : null,
+                bulletBbtDamage,
+                hitPoint,
+                out var shouldResolveChallengeResult) && shouldResolveChallengeResult;
+            challengeEntity.NotifyChallengeHit(hitPoint);
+            PlayHitSound();
+            if (targetDefeated)
+            {
+                battle.ResolveUpgradeChallengeResult();
+                BeginSprayTail();
+            }
+        }
+
+        // 停手/超时：先停粒子发射，保留逻辑对象让已喷出的水滴自然消失，再回池；
+        // 立即回收会把 32 米长的水柱整条截断。
+        private void BeginSprayTail()
+        {
+            if (m_BulletState == BulletState.AfterFinish)
+            {
+                return;
+            }
+
+            m_DefenderId = 0;
+            m_BulletState = BulletState.AfterFinish;
+            float particleLife = 0f;
+            var render = GetRender();
+            if (render != null)
+            {
+                particleLife = render.StopParticleEmission();
+            }
+            m_SprayTailRemaining = Mathf.Max(0.1f, particleLife + 0.05f);
+            m_SprayTailActive = true;
+        }
+
+        private void UpdateSprayTail(float dt)
+        {
+            m_SprayTailRemaining -= dt;
+            if (m_SprayTailRemaining > 0f)
+            {
+                return;
+            }
+
+            m_SprayTailActive = false;
+            BattleManager.GetBattle().GetObjectManager().RemoveEffObject(this, false);
+            PoolObj();
+        }
 
         private void OnFinish()
         {
@@ -2031,6 +2295,11 @@ namespace GameDll
                 // 首帧会露出预制件默认控制点或上一发残留的光束）
                 UpdateLaserBeam();
             }
+            else if (m_Trajectory == 4)
+            {
+                // 水柱：发弹当帧就把特效摆到开火点并对准瞄准方向，避免首帧在预制件原始位置闪一下
+                UpdateSprayStream();
+            }
         }
 
         public void SetDashEnemy(int t_tankai_dist, float t_tan_time)
@@ -2056,12 +2325,25 @@ namespace GameDll
             }
         }
 
-        // 激光普攻续期判断：光束未回池、未销毁且处于待飞/飞行状态，才算仍在作用期内的存活光束。
+        // 持续光束（激光/水柱）弹道：共用续期、收尾与不播受击特效的口径
+        public static bool IsContinuousBeamTrajectory(int trajectory)
+        {
+            return trajectory == 3 || trajectory == 4;
+        }
+
+        // 持续光束普攻续期判断：光束未回池、未销毁且处于待飞/飞行状态，才算仍在作用期内的存活光束。
         // 只看 m_BulletState 不够——外部走 SetFinish 静默回池时 state 会停留在 Fly，需叠加对象池标记。
         public bool ReadIsLaserBeamAlive()
         {
-            return m_Trajectory == 3 && !IsPooled && !ReadIsDestroy() &&
+            return IsContinuousBeamTrajectory(m_Trajectory) && !IsPooled && !ReadIsDestroy() &&
                 (m_BulletState == BulletState.Init || m_BulletState == BulletState.Fly);
+        }
+
+        // 水柱（t_trajectory=4）是否正在喷射（Fly 状态）；
+        // 停喷后的收尾散水（AfterFinish）不算，表现层据此恢复瞄准线显示。
+        public bool ReadIsSprayStreamFlying()
+        {
+            return m_Trajectory == 4 && m_BulletState == BulletState.Fly;
         }
 
         // 单次作用时间内再次触发普攻：不重走发弹流程，只把超时起点推到当前战斗时间并重置已命中去重，
@@ -2074,10 +2356,17 @@ namespace GameDll
 
         // 持续发弹结束：技能在收尾时主动收束光束，不播受击爆炸表现，直接走回收流程。
         // 发弹窗口就是光束的可见时长，避免出现"光束还在但不再结算伤害"的空窗。
+        // 水柱不能直接回收：先停发射，等已经喷出去的水滴自然消失再回池。
         public void FinishLaserBeam()
         {
             if (!ReadIsLaserBeamAlive())
             {
+                return;
+            }
+
+            if (m_Trajectory == 4)
+            {
+                BeginSprayTail();
                 return;
             }
 
@@ -2341,6 +2630,7 @@ namespace GameDll
                 case 2:
                     return m_TrackingTrajectory;
                 case 3:
+                case 4:
                     return m_LaserTrajectory;
                 default:
                     return m_LinearTrajectory;
@@ -2401,6 +2691,13 @@ namespace GameDll
 
         private void FinishWithoutHit()
         {
+            // 水柱没有一次性爆炸表现，只停发射并等残余粒子消失
+            if (m_Trajectory == 4)
+            {
+                BeginSprayTail();
+                return;
+            }
+
             m_BulletState = BulletState.Finish;
             GetRender().BulletBoom(GetPosition(), Vector3.forward);
             OnFinish();
@@ -2776,7 +3073,8 @@ namespace GameDll
             }
             DamageCal.CalSickHP(m_HurtInfo.m_Attacker, m_HurtInfo.m_SickHP);
             m_HurtInfo.m_SickHP = 0;
-            if (m_Trajectory != 3)
+            // 持续光束（激光/水柱）的命中表现由光束或喷溅特效自己承担，不再额外播一次性受击特效
+            if (!IsContinuousBeamTrajectory(m_Trajectory))
             {
                 PlayHitEffect(hitEffectPos);
             }
@@ -3042,6 +3340,8 @@ namespace GameDll
         public override void PoolObj()
         {
             m_DamagedEntityIds.Clear();
+            m_SprayTailActive = false;
+            m_SprayTailRemaining = 0f;
             ReleaseAllLaserContactEffects();
             ReleaseLaserEndHitEffect();
             ClearTriggerSpawnPositionOverride();

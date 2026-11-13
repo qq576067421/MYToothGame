@@ -34,6 +34,8 @@ namespace GameHot
         protected override void OnOpen()
         {
             CGameProcedure.Event.OnEscapPressed += CloseYearWindow;
+            // 窗口激活后再排一次，覆盖初始化时物体未激活导致布局被跳过的情况。
+            RebuildInstructionLayout();
         }
         protected override void OnClose()
         {
@@ -48,21 +50,22 @@ namespace GameHot
             RenderAPI.SetTextLan(m_View.m_Instruction_4, "td_login_year_Instruction_4");
             RenderAPI.SetTextLan(m_View.m_Instruction_5, "td_login_year_Instruction_5");
 
-            switch (LobbyPlayer.GetInstance().GetLanguageType())
+            // Content高度由文本自适应，不再按语言写死（prefab里没配fitter，运行时补一个）。
+            var fitter = m_View.m_Content.GetComponent<ContentSizeFitter>();
+            if (fitter == null)
             {
-                case LanguageType.China:
-                    m_View.m_Content.GetComponent<RectTransform>().sizeDelta = Vector2.zero;
-                    break;
-                case LanguageType.English:
-                    m_View.m_Content.GetComponent<RectTransform>().sizeDelta = new Vector2(0,1230);
-                    break;
+                fitter = m_View.m_Content.gameObject.AddComponent<ContentSizeFitter>();
             }
+            fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            AddCounter(200, 1, () =>
-            {
-                m_View.m_Content.gameObject.SetActive(false);
-                m_View.m_Content.gameObject.SetActive(true);
-            });
+            RebuildInstructionLayout();
+        }
+        private void RebuildInstructionLayout()
+        {
+            // 布局系统默认帧末才重算；同步强制重排，保证打开当帧文本和Content高度就是最终值。
+            LayoutRebuilder.ForceRebuildLayoutImmediate(
+                m_View.m_Content.GetComponent<RectTransform>());
         }
         private void CloseYearWindow(InputAction.CallbackContext context)
         {

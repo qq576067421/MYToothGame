@@ -13,6 +13,7 @@ namespace GameDll
         private readonly Queue<BonePersonData> m_PersonPool = new Queue<BonePersonData>();
         private int m_ConfiguredPlayerCount = BoneSlotLayout.m_SlotCount;
         private int m_FrameSerial;
+        private long m_LastFilledTrackingFrameId = long.MinValue;
 
         public BoneFrameData ReadLatestFrameData()
         {
@@ -73,6 +74,15 @@ namespace GameDll
             }
 
             var trackingFrame = snapshot.DataChain.CurrentTrackingFrame;
+
+            // 同一原生骨骼帧只填充一次：帧号未变时数据完全一致，
+            // 重复走槽位解析与 FillPerson 只会白耗 CPU 与 GC。
+            if (m_LastFilledTrackingFrameId == trackingFrame.FrameId)
+            {
+                return;
+            }
+
+            m_LastFilledTrackingFrameId = trackingFrame.FrameId;
             RecycleFramePersons();
             m_LatestFrameData.Reset();
             m_LatestFrameData.m_HasFrameData = true;
@@ -151,6 +161,7 @@ namespace GameDll
 
         private void MarkFrameUnavailable()
         {
+            m_LastFilledTrackingFrameId = long.MinValue;
             RecycleFramePersons();
             m_LatestFrameData.Reset();
             m_LatestFrameData.m_FrameSerial = ++m_FrameSerial;

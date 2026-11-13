@@ -735,6 +735,22 @@ namespace GameDll
         public float m_RightLeanReturnToNeutralRatio = 0.08f;
         public float m_RightLeanMinSpeedRatioPerSecond = 0.35f;
         public float m_RightLeanCooldownSeconds = 0.25f;
+        // 侧身停止重定基准（牙齿默认关闭）：停止速度填 0 表示关闭，只保留回到中立区的常规重新武装。
+        public float m_LeanRebaselineStopSpeedRatioPerSecond = 0f;
+        public float m_LeanRebaselineStopFrames = 0f;
+        // 预测式提前触发（牙齿默认关闭）：提前量填 0 表示关闭。
+        public float m_LeanPredictiveLeadSeconds = 0f;
+        public float m_LeanPredictiveMinOffsetRatio = 0f;
+        public float m_LeanPredictiveMinSpeedRatioPerSecond = 0f;
+        // 侧挥攻击预测式提前触发（牙齿默认关闭）。
+        public float m_SingleHandSideSweepPredictiveLeadSeconds = 0f;
+        public float m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond = 0f;
+        // 蹲下去腾空联锁：最近一段时间内肩髋曾从更低位置明显上升，即视为刚起跳或仍在空中，
+        // 期间不建立下蹲基准、不触发下蹲，避免把跳跃顶点当成站立基准后把下落判成下蹲。
+        public float m_CrouchDownAirborneRiseRatio = 0.12f;
+        public int m_CrouchDownAirborneHoldFrames = 15;
+        // 单手侧挥攻击起步即发（牙齿默认关闭）。
+        public int m_SingleHandSideSweepFastTriggerFrames = 0;
         public int m_JumpReadyFrames = 4;
         public float m_JumpReadyMaxVerticalSpeedRatioPerSecond = 0.30f;
         public float m_JumpMinShoulderRiseRatio = 0.18f;

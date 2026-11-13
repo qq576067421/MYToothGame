@@ -68,6 +68,14 @@ namespace GameHot
         private const float m_BattleHeadDefaultSmoothSpeed = 0.95f;
         private const float m_BattleHeadDefaultInputFilterSpeed = 0.90f;
         private const float m_BattleHeadDefaultInputDeadzone = 0.004f;
+        // 对齐旧 SDK 战斗头像的采集节流：纹理裁切与 UV 刷新按 12fps 推进，
+        // 不再跟随渲染帧率逐帧读取相机纹理与重算四人区域。
+        private const int m_BattleHeadTargetFps = 12;
+        private const float m_BattleHeadRefreshInterval = 1f / m_BattleHeadTargetFps;
+        private const float m_BattleHeadRefreshTolerance = 0.001f;
+        // 对齐旧 SDK：uvRect 变化小于千分之一的归一化尺寸时不重写，
+        // 避免 RawImage 反复 SetVerticesDirty 重建网格。
+        private const float m_BattleHeadUvRectChangeEpsilon = 1f / 1024f;
         private const float m_baseHitEffTime = 0.4f;
         private static readonly Vector3 m_BattleHeadCameraViewScale = new Vector3(-1f, -1f, 1f);
         private static readonly int m_FightInfoDpsParam = Animator.StringToHash("dps");
@@ -102,6 +110,7 @@ namespace GameHot
         private readonly BattleHeadCameraTracker[] m_BattleHeadCameraTrackers = new BattleHeadCameraTracker[m_MaxHudPlayerCount];
         private BattleBoneParseData m_BattleHeadBoneParseData;
         private FrameUpdate m_BattleHeadFrameUpdate;
+        private float m_BattleHeadNextRefreshTime;
         private int m_BattleHeadLastBoneFrameSerial = -1;
         private BattleHeadDisplayMode m_BattleHeadDisplayMode = BattleHeadDisplayMode.Head;
         private BattleHeadFollowMode m_BattleHeadFollowMode = BattleHeadFollowMode.IndependentUICamera;
@@ -403,6 +412,14 @@ namespace GameHot
                 return;
             }
 
+            // 头像跟随不需要跟满渲染帧：按旧 SDK 的 12fps 间隔整体刷新，
+            // 间隔内的帧直接跳过相机纹理读取与裁剪区域重算。
+            if (Time.unscaledTime + m_BattleHeadRefreshTolerance < m_BattleHeadNextRefreshTime)
+            {
+                return;
+            }
+
+            m_BattleHeadNextRefreshTime = Time.unscaledTime + m_BattleHeadRefreshInterval;
             TryRefreshBattleHeadCameraRegions();
         }
 
@@ -478,6 +495,29 @@ namespace GameHot
 
                 cameraView.texture = null;
                 cameraView.uvRect = new Rect(0f, 0f, 1f, 1f);
+                cameraView.color = Color.clear;
+                cameraView.gameObject.SetActive(false);
+            }
+        }
+
+        // 头像区兜底：只在视图持有的纹理对象已被销毁时才隐藏。
+        // 纹理还活着（只是这一轮没验证出内容）就保留上一帧，
+        // 否则切档瞬间头像会闪成透明，玩家会以为摄像头掉了。
+        private void HideBattleHeadCameraViewsIfTextureLost()
+        {
+            if (m_BattleHeadCameraViews == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < m_BattleHeadCameraViews.Length; i++)
+            {
+                var cameraView = m_BattleHeadCameraViews[i];
+                if (cameraView == null || cameraView.texture != null)
+                {
+                    continue;
+                }
+
                 cameraView.color = Color.clear;
                 cameraView.gameObject.SetActive(false);
             }
@@ -668,6 +708,17 @@ namespace GameHot
                 !GameProductUiAdapter.TryGetCameraImageTexture(out cameraTexture) ||
                 cameraTexture == null)
             {
+                // 纹理对象已经没了：继续挂着会把 RawImage 画成白块，只清这一种。
+                HideBattleHeadCameraViewsIfTextureLost();
+                return false;
+            }
+
+            // 纹理在但内容还没验证出画面（刚切档、原生还没写第一帧）：
+            // 保持上一帧，不刷新成新纹理也不清空——头像区闪一下比晚几十毫秒出画更糟。
+            // 只有视图自己挂的纹理对象被销毁了才隐藏。
+            if (!GameProductUiAdapter.CameraFrameContentVisible)
+            {
+                HideBattleHeadCameraViewsIfTextureLost();
                 return false;
             }
 
@@ -756,8 +807,16 @@ namespace GameHot
                 return;
             }
 
-            view.texture = texture;
-            view.color = Color.white;
+            if (view.texture != texture)
+            {
+                view.texture = texture;
+            }
+
+            if (view.color != Color.white)
+            {
+                view.color = Color.white;
+            }
+
             var rectTransform = view.rectTransform;
             float aspect = rectTransform != null && rectTransform.rect.height > 0f
                 ? rectTransform.rect.width / rectTransform.rect.height
@@ -767,9 +826,19 @@ namespace GameHot
                              viewIndex >= 0 && viewIndex < m_BattleHeadCameraSmoothCalculations.Length
                 ? m_BattleHeadCameraSmoothCalculations[viewIndex]
                 : null;
-            view.uvRect = calculator != null
+            Rect uvRect = calculator != null
                 ? calculator.CalculateUvRect(region, aspect, texture.width, texture.height)
                 : region;
+            Rect currentUvRect = view.uvRect;
+            if (Mathf.Abs(uvRect.x - currentUvRect.x) < m_BattleHeadUvRectChangeEpsilon &&
+                Mathf.Abs(uvRect.y - currentUvRect.y) < m_BattleHeadUvRectChangeEpsilon &&
+                Mathf.Abs(uvRect.width - currentUvRect.width) < m_BattleHeadUvRectChangeEpsilon &&
+                Mathf.Abs(uvRect.height - currentUvRect.height) < m_BattleHeadUvRectChangeEpsilon)
+            {
+                return;
+            }
+
+            view.uvRect = uvRect;
         }
 
         private bool BuildBattleHeadCameraRects(Rect[] rects)

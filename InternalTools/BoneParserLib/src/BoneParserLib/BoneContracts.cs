@@ -592,6 +592,25 @@ namespace CompanyInternalTools.BoneParserLib
         public float m_RightLeanReturnToNeutralRatio = 0.08f;
         public float m_RightLeanMinSpeedRatioPerSecond = 0.35f;
         public float m_RightLeanCooldownSeconds = 0.25f;
+        // 侧身停止重定基准：触发后横向速度低于停止速度并持续停止帧数，就把当前姿势当作回正后的基准，
+        // 之后再次快速侧身（左右皆可）视作一次新操作；停止速度填 0 表示关闭。
+        public float m_LeanRebaselineStopSpeedRatioPerSecond = 0.15f;
+        public float m_LeanRebaselineStopFrames = 3f;
+        // 预测式提前触发：高速侧身按当前速度推算必将到达触发深度时立即触发（起步即响应）。
+        // 提前量（秒）填 0 表示关闭；保底深度防纯速度抖动误触，高速门槛过滤慢速挪动。
+        public float m_LeanPredictiveLeadSeconds = 0.15f;
+        public float m_LeanPredictiveMinOffsetRatio = 0.10f;
+        public float m_LeanPredictiveMinSpeedRatioPerSecond = 0.80f;
+        // 侧挥攻击预测式提前触发：起手上挥阶段按当前速度推算必将到达肘部高度即出招；
+        // 提前量填 0 表示关闭。
+        public float m_SingleHandSideSweepPredictiveLeadSeconds = 0.25f;
+        public float m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond = 1.20f;
+        // 蹲下去腾空联锁：最近一段时间内肩髋曾从更低位置明显上升，
+        // 即视为刚起跳或仍在空中，期间不建立下蹲基准、不触发下蹲。
+        public float m_CrouchDownAirborneRiseRatio = 0.12f;
+        public int m_CrouchDownAirborneHoldFrames = 15;
+        // 单手侧挥攻击起步即发：起步后上挥速度连续达标这么多帧立即出招，不等手腕到达肘部高度。
+        public int m_SingleHandSideSweepFastTriggerFrames = 2;
         public int m_JumpReadyFrames = 4;
         public float m_JumpReadyMaxVerticalSpeedRatioPerSecond = 0.30f;
         public float m_JumpMinShoulderRiseRatio = 0.18f;

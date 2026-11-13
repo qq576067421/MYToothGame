@@ -6,6 +6,8 @@ namespace CompanyInternalTools.BoneParserLib
     internal abstract class TriggerOnlyFlowState : IBoneGestureRuntimeState
     {
         public bool m_IsPending;
+        // 已发出事件后等待消费回写的帧数，超时由识别器放弃该事件。
+        public int m_PendingWaitFrames;
         public int m_ActionEventId;
         public float m_FrameTimeSeconds;
         public float m_CooldownUntilSeconds;
@@ -18,6 +20,14 @@ namespace CompanyInternalTools.BoneParserLib
         }
 
         public abstract void ResetFlowState();
+
+        // 触发被接受/拒绝后只重置"这一次触发"的过程状态。派生状态若持有跨触发的
+        // 参考姿势（站立基准），必须 override 以保留，否则下一帧会拿触发瞬间的
+        // 姿势重建参考，之后所有判断都会错位。
+        public virtual void ResetTriggerState()
+        {
+            ResetFlowState();
+        }
 
         public void ResetPending()
         {
@@ -48,12 +58,38 @@ namespace CompanyInternalTools.BoneParserLib
             context.m_SeatState.ReadGestureState<TState>(StateKey)?.Reset();
         }
 
+        // 等待消费结果的最大帧数。正常情况驱动当帧就会回写，等不到说明这一帧的派发被整段跳过
+        // （玩家短暂离开识别区域、座位重建等），再等下去 m_IsPending 会把该手势永久挡住。
+        private const int m_PendingTimeoutFrames = 10;
+        // 冷却终点与当前帧时间的差值超过"冷却时长 + 该容差"，判定骨骼帧时间基准已经重置。
+        private const float m_ClockResetToleranceSeconds = 5f;
+
         public void Update(BoneGestureRuntimeContext context)
         {
             TState state = context.m_SeatState.ReadGestureState<TState>(StateKey);
-            if (state == null || state.m_IsPending)
+            if (state == null)
             {
                 return;
+            }
+
+            if (state.m_IsPending)
+            {
+                // 消费回写只能由驱动主动调用，一旦那一帧的派发被整段跳过就永远等不到。
+                // 这里按帧数兜底，等够上限就放弃这条已发出的事件，重新开始识别。
+                if (++state.m_PendingWaitFrames <= m_PendingTimeoutFrames)
+                {
+                    return;
+                }
+
+                // ResetFlowState 只管识别姿势字段、不含 pending，必须单独清掉，
+                // 否则下一帧仍走这一支，超时就退化成无限重试。
+                state.ResetFlowState();
+                state.ResetPending();
+                state.m_PendingWaitFrames = 0;
+            }
+            else
+            {
+                state.m_PendingWaitFrames = 0;
             }
 
             if (!context.HasRecognizableActionBinding(GestureType))
@@ -64,7 +100,16 @@ namespace CompanyInternalTools.BoneParserLib
 
             if (context.m_FrameTimeSeconds > 0f && context.m_FrameTimeSeconds < state.m_CooldownUntilSeconds)
             {
-                return;
+                float remainingCooldown = state.m_CooldownUntilSeconds - context.m_FrameTimeSeconds;
+                if (remainingCooldown > Math.Max(0f, ReadCooldownSeconds(context.m_Config)) + m_ClockResetToleranceSeconds)
+                {
+                    // 帧时间戳来自骨骼帧，SDK 重连会把时间基准换掉，旧终点变成永远到不了的未来。
+                    state.m_CooldownUntilSeconds = 0f;
+                }
+                else
+                {
+                    return;
+                }
             }
 
             if (!EvaluateFlow(context, state))
@@ -124,18 +169,18 @@ namespace CompanyInternalTools.BoneParserLib
 
         protected virtual void OnAccepted(BoneGestureRuntimeContext context, TState state, float frameTimeSeconds)
         {
-            state.ResetFlowState();
+            state.ResetTriggerState();
             state.m_CooldownUntilSeconds = frameTimeSeconds + ReadCooldownSeconds(context.m_Config);
         }
 
         protected virtual void OnRetry(BoneGestureRuntimeContext context, TState state)
         {
-            state.ResetFlowState();
+            state.ResetTriggerState();
         }
 
         protected virtual void OnBlocked(BoneGestureRuntimeContext context, TState state)
         {
-            state.ResetFlowState();
+            state.ResetTriggerState();
         }
     }
 

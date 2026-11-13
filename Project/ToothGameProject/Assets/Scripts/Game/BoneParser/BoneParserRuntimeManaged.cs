@@ -141,6 +141,7 @@ namespace GameDll
             m_ExternalConfig.m_CrouchDownMinLegCompressionRatio = m_Config.m_CrouchDownMinLegCompressionRatio;
             m_ExternalConfig.m_CrouchDownMinDownwardSpeedRatioPerSecond = m_Config.m_CrouchDownMinDownwardSpeedRatioPerSecond;
             m_ExternalConfig.m_CrouchDownCooldownSeconds = m_Config.m_CrouchDownCooldownSeconds;
+            m_ExternalConfig.m_CrouchDownConfirmHoldFrames = m_Config.m_CrouchDownConfirmHoldFrames;
             m_ExternalConfig.m_SingleHandSideSweepStartAboveHipToleranceRatio = m_Config.m_SingleHandSideSweepStartAboveHipToleranceRatio;
             m_ExternalConfig.m_SingleHandSideSweepStartBelowHipToleranceRatio = m_Config.m_SingleHandSideSweepStartBelowHipToleranceRatio;
             m_ExternalConfig.m_SingleHandSideSweepStartMovementDistanceRatio = m_Config.m_SingleHandSideSweepStartMovementDistanceRatio;
@@ -156,6 +157,14 @@ namespace GameDll
             m_ExternalConfig.m_PoseHipVerticalRatio = m_Config.m_PoseHipVerticalRatio;
             m_ExternalConfig.m_PoseCrouchTorsoRatio = m_Config.m_PoseCrouchTorsoRatio;
             m_ExternalConfig.m_PoseStableFrames = m_Config.m_PoseStableFrames;
+            m_ExternalConfig.m_LeanPredictiveLeadSeconds = m_Config.m_LeanPredictiveLeadSeconds;
+            m_ExternalConfig.m_LeanPredictiveMinOffsetRatio = m_Config.m_LeanPredictiveMinOffsetRatio;
+            m_ExternalConfig.m_LeanPredictiveMinSpeedRatioPerSecond = m_Config.m_LeanPredictiveMinSpeedRatioPerSecond;
+            m_ExternalConfig.m_SingleHandSideSweepPredictiveLeadSeconds = m_Config.m_SingleHandSideSweepPredictiveLeadSeconds;
+            m_ExternalConfig.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond = m_Config.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond;
+            m_ExternalConfig.m_CrouchDownAirborneRiseRatio = m_Config.m_CrouchDownAirborneRiseRatio;
+            m_ExternalConfig.m_CrouchDownAirborneHoldFrames = m_Config.m_CrouchDownAirborneHoldFrames;
+            m_ExternalConfig.m_SingleHandSideSweepFastTriggerFrames = m_Config.m_SingleHandSideSweepFastTriggerFrames;
         }
 
         private static ExternalBoneParserLib.BoneTrackedFrame ConvertFrame(BoneTrackedFrame source)

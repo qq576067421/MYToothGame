@@ -19,7 +19,8 @@ namespace GameDll
 
         protected Vector3 m_StartPos;
         protected t_bullet m_BulletBean;
-        // 激光普攻（t_trajectory=3）的存活光束：单次作用时间内再次触发只续期这颗激光，不重新发弹
+        // 持续光束普攻（t_trajectory=3 激光 / 4 水柱）的存活光束：
+        // 单次作用时间内再次触发只续期这颗子弹，不重新发弹
         private BulletObj m_ActiveLaserBullet;
         // 本次发弹是否复用了存活光束（续发）；OnCastPoint 据此跳过开火特效
         private bool m_LastCastRenewedLaser;
@@ -79,7 +80,7 @@ namespace GameDll
                 m_BonePendingCastCount = 0;
                 m_BoneKeepShootEndTime = -1f;
             }
-            // 激光普攻：施法入场时光束仍存活，本次施法将按续发结算——不重播攻击动画，
+            // 持续光束普攻（激光/水柱）：施法入场时光束仍存活，本次施法将按续发结算——不重播攻击动画，
             // 发弹点的攻击音效与开火特效同样按续发跳过（见 ShootBullet/OnCastPoint）。
             // 常规手势普攻在输入层续发、不会进入施法，这里覆盖的是直连 AttackDir 的施法路径。
             if (!ReadHasAliveLaserBullet())
@@ -152,8 +153,8 @@ namespace GameDll
                 return;
             }
 
-            // 激光续发（复用存活光束）时整次触发静默：攻击音效在此跳过，开火特效在 OnCastPoint 跳过
-            if (m_BulletBean == null || m_BulletBean.t_trajectory != 3 || !ReadHasAliveLaserBullet())
+            // 持续光束续发（复用存活光束）时整次触发静默：攻击音效在此跳过，开火特效在 OnCastPoint 跳过
+            if (m_BulletBean == null || !BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory) || !ReadHasAliveLaserBullet())
             {
                 var cfg = GetSkillDescBean();
                 PlayAttackSound(cfg != null ? cfg.t_attackSound : 0, m_Attacker.GetPosition());
@@ -242,7 +243,7 @@ namespace GameDll
             //    $"triggerCount={(bulletBean != null ? bulletBean.t_trigger_bullet_count : 0)}，" +
             //    $"triggerType={(bulletBean != null ? bulletBean.t_trigger_type : 0)}");
 
-            if (m_BulletBean != null && m_BulletBean.t_trajectory == 3)
+            if (m_BulletBean != null && BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory))
             {
                 m_ActiveLaserBullet = bullet;
             }
@@ -251,11 +252,11 @@ namespace GameDll
         }
 
         // 返回 true 表示已复用存活光束完成本次续发；返回 false 表示需要正常发弹。
-        // 激光本质上仍是一颗一颗的子弹：续发只复用光束表现，超时时间、怪物去重、
+        // 持续光束（激光/水柱）本质上仍是一颗一颗的子弹：续发只复用光束表现，超时时间、怪物去重、
         // 伤害快照与命中音效全部按本次触发重建，与重新发一颗激光没有区别。
         private bool TryRenewActiveLaserBullet(PropertyEntity defender)
         {
-            if (m_BulletBean == null || m_BulletBean.t_trajectory != 3 || !ReadHasAliveLaserBullet())
+            if (m_BulletBean == null || !BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory) || !ReadHasAliveLaserBullet())
             {
                 return false;
             }
@@ -407,11 +408,23 @@ namespace GameDll
                 (m_CastStatus == SkillCastStatus.cast_keep || m_CastStatus == SkillCastStatus.cast_back);
         }
 
-        // 激光持续发弹的续射判断（保持原语义：只对 t_trajectory == 3 生效）
+        // 持续光束发弹的续射判断（保持原语义：只对 t_trajectory == 3/4 生效）
         public bool CanRenewLaserKeepShoot()
         {
-            return UseKeepShootMode() && m_BulletBean != null && m_BulletBean.t_trajectory == 3 &&
+            return UseKeepShootMode() && m_BulletBean != null && BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory) &&
                 CanRenewKeepShoot();
+        }
+
+        // 水柱普攻（t_trajectory=4）是否正在喷射：复用的存活子弹处于 Fly 状态。
+        // 停喷后的收尾散水（AfterFinish）不算，瞄准线在停喷瞬间即可恢复显示。
+        public bool ReadIsSprayStreamActive()
+        {
+            if (m_BulletBean == null || m_BulletBean.t_trajectory != 4 || !ReadHasAliveLaserBullet())
+            {
+                return false;
+            }
+
+            return m_ActiveLaserBullet.ReadIsSprayStreamFlying();
         }
 
         // 顺延发弹窗口续射：不重开施法、不重置发弹节拍，光束由后续子弹继续续期；
@@ -441,16 +454,16 @@ namespace GameDll
 
         public bool TryRenewLaserKeepShoot()
         {
-            return m_BulletBean != null && m_BulletBean.t_trajectory == 3 && TryRenewKeepShoot();
+            return m_BulletBean != null && BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory) && TryRenewKeepShoot();
         }
 
-        // 输入层激光普攻续发入口：上一发光束仍在单次作用时间内时，直接续发现有光束并返回 true，
+        // 输入层持续光束普攻续发入口：上一发光束仍在单次作用时间内时，直接续发现有光束并返回 true，
         // 本次触发不再进入施法流程——不重播攻击动画、攻击音效和开火特效。
         // 续发只复用光束表现：超时时间、怪物去重、伤害快照全部按本次触发重建，与重新发一颗激光没有区别；
         // 前置条件消耗与施法 buff 也按一次真实攻击结算，与 TryRenewBoneKeepShoot 的续射口径一致。
         public bool TryRenewLaserNormalAttack(PropertyEntity attacker)
         {
-            if (m_BulletBean == null || m_BulletBean.t_trajectory != 3 || !ReadHasAliveLaserBullet())
+            if (m_BulletBean == null || !BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory) || !ReadHasAliveLaserBullet())
             {
                 return false;
             }
@@ -1076,10 +1089,11 @@ namespace GameDll
 
         protected virtual void StopKeepShoot()
         {
-            // 激光持续发弹结束：光束随施法一起立即收回——发弹窗口就是光束的可见时长。
+            // 持续光束发弹结束：激光随施法一起立即收回——发弹窗口就是光束的可见时长；
+            // 水柱则先停发射，等已经喷出去的水滴自然消失（见 FinishLaserBeam）。
             // 连点期间窗口由输入层续射顺延（TryRenewLaserKeepShoot），施法不会结束、光束不断；
-            // 只有真正停手（超过一个窗口没有点击）才走到这里，立即收束不留视觉尾巴。
-            if (UseKeepShootMode() && m_BulletBean != null && m_BulletBean.t_trajectory == 3 &&
+            // 只有真正停手（超过一个窗口没有点击）才走到这里。
+            if (UseKeepShootMode() && m_BulletBean != null && BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory) &&
                 m_ActiveLaserBullet != null)
             {
                 m_ActiveLaserBullet.FinishLaserBeam();

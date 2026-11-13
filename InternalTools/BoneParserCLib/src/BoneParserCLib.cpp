@@ -56,15 +56,68 @@ namespace
     // a single noisy keypoint frame no longer resets baseline collection; only
     // more than this many consecutive unstable frames restart it.
     constexpr int32_t kBodyMotionReadySpikeToleranceFrames = 2;
-    // While armed, sinking below the dip tolerance alone no longer re-baselines
-    // (a natural pre-jump dip must keep the recognizer armed against the
-    // standing pose). The baseline only adopts a settled lower stance after
-    // staying stable there for roughly this long; landing recoveries are much
-    // shorter and therefore never re-baseline.
-    constexpr int32_t kJumpSettleRebaselineFrames = 15;
+    // 起跳联锁的最长帧数。正常落地立刻解除，这里只是兜底：基准偏低时"回到基准"永远
+    // 不成立，没有上限就会把起跳永久锁死。60 帧在 30fps 骨架下约 2 秒，远长于一次滞空。
+    constexpr int32_t kJumpAirborneGuardMaxFrames = 60;
+    // 离开最高点的回落幅度达到这个肩宽倍数就认为已经落地。取小于起跳阈值
+    // （m_JumpMinShoulderRiseRatio，默认 0.18）的值：触发帧已经保证身体比出手前高出这么多，
+    // 所以回落 0.15 时人一定离开了最高点，基准不会再被收紧。
+    constexpr float kJumpAirborneDescentRatio = 0.15f;
+    // While armed, sinking below the dip tolerance never re-baselines: a natural
+    // pre-jump dip must keep the recognizer armed against the standing pose, and
+    // adopting a lower stance would turn standing back up into an ascent.
+    // 等待动作消费结果的最大帧数。正常情况驱动当帧就会回写，等不到说明这一帧的派发被整段跳过
+    // （玩家短暂离开识别区域、座位重建等），再等下去 m_IsPending 会把该手势永久挡住。
+    constexpr int32_t kTriggerPendingTimeoutFrames = 10;
+    // 冷却终点与当前帧时间的差值超过"冷却时长 + 该容差"，判定骨骼帧时间基准已经重置
+    // （SDK 重连后时间戳从头开始），直接解除冷却，避免手势被一个到不了的未来时间永久挡住。
+    constexpr float kTriggerClockResetToleranceSeconds = 5.0f;
     constexpr int32_t kTriggerHandUnknown = 0;
     constexpr int32_t kTriggerHandLeft = 1;
     constexpr int32_t kTriggerHandRight = 2;
+    // 单手外侧挥手的起手门槛相对出招门槛的比例。手腕刚出现上挥速度就先让游戏把攻击动作播起来，
+    // 真正的出招仍由后面的出口决定；取比例而不是复用出招门槛，是为了只过滤手在晃、不等确认出招。
+    constexpr float kSingleHandSideSweepStartEmitSpeedFactor = 0.6f;
+    // 停手兜底：手腕挥出到肘部高度的这个比例，且速度回落到出招门槛的这个比例以下，
+    // 就认为这一下已经挥完，必须出招。
+    constexpr float kSingleHandSideSweepStopConfirmDistanceRatio = 0.65f;
+    constexpr float kSingleHandSideSweepStopSpeedRatio = 0.15f;
+    // 一次挥手结束后，手腕要连续向下退回多少个"起步位移"才算真正收手。
+    // 取 3 倍（约 150‰，大致 5 厘米）就是一段明确的放手动作；
+    // 挥动途中的抖动是上下交替的，一往上就清零，不会被误判成收手。
+    constexpr float kSingleHandSideSweepRearmPullbackScale = 3.0f;
+    // 所有出招出口共用的最小上挥行程（肩宽）。判据已改用 arm 那一刻冻结的身体参考系，
+    // 侧身和跳跃都不会再产生行程，所以这条只用来滤掉骨骼点的残余抖动。
+    // 真实挥手从髋到肘约 0.9 个肩宽，取 0.12 留足余量，不会吞掉动作。
+    constexpr float kSingleHandSideSweepMinSweepDistanceRatio = 0.12f;
+    // 手腕相对同侧肘的最小抬高量（肩宽）。前臂长约 0.35 个肩宽，从贴着髋垂到手举到上方
+    // 大约变化 0.7，取 0.15 只占两成，不会吞掉动作。侧身、跳跃、弯腰都只是整条手臂当刚体
+    // 随躯干移动，腕肘相对向量一个分量都不变，只有手臂自己举起来才会变，所以这条判据对
+    // 躯干的一切运动免疫——它才是"手真的抬起来了"最直接的证据。
+    constexpr float kSingleHandSideSweepMinForearmRiseRatio = 0.15f;
+    // 出招时手腕必须到达的绝对高度：不得低于"双肩中心点下方 0.80 个肩宽"。
+    // 前两条判据管的都是"手动了多少"，这条管的是"手到底在不在高处"——手在髋部小幅晃动
+    // 可能攒出假行程，但绝对高度永远过不了这条。
+    // 肩中心是人体最稳的参考点：侧身时它就在旋转轴上，跳跃下蹲时手腕和它一起平移，
+    // 作为分母的肩宽也已经冻结，所以任何身体整体运动都只会让这个比值变大（手显得更低）、
+    // 不会让它变小，失效方向天然安全。
+    // 取值受"到肘高"出口反推：自然站立时肘在肩下方约 0.75 个肩宽，门槛若高于这个值就会把
+    // 该出口永久挡住。0.80 略低于肘高，既放行正常挥手，又能挡住手贴髋（约 1.10）、
+    // 垂在身侧与放在大腿上（1.30 以上）这些根本没抬起来的姿态。
+    constexpr float kSingleHandSideSweepMaxWristBelowShoulderRatio = 0.80f;
+    // 起手预播要求的最小上挥行程（肩宽）。原来的门槛只有“起步移动距离”（0.05，约两厘米），
+    // 躯干轴一旋转就够，预播会跟着误触发。
+    constexpr float kSingleHandSideSweepStartEmitDistanceRatio = 0.10f;
+    // 起步即发（快速触发）要求的最小上挥行程（肩宽）。这条出口原本只看连续两帧速度、
+    // 不看累计行程，是最容易被坐标系旋转伪造的一条。
+    constexpr float kSingleHandSideSweepFastTriggerDistanceRatio = 0.15f;
+    // 单帧高度比值允许的最大跳变（肩宽）。关键点重识别、躯干轴突跳会让这一帧的差分失去意义；
+    // 真实挥手每帧大约只移动 0.1 个肩宽。
+    constexpr float kSingleHandSideSweepMaxFrameRatioJump = 0.35f;
+    // 肩宽投影单帧允许的最大变化比例。侧身时双肩在图像上重叠、肩宽骤降，转回来又骤增，而肩宽是
+    // 所有高度比值的分母：分母抖动会把"手没动"读成大幅上挥或下落。这里对肩宽本身做限速，
+    // 每帧最多变化这个比例——人慢慢走远走近能正常跟随，快速转身的那几帧被平滑掉。
+    constexpr float kSingleHandSideSweepMaxSpanChangeRatio = 0.25f;
     constexpr int32_t kTriggerHandBoth = 3;
 
     enum BodyJoint
@@ -314,6 +367,8 @@ namespace
     struct TriggerOnlyState
     {
         bool m_IsPending = false;
+        // 已发出事件后等待消费回写的帧数，超时由识别器放弃该事件。
+        int32_t m_PendingWaitFrames = 0;
         int32_t m_ActionEventId = 0;
         float m_FrameTimeSeconds = 0.0f;
         float m_CooldownUntilSeconds = 0.0f;
@@ -464,6 +519,16 @@ namespace
         bool m_IsArmed = false;
         bool m_HasLastLeanRatio = false;
         float m_LastLeanRatio = 0.0f;
+        // 停止重定基准：触发后侧身动作停稳若干帧，就把当前姿势当作回正后的基准；
+        // 之后再次快速侧身（左右皆可）视作一次新操作。基准不在 ResetFlowState 里清，
+        // 因为触发成功后的状态复位要保持基准等待下一次停稳更新。
+        float m_BaselineLeanRatio = 0.0f;
+        int32_t m_StoppedFrameCount = 0;
+        // 预测式提前触发的高速确认帧数：触发成功后的状态复位清零，保证每次高速都是新动作。
+        int32_t m_FastLeanFrameCount = 0;
+        // 解除武装后的动作峰值偏移：回落超过释放量即重新武装（相对回滞）。
+        // 不在 ResetFlowState 里清——触发成功复位后还要从本次触发点继续追踪峰值。
+        float m_UnarmedPeakLeanRatio = 0.0f;
 
         void ResetFlowState()
         {
@@ -471,11 +536,15 @@ namespace
             m_IsArmed = false;
             m_HasLastLeanRatio = false;
             m_LastLeanRatio = 0.0f;
+            m_StoppedFrameCount = 0;
+            m_FastLeanFrameCount = 0;
         }
 
         void Reset()
         {
             ResetFlowState();
+            m_BaselineLeanRatio = 0.0f;
+            m_UnarmedPeakLeanRatio = 0.0f;
             ResetBase();
         }
     };
@@ -489,6 +558,22 @@ namespace
         int32_t m_UnstableFrameCount = 0;
         int32_t m_PendingRebaselineFrames = 0;
         int32_t m_CrouchDownConfirmFrames = 0;
+        // 下蹲复位联锁：触发过必须站起才能再触发
+        bool m_RearmRequired = false;
+        // 腾空联锁：最近出现过明显上升（刚起跳/在空中），锁定期内不建立下蹲基准也不判下蹲。
+        bool m_HasAirborneTracking = false;
+        float m_AirborneTrackShoulderY = 0.0f;
+        int32_t m_AirborneTrackFrames = 0;
+        float m_AirbornePeakRiseRatio = 0.0f;
+        int32_t m_AirborneLockFrames = 0;
+        // 起跳联锁：触发过一次起跳后，到人回到站立高度之前的每一帧都是空中姿势，
+        // 不能参与基准收集。跳跃顶点竖直速度接近 0，最容易被当成"稳定站立"收紧基准，
+        // 一旦基准被抬到空中，落地后相对它永远是下降，表现为跳过一次就再也跳不起来。
+        bool m_JumpAirbornePending = false;
+        int32_t m_JumpAirborneFrames = 0;
+        // 联锁期间肩部到过的最高点（屏幕坐标 Y 最小）。落地判据用它做相对比较，
+        // 这样基准本身偏低时也不会因为"永远回不到基准"而把起跳锁死。
+        float m_JumpAirbornePeakY = 0.0f;
         Vec2 m_BaselineShoulderCenter;
         Vec2 m_BaselineHipCenter;
         Vec2 m_BaselineAnkleCenter;
@@ -505,12 +590,39 @@ namespace
             m_UnstableFrameCount = 0;
             m_PendingRebaselineFrames = 0;
             m_CrouchDownConfirmFrames = 0;
+            m_RearmRequired = false;
+            m_HasAirborneTracking = false;
+            m_AirborneTrackShoulderY = 0.0f;
+            m_AirborneTrackFrames = 0;
+            m_AirbornePeakRiseRatio = 0.0f;
+            m_AirborneLockFrames = 0;
+            m_JumpAirbornePending = false;
+            m_JumpAirborneFrames = 0;
+            m_JumpAirbornePeakY = 0.0f;
             m_BaselineShoulderCenter = {};
             m_BaselineHipCenter = {};
             m_BaselineAnkleCenter = {};
             m_LastShoulderCenter = {};
             m_LastHipCenter = {};
             m_LastAnkleCenter = {};
+        }
+
+        // 触发被接受/拒绝后只重置"这一次触发"的过程状态，保留站立基准与上一帧输入。
+        // 基准若跟着清空，下一帧会拿触发瞬间的姿势重建站姿：起跳那侧会把空中高度
+        // 当成站立高度，落地后相对它永远够不到上升阈值，表现为跳过一次就再也跳不起来。
+        void ResetTriggerState()
+        {
+            m_ReadyFrameCount = 0;
+            m_IsReady = false;
+            m_UnstableFrameCount = 0;
+            m_PendingRebaselineFrames = 0;
+            m_CrouchDownConfirmFrames = 0;
+            m_RearmRequired = false;
+            m_HasAirborneTracking = false;
+            m_AirborneTrackShoulderY = 0.0f;
+            m_AirborneTrackFrames = 0;
+            m_AirbornePeakRiseRatio = 0.0f;
+            m_AirborneLockFrames = 0;
         }
 
         void Reset()
@@ -532,6 +644,31 @@ namespace
         float m_LastElbowHipOffsetRatio = 0.0f;
         int32_t m_ElbowMissingFrameCount = 0;
         float m_MotionSeconds = 0.0f;
+        // 预测式提前触发的高速确认帧数。
+        int32_t m_FastFrameCount = 0;
+        // 停手兜底的连续确认帧数。
+        int32_t m_StopFrameCount = 0;
+        // 本次挥手的起手事件是否已发出，保证一次挥手只预播一次动作。
+        bool m_IsStartEmitted = false;
+        // 出招后累计的"连续向下退回"行程，用来判断这次挥手是不是已经收手。
+        // 一次挥手只能出一颗子弹，判定全程只看行程，不看时间，所以挥得再快也不会被吞掉。
+        float m_PullbackRatio = 0.0f;
+        bool m_RequiresRearmPullback = false;
+        // arm 那一刻冻结的身体参考系：人体纵轴方向 + 左右肩的图像距离。
+        // 侧身是绕人体纵轴旋转——纵轴方向几乎不变，但左右肩在图像上的距离会随转角持续缩短，
+        // 而肩宽是所有高度比值的分母。继续拿当前帧肩宽去除，手明明停在髋上方不动，比值也会
+        // 越除越大：手在髋上方 0.3 个肩宽时，肩宽缩到六成就能凭空多出 0.2 个肩宽的行程，
+        // 足够走完所有出口。冻结参考系之后，侧身不再产生任何行程。
+        bool m_HasReadyFrame = false;
+        Vec2 m_ReadyBodyUpAxis = {};
+        float m_ReadyShoulderSpan = 0.0f;
+
+        // arm 那一刻"手腕相对同侧肘"的竖直差（肩宽，正数表示手腕在肘下方）。
+        // 侧身、跳跃、弯腰都只是整条手臂跟着躯干走，这个差量恒定；只有手臂自己举起来才会变。
+        bool m_HasReadyForearm = false;
+        float m_ReadyWristElbowOffsetRatio = 0.0f;
+        // 最近一帧的腕肘竖直差，肘关键点丢失时沿用旧值，等于自动冻结。
+        float m_LastWristElbowDropRatio = 0.0f;
 
         void Reset()
         {
@@ -545,8 +682,35 @@ namespace
             m_LastElbowHipOffsetRatio = 0.0f;
             m_ElbowMissingFrameCount = 0;
             m_MotionSeconds = 0.0f;
+            m_FastFrameCount = 0;
+            m_IsStartEmitted = false;
+            m_StopFrameCount = 0;
+            m_HasReadyFrame = false;
+            m_HasReadyForearm = false;
         }
     };
+
+    // 手腕是否已经挥出了足够完成的行程。肘部高度可用时按肘高折算，
+    // 否则退回起点移动距离的十倍，保证跑动摆臂那种短行程不会命中。
+    bool HasSweptEnoughDistance(
+        const SingleHandSideSweepHandState& state,
+        float upwardDistanceRatio,
+        const BoneParserCLibConfig& config)
+    {
+        if (state.m_HasLastElbow)
+        {
+            float elbowDistance =
+                state.m_ReadyWristHipOffsetRatio - state.m_LastElbowHipOffsetRatio;
+            if (elbowDistance > 0.0f)
+            {
+                return upwardDistanceRatio >=
+                    elbowDistance * kSingleHandSideSweepStopConfirmDistanceRatio;
+            }
+        }
+
+        return upwardDistanceRatio >=
+            config.m_SingleHandSideSweepStartMovementDistanceRatio * 10.0f;
+    }
 
     struct SingleHandSideSweepState
     {
@@ -555,13 +719,20 @@ namespace
         int32_t m_FirstPendingActionEventId = 0;
         int32_t m_SecondPendingActionEventId = 0;
         int32_t m_PendingActionEventCount = 0;
+        // 等消费回写的帧数，超时由识别器放弃这两条事件。
+        int32_t m_PendingWaitFrames = 0;
         bool m_HasLastTriggerTime = false;
         float m_LastTriggerTimeSeconds = 0.0f;
+        // 肩宽投影塌缩抑制：上一帧采信过的肩宽，左右手共用同一把尺子。
+        bool m_HasLastShoulderSpan = false;
+        float m_LastShoulderSpan = 0.0f;
 
         void ResetFlowState()
         {
             m_LeftHand.Reset();
             m_RightHand.Reset();
+            m_HasLastShoulderSpan = false;
+            m_LastShoulderSpan = 0.0f;
         }
 
         void Reset()
@@ -880,7 +1051,11 @@ namespace
             0.05f, 0.70f, 0.65f, 0.70f, 0.60f,
             0.24f, 3,
             2.00f,
-            0.25f, 1.0f / 30.0f
+            0.25f, 1.0f / 30.0f,
+            0.15f, 3.0f,
+            0.15f, 0.10f, 0.80f,
+            0.25f, 1.20f,
+            0.12f, 15, 2
         };
         return config != nullptr ? *config : kDefaultConfig;
     }
@@ -3037,7 +3212,12 @@ namespace
         int32_t readyFrames,
         float triggerOffsetRatio,
         float returnToNeutralRatio,
-        float minSpeedRatioPerSecond)
+        float minSpeedRatioPerSecond,
+        float stopSpeedRatioPerSecond,
+        float stopFrames,
+        float predictiveLeadSeconds,
+        float predictiveMinOffsetRatio,
+        float predictiveMinSpeedRatioPerSecond)
     {
         TorsoMovementInput input;
         if (!TryReadTorsoMovementInput(context, input))
@@ -3056,26 +3236,103 @@ namespace
         float playerLeftLeanRatio = (input.m_ShoulderCenter.m_X - input.m_HipCenter.m_X) *
             playerLeftAxisSign / input.m_ShoulderWidth;
         float directionalLeanRatio = playerLeftLeanRatio * directionMultiplier;
-        if (!state.m_IsArmed)
-        {
-            state.m_NeutralFrameCount = Abs(playerLeftLeanRatio) <= returnToNeutralRatio
-                ? state.m_NeutralFrameCount + 1
-                : 0;
-            state.m_IsArmed = state.m_NeutralFrameCount >= std::max(1, readyFrames);
-            state.m_LastLeanRatio = directionalLeanRatio;
-            state.m_HasLastLeanRatio = true;
-            return false;
-        }
-
         float leanSpeed = 0.0f;
         if (state.m_HasLastLeanRatio && context.m_DeltaTimeSeconds > 0.0f)
         {
             leanSpeed = (directionalLeanRatio - state.m_LastLeanRatio) / context.m_DeltaTimeSeconds;
         }
 
+        // 玩家回到真实直立（中立区）时基准归零，避免停留在旧基准上影响正常触发。
+        if (Abs(playerLeftLeanRatio) <= returnToNeutralRatio)
+        {
+            state.m_BaselineLeanRatio = 0.0f;
+        }
+
+        // 从"侧身位重定基准"再出发时行程打六折：停稳本身就是明确的动作边界，
+        // 再次快速侧身不需要重新走满整个触发偏移，同方向连发不用侧得更深。
+        float retriggerOffsetRatio = Abs(state.m_BaselineLeanRatio) > returnToNeutralRatio
+            ? triggerOffsetRatio * 0.6f
+            : triggerOffsetRatio;
+
+        if (!state.m_IsArmed)
+        {
+            // 相对释放：从本次动作峰值回落超过释放量即重新武装（基准归零）。
+            // 提前触发的发招点较浅，固定回正线会离触发点太近造成连触，改为相对峰值释放。
+            const float releaseRatio = 0.08f;
+            if (directionalLeanRatio > state.m_UnarmedPeakLeanRatio)
+            {
+                state.m_UnarmedPeakLeanRatio = directionalLeanRatio;
+            }
+
+            if (state.m_UnarmedPeakLeanRatio - directionalLeanRatio >= releaseRatio)
+            {
+                state.m_UnarmedPeakLeanRatio = directionalLeanRatio;
+                state.m_BaselineLeanRatio = 0.0f;
+                state.m_NeutralFrameCount = 0;
+                state.m_StoppedFrameCount = 0;
+                state.m_IsArmed = true;
+            }
+
+            // 停止重定基准：触发后不必慢慢回正——侧身动作停稳（速度低于阈值持续若干帧）就把当前
+            // 姿势当作回正后的基准，之后再次快速侧身（左右皆可）视作一次新操作。
+            // 停止速度小于等于 0 表示关闭，只保留回到中立区的常规重新武装。
+            if (!state.m_IsArmed && stopSpeedRatioPerSecond > 0.0f && stopFrames >= 1.0f)
+            {
+                state.m_StoppedFrameCount = Abs(leanSpeed) <= stopSpeedRatioPerSecond
+                    ? state.m_StoppedFrameCount + 1
+                    : 0;
+                if (state.m_StoppedFrameCount >= static_cast<int32_t>(stopFrames))
+                {
+                    state.m_StoppedFrameCount = 0;
+                    state.m_BaselineLeanRatio = directionalLeanRatio;
+                    state.m_IsArmed = true;
+                }
+            }
+
+            if (!state.m_IsArmed)
+            {
+                state.m_NeutralFrameCount = Abs(playerLeftLeanRatio) <= returnToNeutralRatio
+                    ? state.m_NeutralFrameCount + 1
+                    : 0;
+                state.m_IsArmed = state.m_NeutralFrameCount >= std::max(1, readyFrames);
+                if (state.m_IsArmed)
+                {
+                    state.m_BaselineLeanRatio = 0.0f;
+                }
+            }
+
+            state.m_LastLeanRatio = directionalLeanRatio;
+            state.m_HasLastLeanRatio = true;
+            return false;
+        }
+
         state.m_LastLeanRatio = directionalLeanRatio;
         state.m_HasLastLeanRatio = true;
-        return directionalLeanRatio >= triggerOffsetRatio && leanSpeed >= minSpeedRatioPerSecond;
+        if (directionalLeanRatio - state.m_BaselineLeanRatio >= retriggerOffsetRatio
+            && leanSpeed >= minSpeedRatioPerSecond)
+        {
+            state.m_UnarmedPeakLeanRatio = directionalLeanRatio;
+            return true;
+        }
+
+        // 预测式提前触发：高速侧身在到达触发深度前，按当前速度推算必将越线即触发，
+        // 把"动作到位才响应"提前为"动作起步就响应"。三重约束防误触：
+        // 保底深度 + 高速门槛 + 连续高速帧数。提前量填 0 表示关闭。
+        if (predictiveLeadSeconds > 0.0f)
+        {
+            state.m_FastLeanFrameCount = leanSpeed >= predictiveMinSpeedRatioPerSecond
+                ? state.m_FastLeanFrameCount + 1
+                : 0;
+            if (state.m_FastLeanFrameCount >= 2
+                && directionalLeanRatio - state.m_BaselineLeanRatio >= predictiveMinOffsetRatio
+                && directionalLeanRatio - state.m_BaselineLeanRatio + leanSpeed * predictiveLeadSeconds >= retriggerOffsetRatio)
+            {
+                state.m_UnarmedPeakLeanRatio = directionalLeanRatio;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     bool EvaluateLeftLean(RuntimeContext& context, SideLeanState& state)
@@ -3088,7 +3345,12 @@ namespace
             config.m_LeftLeanReadyFrames,
             config.m_LeftLeanTriggerOffsetRatio,
             config.m_LeftLeanReturnToNeutralRatio,
-            config.m_LeftLeanMinSpeedRatioPerSecond);
+            config.m_LeftLeanMinSpeedRatioPerSecond,
+            config.m_LeanRebaselineStopSpeedRatioPerSecond,
+            config.m_LeanRebaselineStopFrames,
+            config.m_LeanPredictiveLeadSeconds,
+            config.m_LeanPredictiveMinOffsetRatio,
+            config.m_LeanPredictiveMinSpeedRatioPerSecond);
     }
 
     bool EvaluateRightLean(RuntimeContext& context, SideLeanState& state)
@@ -3101,7 +3363,12 @@ namespace
             config.m_RightLeanReadyFrames,
             config.m_RightLeanTriggerOffsetRatio,
             config.m_RightLeanReturnToNeutralRatio,
-            config.m_RightLeanMinSpeedRatioPerSecond);
+            config.m_RightLeanMinSpeedRatioPerSecond,
+            config.m_LeanRebaselineStopSpeedRatioPerSecond,
+            config.m_LeanRebaselineStopFrames,
+            config.m_LeanPredictiveLeadSeconds,
+            config.m_LeanPredictiveMinOffsetRatio,
+            config.m_LeanPredictiveMinSpeedRatioPerSecond);
     }
 
     void StoreLastBodyMotionInput(StableBodyMotionState& state, const FullBodyMovementInput& input)
@@ -3112,7 +3379,14 @@ namespace
         state.m_HasLastInput = true;
     }
 
-    void RestartBodyMotionReadyCollection(StableBodyMotionState& state, const FullBodyMovementInput& input)
+    // adoptCurrentAsBaseline 为 false 时竖直基准只保留更高的那个（屏幕坐标 Y 越小越高）。
+    // 起跳识别器用这个模式：起身过程中帧间速度必然超限、会反复重启收集，若每次都把当前
+    // 姿势写成基准，蹲姿或半起身姿势就会顶替站立基准，站起来那一下相对它就是一次足够的
+    // 上升，被判成起跳。需要"采纳当前姿势为新站姿"的场景（下蹲识别器等）保持默认 true。
+    void RestartBodyMotionReadyCollection(
+        StableBodyMotionState& state,
+        const FullBodyMovementInput& input,
+        bool adoptCurrentAsBaseline = true)
     {
         state.m_ReadyFrameCount = 1;
         state.m_IsReady = false;
@@ -3120,9 +3394,20 @@ namespace
         state.m_PendingRebaselineFrames = 0;
         state.m_CrouchDownConfirmFrames = 0;
         state.m_BaselineHasAnkleTracking = input.m_HasAnkleTracking;
-        state.m_BaselineShoulderCenter = input.m_Torso.m_ShoulderCenter;
-        state.m_BaselineHipCenter = input.m_Torso.m_HipCenter;
-        state.m_BaselineAnkleCenter = input.m_AnkleCenter;
+        if (!state.m_HasLastInput || adoptCurrentAsBaseline)
+        {
+            state.m_BaselineShoulderCenter = input.m_Torso.m_ShoulderCenter;
+            state.m_BaselineHipCenter = input.m_Torso.m_HipCenter;
+            state.m_BaselineAnkleCenter = input.m_AnkleCenter;
+        }
+        else
+        {
+            // 只跟随水平漂移，竖直基准完全不动：重启发生在这人正起身或起跳的抖动里，
+            // 此刻的高度既不是站姿也不是蹲姿，写进去就会伪造出一个新的"站立高度"。
+            state.m_BaselineShoulderCenter.m_X = input.m_Torso.m_ShoulderCenter.m_X;
+            state.m_BaselineHipCenter.m_X = input.m_Torso.m_HipCenter.m_X;
+        }
+
         StoreLastBodyMotionInput(state, input);
     }
 
@@ -3134,9 +3419,16 @@ namespace
     void AccumulateBodyMotionBaseline(StableBodyMotionState& state, const FullBodyMovementInput& input)
     {
         float blend = 1.0f / static_cast<float>(std::max(1, state.m_ReadyFrameCount));
-        state.m_BaselineShoulderCenter = LerpVector2(state.m_BaselineShoulderCenter, input.m_Torso.m_ShoulderCenter, blend);
-        state.m_BaselineHipCenter = LerpVector2(state.m_BaselineHipCenter, input.m_Torso.m_HipCenter, blend);
+        state.m_BaselineShoulderCenter.m_X = Lerp(state.m_BaselineShoulderCenter.m_X, input.m_Torso.m_ShoulderCenter.m_X, blend);
+        state.m_BaselineHipCenter.m_X = Lerp(state.m_BaselineHipCenter.m_X, input.m_Torso.m_HipCenter.m_X, blend);
         state.m_BaselineAnkleCenter = LerpVector2(state.m_BaselineAnkleCenter, input.m_AnkleCenter, blend);
+        // 基准高度只向站立方向收紧（屏幕坐标 Y 越小越高）：半蹲姿态停稳不会把基准钉低。
+        // 否则下蹲/起跳必须达到"相对半蹲"的深度，物理上做不到，表现为蹲/跳失灵后一直失灵。
+        // 这里必须直接和输入比较、不能和本轮插值结果比较：收集重启后的第一帧 blend = 1，
+        // 插值结果恰好等于当前姿势，蹲姿会原样写进基准，起身时相对它就成了"肩髋同时上升"。
+        state.m_BaselineShoulderCenter.m_Y = std::min(state.m_BaselineShoulderCenter.m_Y, input.m_Torso.m_ShoulderCenter.m_Y);
+        state.m_BaselineHipCenter.m_Y = std::min(state.m_BaselineHipCenter.m_Y, input.m_Torso.m_HipCenter.m_Y);
+        state.m_BaselineAnkleCenter.m_Y = std::min(state.m_BaselineAnkleCenter.m_Y, input.m_AnkleCenter.m_Y);
     }
 
     // Stability is judged from shoulders and hips only: ankle keypoints jitter
@@ -3157,6 +3449,108 @@ namespace
         return std::max(shoulderSpeed, hipSpeed);
     }
 
+    // 蹲下去的腾空联锁：起跳过程中身体从压低位置明显上升，头顶附近竖直速度接近 0，
+    // 下蹲的“稳定准备”会把这个空中高度记成站立基准，随后的下落相对该基准就是一次
+    // 深度足够的下降，落地缓冲再撑满确认帧就误触发下蹲。这里跟踪最近的低点，一旦出现
+    // 明显上升就锁定一段时间，锁定期内不重设基准、也不判定下蹲。
+    void UpdateCrouchDownAirborneLock(
+        const BoneParserCLibConfig& config,
+        StableBodyMotionState& state,
+        const FullBodyMovementInput& input)
+    {
+        int32_t holdFrames = config.m_CrouchDownAirborneHoldFrames;
+        float riseThreshold = config.m_CrouchDownAirborneRiseRatio;
+        if (holdFrames <= 0 || riseThreshold <= 0.0f)
+        {
+            state.m_AirborneLockFrames = 0;
+            state.m_HasAirborneTracking = false;
+            state.m_AirbornePeakRiseRatio = 0.0f;
+            return;
+        }
+
+        float shoulderY = input.m_Torso.m_ShoulderCenter.m_Y;
+        if (!state.m_HasAirborneTracking)
+        {
+            state.m_HasAirborneTracking = true;
+            state.m_AirborneTrackShoulderY = shoulderY;
+            state.m_AirborneTrackFrames = 0;
+            state.m_AirbornePeakRiseRatio = 0.0f;
+        }
+        else if (shoulderY >= state.m_AirborneTrackShoulderY)
+        {
+            // 出现新的低点：以它作为上升起点，之前的升幅作废。
+            state.m_AirborneTrackShoulderY = shoulderY;
+            state.m_AirborneTrackFrames = 0;
+            state.m_AirbornePeakRiseRatio = 0.0f;
+        }
+        else
+        {
+            float shoulderWidth = input.m_Torso.m_ShoulderWidth;
+            float riseRatio = shoulderWidth > 0.0f
+                ? (state.m_AirborneTrackShoulderY - shoulderY) / shoulderWidth
+                : 0.0f;
+            if (riseRatio > state.m_AirbornePeakRiseRatio)
+            {
+                state.m_AirbornePeakRiseRatio = riseRatio;
+            }
+
+            // 上升走势持续太久仍未回到高位，视为站姿缓慢漂移，重新取起点。
+            if (++state.m_AirborneTrackFrames > holdFrames)
+            {
+                state.m_AirborneTrackShoulderY = shoulderY;
+                state.m_AirborneTrackFrames = 0;
+                state.m_AirbornePeakRiseRatio = 0.0f;
+            }
+        }
+
+        if (state.m_AirbornePeakRiseRatio >= riseThreshold)
+        {
+            // 越过阈值：锁定并重置跟踪点。锁定只续期到这一段上升为止，人停在高位时
+            // 不会继续续期，保证锁定必然到期，不会永久挡住下蹲。
+            state.m_AirborneLockFrames = holdFrames;
+            state.m_AirborneTrackShoulderY = shoulderY;
+            state.m_AirborneTrackFrames = 0;
+            state.m_AirbornePeakRiseRatio = 0.0f;
+        }
+        else if (state.m_AirborneLockFrames > 0)
+        {
+            state.m_AirborneLockFrames--;
+        }
+    }
+
+    // 起跳联锁：触发过一跳之后，到人回到站立高度之前的每一帧都是空中姿势。
+    // 跳跃顶点竖直速度接近 0，最容易被当成"稳定站立"写进基准；一旦基准被抬到空中，
+    // 落地后相对它就是下降，肩髋再也达不到上升阈值，表现为跳过一次就跳不起来，
+    // 只有做了会重建基准的动作（蹲下、横移等）才恢复。下蹲侧有同样的问题和解法，
+    // 但那里的联锁只保护下蹲，起跳必须自己有一份。
+    void UpdateJumpAirborneGuard(StableBodyMotionState& state, const FullBodyMovementInput& input)
+    {
+        if (!state.m_JumpAirbornePending)
+        {
+            return;
+        }
+
+        float shoulderY = input.m_Torso.m_ShoulderCenter.m_Y;
+        if (shoulderY < state.m_JumpAirbornePeakY)
+        {
+            state.m_JumpAirbornePeakY = shoulderY;
+        }
+
+        // 判据一：回到站立基准。基准可信时落地那一帧就成立。
+        float shoulderBelowBaseline = shoulderY - state.m_BaselineShoulderCenter.m_Y;
+        // 判据二：从最高点回落超过一个起跳阈值。基准偏低时判据一永远不成立，
+        // 而回落的绝对幅度是自洽的——触发帧已经保证身体比出手前高出那么多。
+        float descentFromPeak = shoulderY - state.m_JumpAirbornePeakY;
+        if (shoulderBelowBaseline >= 0.0f ||
+            descentFromPeak >= input.m_Torso.m_ShoulderWidth * kJumpAirborneDescentRatio ||
+            ++state.m_JumpAirborneFrames > kJumpAirborneGuardMaxFrames)
+        {
+            state.m_JumpAirbornePending = false;
+            state.m_JumpAirborneFrames = 0;
+            state.m_JumpAirbornePeakY = 0.0f;
+        }
+    }
+
     bool EvaluateJump(RuntimeContext& context, StableBodyMotionState& state)
     {
         const BoneParserCLibConfig& config = ReadConfig(context.m_Config);
@@ -3169,7 +3563,20 @@ namespace
 
         if (!state.m_HasLastInput)
         {
+            state.m_RearmRequired = false;
             RestartBodyMotionReadyCollection(state, input);
+            return false;
+        }
+
+        UpdateJumpAirborneGuard(state, input);
+        if (state.m_JumpAirbornePending)
+        {
+            // 空中任何姿势都不是站姿：这整段不收集基准（竖直方向尤其不能），
+            // 落地后从零重新收集，顺便形成"一次跳跃之后必须重新站稳"的最小间隔。
+            state.m_ReadyFrameCount = 0;
+            state.m_UnstableFrameCount = 0;
+            state.m_IsReady = false;
+            StoreLastBodyMotionInput(state, input);
             return false;
         }
 
@@ -3184,6 +3591,7 @@ namespace
             {
                 state.m_ReadyFrameCount = 0;
                 state.m_UnstableFrameCount = 0;
+                state.m_PendingRebaselineFrames = 0;
                 StoreLastBodyMotionInput(state, input);
                 return false;
             }
@@ -3192,7 +3600,9 @@ namespace
             {
                 if (++state.m_UnstableFrameCount > kBodyMotionReadySpikeToleranceFrames)
                 {
-                    RestartBodyMotionReadyCollection(state, input);
+                    state.m_RearmRequired = false;
+                    // 起跳这一侧不能采纳当前姿势：起身抖动超限时人正处在半起身高度。
+                    RestartBodyMotionReadyCollection(state, input, false);
                 }
                 else
                 {
@@ -3214,29 +3624,27 @@ namespace
         float hipRise = state.m_BaselineHipCenter.m_Y - input.m_Torso.m_HipCenter.m_Y;
         // A natural jump starts with a counter-movement dip of any depth, so
         // sinking alone never re-baselines: the standing baseline is kept and
-        // the ascent is still measured against it. A crouch pose disarms right
-        // away, and only a stance held stably below the dip tolerance for a
-        // long time (landing recoveries are much shorter) adopts as the new
-        // standing baseline.
+        // the ascent is always measured against it. A crouch pose disarms
+        // right away, and a lower stance never adopts as the new baseline.
         if (ReadIsCrouching(context))
         {
-            RestartBodyMotionReadyCollection(state, input);
+            state.m_RearmRequired = false;
+            // 蹲着只解除武装，绝不重设基准：重开收集会把蹲姿写成站立基准，之后站起来
+            // 相对蹲姿就是"肩髋同时上升并带速度"，正是"一直蹲着再站起来触发起跳"的来源。
+            state.m_ReadyFrameCount = 0;
+            state.m_UnstableFrameCount = 0;
+            state.m_PendingRebaselineFrames = 0;
+            state.m_IsReady = false;
+            StoreLastBodyMotionInput(state, input);
             return false;
         }
 
-        if (hipRise < -input.m_Torso.m_ShoulderWidth * config.m_JumpMinHipRiseRatio)
-        {
-            if (measuredSpeed <= maxStableSpeed &&
-                ++state.m_PendingRebaselineFrames >= kJumpSettleRebaselineFrames)
-            {
-                RestartBodyMotionReadyCollection(state, input);
-                return false;
-            }
-        }
-        else
-        {
-            state.m_PendingRebaselineFrames = 0;
-        }
+        // 低位绝不采纳为新站姿：被采纳的下降量必然原样等于之后"站起来"的上升量，
+        // 而能走进这个判断的下降量已经超过触发阈值（m_JumpMinHipRiseRatio），
+        // 起身那一下就会正好满足上升阈值——这就是"蹲一会儿再站起来被判成起跳"。
+        // 蹲多久都一样：基准始终是站立高度，站起来只是回到基准，rise 归零。
+        // 基准偏低靠重新收集自愈（AccumulateBodyMotionBaseline 只向更高收紧）。
+        state.m_PendingRebaselineFrames = 0;
 
         if (context.m_DeltaTimeSeconds <= 0.0f)
         {
@@ -3252,9 +3660,18 @@ namespace
         // takeoff they are often still predicted near the floor, which used to
         // veto perfectly valid jumps. Shoulders and hips rising together with
         // real upward speed is already a jump-specific signal.
-        return shoulderRise >= input.m_Torso.m_ShoulderWidth * config.m_JumpMinShoulderRiseRatio &&
+        bool triggered = shoulderRise >= input.m_Torso.m_ShoulderWidth * config.m_JumpMinShoulderRiseRatio &&
             hipRise >= input.m_Torso.m_ShoulderWidth * config.m_JumpMinHipRiseRatio &&
             (shoulderUpSpeed >= minUpSpeed || hipUpSpeed >= minUpSpeed);
+        if (triggered)
+        {
+            // 从这一帧起身体已经离开站立位置，到落地前都不能再拿姿势去收紧基准。
+            state.m_JumpAirbornePending = true;
+            state.m_JumpAirborneFrames = 0;
+            state.m_JumpAirbornePeakY = input.m_Torso.m_ShoulderCenter.m_Y;
+        }
+
+        return triggered;
     }
 
     bool EvaluateCrouchDown(RuntimeContext& context, StableBodyMotionState& state)
@@ -3269,18 +3686,30 @@ namespace
 
         if (!state.m_HasLastInput)
         {
+            state.m_RearmRequired = false;
             RestartBodyMotionReadyCollection(state, input);
             return false;
         }
 
         float maxStableSpeed = input.m_Torso.m_ShoulderWidth * config.m_CrouchDownReadyMaxVerticalSpeedRatioPerSecond;
         float measuredSpeed = ReadMaxTorsoVerticalSpeed(state, input, context.m_DeltaTimeSeconds);
+        UpdateCrouchDownAirborneLock(config, state, input);
         if (!state.m_IsReady)
         {
             if (ReadIsCrouching(context))
             {
                 state.m_ReadyFrameCount = 0;
                 state.m_UnstableFrameCount = 0;
+                StoreLastBodyMotionInput(state, input);
+                return false;
+            }
+
+            // 刚起跳或仍在空中：不收集站立基准，避免把起飞高度当成站立高度。
+            if (state.m_AirborneLockFrames > 0)
+            {
+                state.m_ReadyFrameCount = 0;
+                state.m_UnstableFrameCount = 0;
+                state.m_CrouchDownConfirmFrames = 0;
                 StoreLastBodyMotionInput(state, input);
                 return false;
             }
@@ -3300,6 +3729,7 @@ namespace
             state.m_UnstableFrameCount = 0;
             if (state.m_ReadyFrameCount <= 0)
             {
+                state.m_RearmRequired = false;
                 RestartBodyMotionReadyCollection(state, input);
                 return false;
             }
@@ -3316,8 +3746,17 @@ namespace
         float baselineLegHeight = state.m_BaselineAnkleCenter.m_Y - state.m_BaselineHipCenter.m_Y;
         float currentLegHeight = input.m_AnkleCenter.m_Y - input.m_Torso.m_HipCenter.m_Y;
         float legCompression = baselineLegHeight - currentLegHeight;
+        // 起跳、下落与落地缓冲都不是玩家主动下蹲：锁定期内既不重设基准也不触发。
+        if (state.m_AirborneLockFrames > 0)
+        {
+            state.m_CrouchDownConfirmFrames = 0;
+            StoreLastBodyMotionInput(state, input);
+            return false;
+        }
+
         if (hipDrop < -input.m_Torso.m_ShoulderWidth * config.m_CrouchDownMinHipDropRatio * 0.5f)
         {
+            state.m_RearmRequired = false;
             RestartBodyMotionReadyCollection(state, input);
             return false;
         }
@@ -3331,6 +3770,12 @@ namespace
         float shoulderDownSpeed = (input.m_Torso.m_ShoulderCenter.m_Y - state.m_LastShoulderCenter.m_Y) / context.m_DeltaTimeSeconds;
         float hipDownSpeed = (input.m_Torso.m_HipCenter.m_Y - state.m_LastHipCenter.m_Y) / context.m_DeltaTimeSeconds;
         StoreLastBodyMotionInput(state, input);
+        // 触发后必须站起才能再次触发，否则保持蹲姿时冷却到期会连判两次
+        if (state.m_RearmRequired)
+        {
+            return false;
+        }
+
         float minDownSpeed = input.m_Torso.m_ShoulderWidth * config.m_CrouchDownMinDownwardSpeedRatioPerSecond;
         // Leg compression only confirms the crouch when both the baseline
         // frame and the current frame have ankle data; without ankles the
@@ -3345,6 +3790,14 @@ namespace
         int32_t confirmHoldFrames = config.m_CrouchDownConfirmHoldFrames;
         if (state.m_CrouchDownConfirmFrames > 0)
         {
+            // 确认期间身体已经开始上冲：这是起跳前的蓄力半蹲，撤销这次下蹲。
+            // 真蹲下去的人会保持或继续下沉，只有起跳前摇才会在这个窗口内反向上升。
+            if (hipDownSpeed <= -minDownSpeed * 0.75f)
+            {
+                state.m_CrouchDownConfirmFrames = 0;
+                return false;
+            }
+
             if (hipDrop < hipDropThreshold)
             {
                 state.m_CrouchDownConfirmFrames = 0;
@@ -3358,6 +3811,7 @@ namespace
             }
 
             state.m_CrouchDownConfirmFrames = 0;
+            state.m_RearmRequired = true;
             return true;
         }
 
@@ -3369,6 +3823,7 @@ namespace
         {
             if (confirmHoldFrames <= 1)
             {
+                state.m_RearmRequired = true;
                 return true;
             }
 
@@ -3431,12 +3886,43 @@ namespace
 
     void ArmSingleHandSideSweepAtHip(
         SingleHandSideSweepHandState& state,
-        float wristHipOffsetRatio)
+        float wristHipOffsetRatio,
+        Vec2 bodyUpAxis,
+        float shoulderSpan)
     {
         state.m_IsReady = true;
         state.m_IsMoving = false;
         state.m_ReadyWristHipOffsetRatio = wristHipOffsetRatio;
         state.m_MotionSeconds = 0.0f;
+        // 冻结这一帧的身体参考系。侧身时肩宽会持续缩短，一旦拿当前帧肩宽去除，
+        // 停在原处的手会被读成一路向上挥；用冻结的尺子，侧身对判据完全无影响。
+        state.m_HasReadyFrame = true;
+        state.m_ReadyBodyUpAxis = bodyUpAxis;
+        state.m_ReadyShoulderSpan = shoulderSpan;
+        // 腕肘基准只在 arm 那一刻确实拿到肘数据时才建立。拿不到就退回只靠冻结参考系判断，
+        // 否则这条会永远挡住出招。
+        state.m_HasReadyForearm = state.m_HasLastElbow;
+        state.m_ReadyWristElbowOffsetRatio =
+            state.m_HasLastElbow ? state.m_LastWristElbowDropRatio : 0.0f;
+    }
+
+    // 确认这一手出招：清识别状态，并进入“等手放下来”的收手确认阶段。
+    // 起步即发是在手腕刚离开起点时就出招的，此时手腕仍落在"起点姿势"容差里，
+    // 若立刻重新 arm，手继续上挥会被判成第二次挥手，一次挥动就出两颗子弹。
+    bool ConfirmSingleHandSideSweepTrigger(
+        SingleHandSideSweepHandState& state,
+        const RuntimeContext& context,
+        float wristHipOffsetRatio)
+    {
+        (void)context;
+        state.Reset();
+        state.m_RequiresRearmPullback = true;
+        state.m_PullbackRatio = 0.0f;
+        // Reset 会清掉上一帧手腕，这里补回出招点的真实高度，
+        // 出招后的逐帧回落行程才不会从 0 起算。
+        state.m_HasLastWrist = true;
+        state.m_LastWristHipOffsetRatio = wristHipOffsetRatio;
+        return true;
     }
 
     bool EvaluateSingleHandSideSweepHand(
@@ -3478,12 +3964,27 @@ namespace
         }
 
         state.m_WristMissingFrameCount = 0;
+        // 已经 arm 过就用冻结的参考系，否则用当前帧（此时只是判断"手现在贴不贴髋"）。
+        Vec2 frameUpAxis = bodyUpAxis;
+        float frameShoulderSpan = shoulderSpan;
+        if (state.m_HasReadyFrame && state.m_ReadyShoulderSpan > 0.0001f)
+        {
+            frameUpAxis = state.m_ReadyBodyUpAxis;
+            frameShoulderSpan = state.m_ReadyShoulderSpan;
+        }
+
         if (hasElbow)
         {
             state.m_HasLastElbow = true;
             state.m_LastElbowHipOffsetRatio =
-                ReadSingleHandSideSweepHipOffsetRatio(input, side, elbow, bodyUpAxis, shoulderSpan);
+                ReadSingleHandSideSweepHipOffsetRatio(input, side, elbow, frameUpAxis, frameShoulderSpan);
             state.m_ElbowMissingFrameCount = 0;
+            // 腕肘竖直差：正数表示手腕在肘下方。侧身、跳跃、弯腰都不改变它。
+            if (frameShoulderSpan > 0.0001f)
+            {
+                state.m_LastWristElbowDropRatio =
+                    (wrist.m_Y - elbow.m_Y) / frameShoulderSpan;
+            }
         }
         else
         {
@@ -3508,16 +4009,57 @@ namespace
         }
 
         float wristHipOffsetRatio =
-            ReadSingleHandSideSweepHipOffsetRatio(input, side, wrist, bodyUpAxis, shoulderSpan);
+            ReadSingleHandSideSweepHipOffsetRatio(input, side, wrist, frameUpAxis, frameShoulderSpan);
         bool hadLastWrist = state.m_HasLastWrist;
         float lastWristHipOffsetRatio = state.m_LastWristHipOffsetRatio;
+        // 单帧跳变限幅：关键点重识别、躯干轴突跳都会让这一帧的差分失去意义。真实挥手每帧大约
+        // 只移动 0.1 个肩宽，超过限幅的量级一定是噪声，直接丢弃，同时清掉速度与停手计数，
+        // 避免把一帧突跳当成“高速上挥”再确认出招。
+        if (hadLastWrist &&
+            Abs(wristHipOffsetRatio - lastWristHipOffsetRatio) >
+                kSingleHandSideSweepMaxFrameRatioJump)
+        {
+            state.m_FastFrameCount = 0;
+            state.m_StopFrameCount = 0;
+            state.m_IsMoving = false;
+            state.m_HasLastWrist = true;
+            state.m_LastWristHipOffsetRatio = wristHipOffsetRatio;
+            return false;
+        }
+
         state.m_HasLastWrist = true;
         state.m_LastWristHipOffsetRatio = wristHipOffsetRatio;
+        // 出招之后，只有等手腕连续向下退回一段明确的行程，才认为这次挥手结束、允许重新 arm。
+        // 不能只看"比出招点低多少"：一次上挥在途中本来就可能回撤几厘米，一旦当时解锁，
+        // 手接着往上挥又会出一颗，这就是一次挥手两颗子弹的来源。往下退途中只要手重新往上，
+        // 累计立刻清零，所以上挥途中的抖动不会被误判成收手；快速连挥时那一下下放足够长，
+        // 每一下都能重新出招，不受任何时间限制。
+        if (state.m_RequiresRearmPullback)
+        {
+            float downwardRatio = wristHipOffsetRatio - lastWristHipOffsetRatio;
+            state.m_PullbackRatio = downwardRatio > 0.0f
+                ? state.m_PullbackRatio + downwardRatio
+                : 0.0f;
+            if (state.m_PullbackRatio <
+                config.m_SingleHandSideSweepStartMovementDistanceRatio *
+                    kSingleHandSideSweepRearmPullbackScale)
+            {
+                return false;
+            }
+
+            state.m_RequiresRearmPullback = false;
+            state.m_PullbackRatio = 0.0f;
+        }
+
         if (!state.m_IsReady)
         {
             if (ReadIsSingleHandSideSweepStartPose(config, wristHipOffsetRatio))
             {
-                ArmSingleHandSideSweepAtHip(state, wristHipOffsetRatio);
+                ArmSingleHandSideSweepAtHip(
+                    state,
+                    wristHipOffsetRatio,
+                    bodyUpAxis,
+                    shoulderSpan);
                 return false;
             }
 
@@ -3530,18 +4072,64 @@ namespace
                 return false;
             }
 
-            ArmSingleHandSideSweepAtHip(state, startTopRatio);
+            ArmSingleHandSideSweepAtHip(
+                state,
+                startTopRatio,
+                bodyUpAxis,
+                shoulderSpan);
+        }
+
+        // 手腕相对同侧肘抬起了多少（肩宽）。侧身、跳跃、弯腰都是整条手臂当刚体随躯干动，
+        // 腕肘相对向量一个分量都不变，只有手臂自己举起来才会变。它比“腕相对髋”干净得多：
+        // 髋和腕之间隔着整条躯干，躯干一转一弯就会把两者拉开。肘关键点丢失时沿用上一帧的
+        // 差值，等于自动冻结，不会因为遮挡而误判。
+        float forearmRiseRatio = 0.0f;
+        if (state.m_HasReadyForearm)
+        {
+            forearmRiseRatio =
+                state.m_ReadyWristElbowOffsetRatio - state.m_LastWristElbowDropRatio;
+        }
+
+        bool forearmConfirmed =
+            !state.m_HasReadyForearm ||
+            forearmRiseRatio >= kSingleHandSideSweepMinForearmRiseRatio;
+
+        // 手腕当前在双肩中心点下方多远（肩宽）。肩宽拿不到有效值时不阻塞判断。
+        float wristBelowShoulderRatio = 0.0f;
+        bool wristHeightConfirmed = true;
+        if (frameShoulderSpan > 0.0001f)
+        {
+            wristBelowShoulderRatio =
+                (wrist.m_Y - input.m_ShoulderCenter.m_Y) / frameShoulderSpan;
+            wristHeightConfirmed =
+                wristBelowShoulderRatio <= kSingleHandSideSweepMaxWristBelowShoulderRatio;
         }
 
         state.m_MotionSeconds += std::max(0.0f, context.m_DeltaTimeSeconds);
         if (state.m_MotionSeconds > config.m_SingleHandSideSweepMaxDurationSeconds)
         {
+            // 拖得太久：只要确实挥出去了就仍然出招，避免"手挥完却没有子弹"。
+            bool sweptBeforeTimeout = HasSweptEnoughDistance(
+                state,
+                state.m_ReadyWristHipOffsetRatio - wristHipOffsetRatio,
+                config) && forearmConfirmed && wristHeightConfirmed;
+            if (sweptBeforeTimeout)
+            {
+                return ConfirmSingleHandSideSweepTrigger(state, context, wristHipOffsetRatio);
+            }
+
             state.Reset();
             return false;
         }
 
         float upwardDistanceRatio =
             state.m_ReadyWristHipOffsetRatio - wristHipOffsetRatio;
+        // 冻结参考系下的行程和腕肘相对位置必须同时成立。两者挨的是两种完全不同的失效方式，
+        // 一起误判的概率极低。
+        bool sweepConfirmed =
+            upwardDistanceRatio >= kSingleHandSideSweepMinSweepDistanceRatio &&
+            forearmConfirmed &&
+            wristHeightConfirmed;
         if (!state.m_IsMoving)
         {
             if (upwardDistanceRatio < config.m_SingleHandSideSweepStartMovementDistanceRatio)
@@ -3552,16 +4140,78 @@ namespace
             state.m_IsMoving = true;
         }
 
+        // 起步即发：手腕已经离开起点并保持上挥速度，说明这一下是来真的，立即出招，
+        // 不再等手腕到达肘部高度（骨骼数据本身有内容延迟，等到位时玩家已经挥完）。
+        // 确认帧数填 0 关闭；速度门槛过滤慢速抬手。
+        float upwardSpeedRatio = context.m_DeltaTimeSeconds > 0.0f
+            ? (lastWristHipOffsetRatio - wristHipOffsetRatio) / context.m_DeltaTimeSeconds
+            : 0.0f;
+
+        // 起手预播：手腕一出现明显的上挥速度就先发开始事件，让游戏把攻击动作提前播起来，
+        // 真正确认出招仍由后面的起步即发/预测/到肘高决定。走到这里说明手腕已经离开过起点线，
+        // 手垂着不动不会进来，慢速抬手也过不了这条速度门槛。
+        // 起手预播只服务于显式绑定了"开始"阶段的玩法（目前只有跑酷在业务层自己绑）。
+        // 没有绑定的玩法连手势事件都不写，避免给牙齿这类只关心触发阶段的调用方多出事件、
+        // 多占输出容量。
+        bool hasStartBinding =
+            FindFirstActionBinding(context, kGestureSingleHandSideSweepFlow, kPhaseStart) != nullptr;
+        if (hasStartBinding &&
+            !state.m_IsStartEmitted &&
+            upwardDistanceRatio >= kSingleHandSideSweepStartEmitDistanceRatio &&
+            forearmConfirmed &&
+            config.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond > 0.0f &&
+            upwardSpeedRatio >= config.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond *
+                kSingleHandSideSweepStartEmitSpeedFactor)
+        {
+            state.m_IsStartEmitted = true;
+            AddGestureEvent(
+                context,
+                kGestureSingleHandSideSweepFlow,
+                kPhaseStart,
+                side == kLeftSide ? kTriggerHandLeft : kTriggerHandRight);
+        }
+
+        state.m_FastFrameCount = upwardSpeedRatio >= config.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond
+            ? state.m_FastFrameCount + 1
+            : 0;
+        if (config.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond > 0.0f &&
+            config.m_SingleHandSideSweepFastTriggerFrames >= 1 &&
+            state.m_FastFrameCount >= config.m_SingleHandSideSweepFastTriggerFrames &&
+            upwardDistanceRatio >= kSingleHandSideSweepFastTriggerDistanceRatio &&
+            sweepConfirmed)
+        {
+            return ConfirmSingleHandSideSweepTrigger(state, context, wristHipOffsetRatio);
+        }
+
+        // 出招出口只剩四个：起步即发（上）、到肘高、停手兜底、超时兜底（下）。
+        // 原先的"按速度预测提前触发"要的也是连续两帧达标速度，而起步即发在同一帧更早返回，
+        // 那条分支永远走不到，已删除，避免以后有人以为它还生效。
         bool hasReachedElbowHeight = state.m_HasLastElbow &&
             wristHipOffsetRatio <= state.m_LastElbowHipOffsetRatio +
-            config.m_SingleHandSideSweepElbowHeightToleranceRatio;
+            config.m_SingleHandSideSweepElbowHeightToleranceRatio &&
+            sweepConfirmed;
         bool triggered = hasReachedElbowHeight;
         if (triggered)
         {
-            state.Reset();
+            return ConfirmSingleHandSideSweepTrigger(state, context, wristHipOffsetRatio);
         }
 
-        return triggered;
+        // 停手兜底：手腕已经挥出大半行程、速度也回落，说明这一下挥完了。
+        // 速度一直没达到起步即发门槛、或者肘部数据不可用时，靠这里保证"手停下必有子弹"。
+        bool slowedDown = upwardSpeedRatio <=
+            config.m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond *
+                kSingleHandSideSweepStopSpeedRatio;
+        state.m_StopFrameCount =
+            HasSweptEnoughDistance(state, upwardDistanceRatio, config) && slowedDown &&
+            sweepConfirmed
+                ? state.m_StopFrameCount + 1
+                : 0;
+        if (state.m_StopFrameCount >= 2)
+        {
+            return ConfirmSingleHandSideSweepTrigger(state, context, wristHipOffsetRatio);
+        }
+
+        return false;
     }
 
     bool EvaluateSingleHandSideSweep(
@@ -3587,6 +4237,26 @@ namespace
             state.ResetFlowState();
             return false;
         }
+
+        // 肩宽单帧限速：转身时双肩在图像上重叠会让肩宽骤降，转回来又骤增，而它是所有高度比值的
+        // 分母。分母单帧突变会把完全没动的手读成大幅上挥或下落，所以每帧只放行这么多变化。
+        if (state.m_HasLastShoulderSpan)
+        {
+            float maxSpanDelta =
+                state.m_LastShoulderSpan * kSingleHandSideSweepMaxSpanChangeRatio;
+            float spanDelta = shoulderSpan - state.m_LastShoulderSpan;
+            if (spanDelta > maxSpanDelta)
+            {
+                shoulderSpan = state.m_LastShoulderSpan + maxSpanDelta;
+            }
+            else if (spanDelta < -maxSpanDelta)
+            {
+                shoulderSpan = state.m_LastShoulderSpan - maxSpanDelta;
+            }
+        }
+
+        state.m_HasLastShoulderSpan = true;
+        state.m_LastShoulderSpan = shoulderSpan;
 
         Vec2 leftWrist;
         Vec2 rightWrist;
@@ -3676,7 +4346,21 @@ namespace
         SingleHandSideSweepState& state = context.m_SeatState->m_SingleHandSideSweep;
         if (state.m_PendingActionEventCount > 0)
         {
-            return;
+            // 回执只能由驱动主动回写，那一帧派发被跳过就永远等不到。等够上限就放弃
+            // 这两条事件重新识别，否则挥手出招会一直失效到重启。
+            if (++state.m_PendingWaitFrames <= kTriggerPendingTimeoutFrames)
+            {
+                return;
+            }
+
+            state.m_FirstPendingActionEventId = 0;
+            state.m_SecondPendingActionEventId = 0;
+            state.m_PendingActionEventCount = 0;
+            state.m_PendingWaitFrames = 0;
+        }
+        else
+        {
+            state.m_PendingWaitFrames = 0;
         }
 
         if (!HasRecognizableActionBinding(context, kGestureSingleHandSideSweepFlow))
@@ -3692,6 +4376,7 @@ namespace
             return;
         }
 
+        // 左右手各判定各的：满足条件的手都会出招，两个事件分别对应两颗子弹。
         if (leftTriggered)
         {
             EmitSingleHandSideSweepTrigger(context, state, kTriggerHandLeft);
@@ -3720,10 +4405,25 @@ namespace
         state.m_FrameTimeSeconds = frameTimeSeconds;
     }
 
+    // 触发结算要清哪些状态由状态类型自己决定：需要跨触发保留参考姿势的
+    // （StableBodyMotionState 的站立基准）提供 ResetTriggerState；
+    // 其余手势状态没有这个成员，退回完整的 ResetFlowState。
+    template <typename TState>
+    auto ResetTriggerAfterConsume(TState& state, int) -> decltype(state.ResetTriggerState(), void())
+    {
+        state.ResetTriggerState();
+    }
+
+    template <typename TState>
+    void ResetTriggerAfterConsume(TState& state, long)
+    {
+        state.ResetFlowState();
+    }
+
     template <typename TState>
     void SubmitTriggerAccepted(TState& state, float cooldownSeconds, float frameTimeSeconds)
     {
-        state.ResetFlowState();
+        ResetTriggerAfterConsume(state, 0);
         state.m_CooldownUntilSeconds = frameTimeSeconds + cooldownSeconds;
     }
 
@@ -3737,7 +4437,22 @@ namespace
     {
         if (state.m_IsPending)
         {
-            return;
+            // 消费回写只能由驱动主动调用，一旦那一帧的派发被整段跳过就永远等不到。
+            // 这里按帧数兜底，等够上限就放弃这条已发出的事件，重新开始识别。
+            if (++state.m_PendingWaitFrames <= kTriggerPendingTimeoutFrames)
+            {
+                return;
+            }
+
+            // ResetFlowState 只管识别姿势字段、不含 pending，必须单独清掉，
+            // 否则下一帧仍走这一支，超时就退化成无限重试。
+            state.ResetFlowState();
+            state.ResetPending();
+            state.m_PendingWaitFrames = 0;
+        }
+        else
+        {
+            state.m_PendingWaitFrames = 0;
         }
 
         if (!HasRecognizableActionBinding(context, gestureType))
@@ -3748,7 +4463,16 @@ namespace
 
         if (context.m_FrameTimeSeconds > 0.0f && context.m_FrameTimeSeconds < state.m_CooldownUntilSeconds)
         {
-            return;
+            float remainingCooldown = state.m_CooldownUntilSeconds - context.m_FrameTimeSeconds;
+            if (remainingCooldown > std::max(0.0f, cooldownSeconds) + kTriggerClockResetToleranceSeconds)
+            {
+                // 帧时间戳来自骨骼帧，SDK 重连会把时间基准换掉，旧终点变成永远到不了的未来。
+                state.m_CooldownUntilSeconds = 0.0f;
+            }
+            else
+            {
+                return;
+            }
         }
 
         if (!evaluate(context, state))
@@ -3759,7 +4483,8 @@ namespace
         BoneParserCLibActionEventOutput* actionEvent = AddGestureEvent(context, gestureType, kPhaseTrigger);
         if (actionEvent == nullptr)
         {
-            state.ResetFlowState();
+            // 事件缓冲写满（输出溢出）：和托管侧 OnBlocked 对齐，保留参考姿势只清过程状态。
+            ResetTriggerAfterConsume(state, 0);
             return;
         }
 
@@ -3790,7 +4515,7 @@ namespace
         }
         else
         {
-            state.ResetFlowState();
+            ResetTriggerAfterConsume(state, 0);
         }
 
         state.ResetPending();

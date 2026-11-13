@@ -22,7 +22,7 @@ typedef void* BoneParserCLibHandle;
 
 enum
 {
-    BoneParserCLibAbiVersion = 27,
+    BoneParserCLibAbiVersion = 32,
     BoneParserCLibBodyJointCount = 18
 };
 
@@ -143,6 +143,19 @@ typedef struct BoneParserCLibConfig
     float m_UpDownSwingPairingWindowSeconds;
     float m_ShoulderAngleTurnMinShoulderSpanToTorsoRatio;
     float m_TurnUpdateDeltaTimeSeconds;
+    float m_LeanRebaselineStopSpeedRatioPerSecond;
+    float m_LeanRebaselineStopFrames;
+    float m_LeanPredictiveLeadSeconds;
+    float m_LeanPredictiveMinOffsetRatio;
+    float m_LeanPredictiveMinSpeedRatioPerSecond;
+    float m_SingleHandSideSweepPredictiveLeadSeconds;
+    float m_SingleHandSideSweepPredictiveMinUpSpeedRatioPerSecond;
+    // 蹲下去腾空联锁：最近一段时间内肩髋曾从更低位置明显上升，即视为刚起跳或仍在空中，
+    // 期间不建立下蹲基准、不触发下蹲，避免把跳跃顶点当成站立基准后把下落判成下蹲。
+    float m_CrouchDownAirborneRiseRatio;
+    int32_t m_CrouchDownAirborneHoldFrames;
+    // 单手侧挥攻击起步即发：起步后上挥速度连续达标这么多帧立即出招，不等手腕到达肘部高度。
+    int32_t m_SingleHandSideSweepFastTriggerFrames;
 } BoneParserCLibConfig;
 
 typedef struct BoneParserCLibJoint

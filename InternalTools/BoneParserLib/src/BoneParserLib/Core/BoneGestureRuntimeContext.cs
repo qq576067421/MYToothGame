@@ -57,6 +57,11 @@
             return m_EventWriter.HasRecognizableActionBinding(m_SeatDefinition, gestureType);
         }
 
+        public bool HasActionBinding(BoneGestureType gestureType, BoneGesturePhase phase)
+        {
+            return m_EventWriter.HasActionBinding(m_SeatDefinition, gestureType, phase);
+        }
+
         public BoneActionEvent AddGestureEvent(
             BoneGestureType gestureType,
             BoneGesturePhase phase,
