@@ -135,8 +135,9 @@ namespace GameHot
             }
 
             model.m_OnContinue.Invoke();
-            CloseWithLoadingDelayIfNeeded();
         }
+
+        public bool CanContinue => GetModel<tower_defend_chapter_result_model>()?.m_OnContinue != null;
 
         public bool TryContinueByGesture()
         {
@@ -147,7 +148,7 @@ namespace GameHot
             }
 
             OnClickContinue();
-            return true;
+            return loading_wnd.IsBlockingFlowInput();
         }
 
         public bool TryReturnByRemote()
@@ -166,22 +167,6 @@ namespace GameHot
         {
             var model = GetModel<tower_defend_chapter_result_model>();
             model.m_OnReturn?.Invoke();
-            CloseWithLoadingDelayIfNeeded();
-        }
-
-        private void CloseWithLoadingDelayIfNeeded()
-        {
-            var delayMs = loading_wnd.GetRemainingVisibleMilliseconds();
-            if (delayMs > 0)
-            {
-                AddCounter(delayMs, 1, null, 0, () =>
-                {
-                    UIManager.CloseWindow(this);
-                });
-                return;
-            }
-
-            UIManager.CloseWindow(this);
         }
 
         private void RefreshView()
@@ -229,8 +214,9 @@ namespace GameHot
             RenderAPI.SetTextLan(m_View.m_fail_txt_title, "td_result_chapter_fail_title");
             RenderAPI.SetTextLan(m_View.m_fail_txt_title2, "td_result_chapter_fail_title2");
 
-            RenderAPI.SetTextNumber(m_View.m_txt_level, result.m_Stage);
-            RenderAPI.SetTextNumber(m_View.m_txt_level_new1, result.m_Stage);
+            int chapterLevel = result.m_Stage > 0 ? (result.m_Stage - 1) % tower_defend_lvchoose_wnd.m_LevelsPerChapter + 1 : 0;
+            RenderAPI.SetTextNumber(m_View.m_txt_level, chapterLevel);
+            RenderAPI.SetTextNumber(m_View.m_txt_level_new1, chapterLevel);
             RenderAPI.SetTextNumber(m_View.m_txt_reward_kill, result.m_KillRewardGold);
             RenderAPI.SetTextNumber(m_View.m_txt_reward_total, result.m_ClearRewardGold);
             SetStar(result);
@@ -255,7 +241,6 @@ namespace GameHot
         //设置结算几颗星星
         private void SetStar(BattleResultData result)
         {
-            // 星级在结算落档时已统一计算
             int activeCount = Mathf.Clamp(result.m_StarCount, 0, 3);
             EnsureResultVideoComponents();
             VideoPlayer videoPlayer = m_ResultVideoPlayer;

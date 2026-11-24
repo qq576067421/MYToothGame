@@ -15,6 +15,7 @@ namespace GameDll
         public const long RecoveryBuff = 1007;
         public const long DamageBuff = 1008;
         public const long ActionBuff = 1015;
+        public const long FreezeBuff = 1016;
     }
     public class BuffTemplate
     {
@@ -54,6 +55,11 @@ namespace GameDll
                     case BuffClassId.ActionBuff:
                         {
                             buff = new ActionBuff();
+                            break;
+                        }
+                    case BuffClassId.FreezeBuff:
+                        {
+                            buff = new FreezeBuff();
                             break;
                         }
                 }

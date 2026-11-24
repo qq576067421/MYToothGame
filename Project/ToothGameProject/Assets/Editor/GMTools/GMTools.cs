@@ -19,6 +19,7 @@ public class GMTools : EditorWindow
 {
     private const string BattleConstAssetPath = "Assets/Scripts/Game/BattleLogic/Battle/BattleConst.cs";
     private const string BoneTurnTuningAssetPath = "Assets/Scripts/Game/BattleLogic/Battle/BoneInput/BoneTurnTuning.cs";
+    private const string GmBridgeSettingsAssetPath = "Assets/Scripts/Game/DevTools/GmBridge/GmBridgeSettings.cs";
     private const string BattleConstSessionKeyPrefix = "GMTools.BattleConst.";
     private const string BattleConstSessionMarkerKey = BattleConstSessionKeyPrefix + "HasOverrides";
     private const string BattleSettingsUnsavedChangesMessage = "GMTools 中还有战斗参数没有回填到代码默认值。是否现在回填保存？";
@@ -474,16 +475,25 @@ public class GMTools : EditorWindow
     }
 
     private int m_SelectedTab = 0;
-    private readonly string[] m_TabNames = { "通用", "战斗", "战斗参数", "引导" };
+    // 页签按职责划分：通用=编辑器本机环境与画面、战斗=全部战斗内控制、
+    // 战斗参数=数值调参、真机=GM 桥连接与收发日志、引导=新手引导。
+    // 战斗控制只在「战斗」页签出现一次，本机与真机通过同一个命令路由执行。
+    private readonly string[] m_TabNames = { "通用", "战斗", "战斗参数", "真机", "引导" };
 
     private int m_GuideGroup = 0;
-    private bool m_LowFrameRate = false;
     private int m_GmEnterStageId = 1;
     private int m_GmEndlessWave = 0;
     private Vector2 m_ScrollPosition;
 
     private bool m_DebugMobile = false;
     private bool m_ShowLog = true;
+
+    private static readonly string[] s_DeviceCommandTargetNames = { "本机", "真机", "两者" };
+    private string m_DeviceCommandName = "battle.pause";
+    private string m_DeviceCommandArgs = "{\"m_Pause\":true}";
+    private int m_DeviceLogCount = 30;
+    private string m_GmBridgeHostInput = string.Empty;
+    private bool m_GmBridgeHostInitialized = false;
     private void OnEnable()
     {
         saveChangesMessage = BattleSettingsUnsavedChangesMessage;
@@ -1336,6 +1346,10 @@ public class GMTools : EditorWindow
 
     private void DrawBattleConstSettings()
     {
+        DrawGmBridgeHostSection();
+
+        GUILayout.Space(8);
+
         bool changed = false;
         GUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.LabelField("当前修改会影响对应的运行时表现，回填会修改 BattleConst.cs 或 BoneTurnTuning.cs 中的默认值。");
@@ -1380,6 +1394,118 @@ public class GMTools : EditorWindow
         DrawBoneTurnTuningSection();
     }
 
+    // 真机连接 IP：真机侧连的是开发机的局域网 IP，写死在 GmBridgeSettings.m_DefaultHost。
+    // 与 BattleConst 一致：面板先改值，再回填源码；改完需要重新出一次 Development 包。
+    private void DrawGmBridgeHostSection()
+    {
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("真机连接 IP（GM 桥）", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField(
+            "真机连的是当前开发机的局域网 IP。不想重新打包时，也可以把 GmBridgeHost.txt（首行 IP，第二行可选端口）push 到真机 persistentDataPath。");
+
+        string codeHost = GmBridgeSettings.m_DefaultHost;
+        if (!m_GmBridgeHostInitialized)
+        {
+            m_GmBridgeHostInput = codeHost;
+            m_GmBridgeHostInitialized = true;
+        }
+
+        m_GmBridgeHostInput = EditorGUILayout.TextField("局域网 IP：", m_GmBridgeHostInput);
+        EditorGUILayout.LabelField("代码当前值：", codeHost);
+
+        string localIp = GmBridgeEditorSettings.ReadLocalIpv4();
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(new GUIContent("使用本机当前 IP", "把本机识别到的局域网 IP 填到上面的输入框。")))
+        {
+            if (string.IsNullOrEmpty(localIp))
+            {
+                Debug.LogWarning("[GMTools] 未识别到本机局域网 IP，请手动填写。");
+            }
+            else
+            {
+                m_GmBridgeHostInput = localIp;
+            }
+        }
+
+        if (GUILayout.Button(new GUIContent("回填到代码", "把上面的 IP 写进 GmBridgeSettings.cs 的 m_DefaultHost。")))
+        {
+            BackfillGmBridgeHostToCode(m_GmBridgeHostInput);
+        }
+        GUILayout.EndHorizontal();
+
+        if (!string.IsNullOrEmpty(m_GmBridgeHostInput) && m_GmBridgeHostInput != codeHost)
+        {
+            EditorGUILayout.HelpBox("输入框里的 IP 与代码不一致，点「回填到代码」后才生效，并需要重新出 Development 包。", MessageType.Info);
+        }
+
+        if (!string.IsNullOrEmpty(localIp) && codeHost != localIp)
+        {
+            EditorGUILayout.HelpBox(
+                string.Format("代码里写的是 {0}，本机当前局域网 IP 是 {1}。", codeHost, localIp),
+                MessageType.Warning);
+        }
+        GUILayout.EndVertical();
+    }
+
+    private static void BackfillGmBridgeHostToCode(string host)
+    {
+        host = host != null ? host.Trim() : string.Empty;
+        if (string.IsNullOrEmpty(host) || host.IndexOf('"') >= 0)
+        {
+            EditorUtility.DisplayDialog("错误", "局域网 IP 不能为空，也不能包含引号。", "确定");
+            return;
+        }
+
+        string fullPath = Path.GetFullPath(Path.Combine(Application.dataPath, "../", GmBridgeSettingsAssetPath));
+        if (!File.Exists(fullPath))
+        {
+            EditorUtility.DisplayDialog("错误", "未找到 GmBridgeSettings.cs，无法回填真机连接 IP。", "确定");
+            return;
+        }
+
+        byte[] fileBytes = File.ReadAllBytes(fullPath);
+        bool hasUtf8Bom = HasUtf8Bom(fileBytes);
+        string fileContent = hasUtf8Bom
+            ? Encoding.UTF8.GetString(fileBytes, 3, fileBytes.Length - 3)
+            : Encoding.UTF8.GetString(fileBytes);
+
+        string updatedContent = fileContent;
+        if (!TryReplaceConstString(ref updatedContent, "m_DefaultHost", host))
+        {
+            EditorUtility.DisplayDialog("错误", "回填失败，GmBridgeSettings.cs 里找不到 m_DefaultHost 常量。", "确定");
+            Debug.LogError("真机连接 IP 回填失败：GmBridgeSettings.cs 缺少 m_DefaultHost 常量。");
+            return;
+        }
+
+        if (updatedContent == fileContent)
+        {
+            Debug.Log("真机连接 IP 与代码一致，无需回填。");
+            return;
+        }
+
+        File.WriteAllText(fullPath, updatedContent, hasUtf8Bom ? new UTF8Encoding(true) : new UTF8Encoding(false));
+        AssetDatabase.Refresh();
+        Debug.Log(string.Format("已将真机连接 IP 回填到 GmBridgeSettings.cs：{0}", host));
+    }
+
+    private static bool TryReplaceConstString(ref string fileContent, string fieldName, string value)
+    {
+        string pattern = string.Format(
+            CultureInfo.InvariantCulture,
+            "(public const string {0} = )\"[^\"]*\";",
+            fieldName);
+        Regex regex = new Regex(pattern, RegexOptions.Multiline);
+        Match match = regex.Match(fileContent);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        string replacement = match.Groups[1].Value + "\"" + value.Replace("$", "$$") + "\";";
+        fileContent = regex.Replace(fileContent, replacement, 1);
+        return true;
+    }
+
 
     void OnGUI()
     {
@@ -1398,6 +1524,9 @@ public class GMTools : EditorWindow
                 DrawBattleConstSettings();
                 break;
             case 3:
+                DrawDeviceTab();
+                break;
+            case 4:
                 DrawGuideTab();
                 break;
         }
@@ -1408,6 +1537,10 @@ public class GMTools : EditorWindow
     private void DrawGeneralTab()
     {
         GUILayout.BeginVertical();
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("编辑器本机环境", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("以下开关只作用于编辑器进程；真机连接在「真机」页签，战斗内控制在「战斗」页签。");
 
         m_ShowLog = EditorGUILayout.Toggle("日志开关：", m_ShowLog);
         Debug.unityLogger.logEnabled = m_ShowLog;
@@ -1432,134 +1565,588 @@ public class GMTools : EditorWindow
                 Debug.Log("操作取消");
             }
         }
+        GUILayout.EndVertical();
 
-        if (GUILayout.Button(m_LowFrameRate ? "帧率低->高" : "帧率高->低"))
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("画面与截图（走 GM 桥）", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("命令目标由「战斗」页签顶部的 本机/真机/两者 决定；要改真机帧率或画质时先切到真机。", EditorStyles.miniLabel);
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("帧率 60"))
         {
-            m_LowFrameRate = !m_LowFrameRate;
-            Application.targetFrameRate = m_LowFrameRate ? 45 : -1;
+            GmBridgeEditorRouter.Invoke("app.frameRate", "{\"m_Fps\":60}");
         }
 
-        if (GUILayout.Button("开启低配"))
+        if (GUILayout.Button("帧率 45"))
         {
-            QualitySettings.SetQualityLevel((int)QualityLevel.Fastest);
+            GmBridgeEditorRouter.Invoke("app.frameRate", "{\"m_Fps\":45}");
         }
 
-        if (GUILayout.Button("屏幕截图"))
+        if (GUILayout.Button("不限帧率"))
         {
-            string fileName = Application.dataPath + "/../" + LCL.MonoTool.GetTimeStampUTCMs() + ".png";
-            ScreenCapture.CaptureScreenshot(fileName);
-            Debug.Log(string.Format("截取了一张图片: {0}", fileName));
+            GmBridgeEditorRouter.Invoke("app.frameRate", "{\"m_Fps\":-1}");
         }
+        GUILayout.EndHorizontal();
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(new GUIContent("低配画质", "下发 app.quality，画质档位 0")))
+        {
+            GmBridgeEditorRouter.Invoke("app.quality", "{\"m_Level\":0}");
+        }
+
+        if (GUILayout.Button(new GUIContent("截图", "下发 app.screenshot，图片保存到运行侧的 persistentDataPath")))
+        {
+            GmBridgeEditorRouter.Invoke("app.screenshot", "{}");
+        }
+        GUILayout.EndHorizontal();
+        GUILayout.EndVertical();
 
         GUILayout.EndVertical();
     }
 
+    // GM 桥的链路与诊断：连接参数、连接状态、设备状态快照、手动命令与收发日志。
+    // 战斗相关按钮统一在「战斗」页签，本页不再重复。
+    private void DrawDeviceTab()
+    {
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("真机连接（GM 桥）", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("仅 Development 包生效；真机连的 IP 在「战斗参数」页签配置（写入 GmBridgeSettings.m_DefaultHost）。");
+        EditorGUILayout.LabelField("战斗内控制按钮统一在「战斗」页签，与本页共用同一个命令路由。", EditorStyles.miniLabel);
+
+        bool isEnabled = GmBridgeEditorSettings.ReadIsEnabled();
+        bool nextEnabled = EditorGUILayout.Toggle("启用监听：", isEnabled);
+        if (nextEnabled != isEnabled)
+        {
+            GmBridgeEditorSettings.SetIsEnabled(nextEnabled);
+            if (nextEnabled)
+            {
+                GmBridgeEditorServer.Start();
+            }
+            else
+            {
+                GmBridgeEditorServer.Stop();
+            }
+        }
+
+        int currentPort = GmBridgeEditorSettings.ReadPort();
+        int nextPort = EditorGUILayout.IntField("监听端口：", currentPort);
+        if (nextPort != currentPort)
+        {
+            GmBridgeEditorSettings.SetPort(nextPort);
+            if (GmBridgeEditorSettings.ReadIsEnabled())
+            {
+                GmBridgeEditorServer.Stop();
+                GmBridgeEditorServer.Start();
+            }
+        }
+
+        string localIp = GmBridgeEditorSettings.ReadLocalIpv4();
+        string endpoint = string.Format(
+            "{0}:{1}",
+            string.IsNullOrEmpty(localIp) ? "<本机局域网IP>" : localIp,
+            GmBridgeEditorSettings.ReadPort());
+        EditorGUILayout.LabelField("本机局域网 IP：", string.IsNullOrEmpty(localIp) ? "未识别" : localIp);
+        EditorGUILayout.LabelField("真机侧连接地址：", endpoint);
+        EditorGUILayout.LabelField(
+            "不想重新打包换 IP：把 GmBridgeHost.txt（首行 IP）push 到真机 persistentDataPath。",
+            EditorStyles.miniLabel);
+
+        string configuredHost = GmBridgeSettings.m_DefaultHost;
+        if (!string.IsNullOrEmpty(localIp) && configuredHost != localIp)
+        {
+            EditorGUILayout.HelpBox(
+                string.Format(
+                    "真机连的 IP 写死为 {0}，本机当前是 {1}。刚换了网络或电脑时，请打开连接配置改 m_DefaultHost 后再出 Development 包。",
+                    configuredHost,
+                    localIp),
+                MessageType.Warning);
+        }
+
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(new GUIContent("复制地址", "复制真机要连的 IP:端口，方便填进 GmBridgeSettings 或排错。")))
+        {
+            EditorGUIUtility.systemCopyBuffer = endpoint;
+        }
+
+        if (GUILayout.Button(new GUIContent("打开连接配置", "打开 GmBridgeSettings.cs，换电脑或换 IP 时改 m_DefaultHost。")))
+        {
+            var settingsScript = AssetDatabase.LoadAssetAtPath<MonoScript>("Assets/Scripts/Game/DevTools/GmBridge/GmBridgeSettings.cs");
+            if (settingsScript != null)
+            {
+                AssetDatabase.OpenAsset(settingsScript);
+            }
+        }
+        GUILayout.EndHorizontal();
+
+        bool isSelfTest = EditorPrefs.GetBool(GmBridgeSettings.m_EditorSelfTestKey, false);
+        bool nextSelfTest = EditorGUILayout.Toggle(
+            new GUIContent("本机 Play 模拟真机", "没有真机时验证链路：编辑器 Play 模式下的客户端连 127.0.0.1。"),
+            isSelfTest);
+        if (nextSelfTest != isSelfTest)
+        {
+            EditorPrefs.SetBool(GmBridgeSettings.m_EditorSelfTestKey, nextSelfTest);
+        }
+
+        string connectState = GmBridgeEditorServer.ReadIsListening()
+            ? (GmBridgeEditorServer.ReadIsClientConnected() ? "已连接真机" : "监听中，等待真机")
+            : "未启动";
+        EditorGUILayout.LabelField("连接状态：", connectState);
+        if (GmBridgeEditorServer.ReadIsListening() && !GmBridgeEditorServer.ReadIsClientConnected())
+        {
+            EditorGUILayout.HelpBox(
+                "等待真机接入。连不上时依次检查：手机与电脑连同一 WiFi（不要用 4G）；真机是 Development 构建；Windows 防火墙允许 Unity Editor 访问网络；真机里写死的 IP 与本机局域网 IP 一致。",
+                MessageType.Info);
+        }
+        else if (GmBridgeEditorServer.ReadIsClientConnected())
+        {
+            double secondsSinceReceive = GmBridgeEditorServer.ReadSecondsSinceLastReceive();
+            if (secondsSinceReceive >= 0d && secondsSinceReceive > 3d)
+            {
+                EditorGUILayout.LabelField("最近心跳：", secondsSinceReceive.ToString("F1") + " 秒前");
+            }
+        }
+        if (GmBridgeEditorServer.ReadIsClientConnected())
+        {
+            EditorGUILayout.LabelField("设备信息：", GmBridgeEditorServer.ReadDeviceSummary());
+            DrawDeviceStateSection();
+        }
+
+        string lastError = GmBridgeEditorServer.ReadLastError();
+        if (!string.IsNullOrEmpty(lastError))
+        {
+            EditorGUILayout.HelpBox(lastError, MessageType.Error);
+        }
+
+        GUILayout.EndVertical();
+
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("手动命令", EditorStyles.boldLabel);
+        m_DeviceCommandName = EditorGUILayout.TextField("命令名：", m_DeviceCommandName);
+        m_DeviceCommandArgs = EditorGUILayout.TextField("命令参数：", m_DeviceCommandArgs);
+        if (GUILayout.Button("发送命令"))
+        {
+            GmBridgeEditorRouter.Invoke(m_DeviceCommandName, m_DeviceCommandArgs);
+        }
+
+        EditorGUILayout.LabelField("已支持命令：", GmBridgeCommandDispatcher.ReadCommandNames());
+        GUILayout.EndVertical();
+
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        GUILayout.BeginHorizontal();
+        EditorGUILayout.LabelField("收发日志", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("条数", GUILayout.Width(30f));
+        m_DeviceLogCount = EditorGUILayout.IntField(m_DeviceLogCount, GUILayout.Width(40f));
+        if (GUILayout.Button(new GUIContent("拉取运行侧日志", "下发 log.tail，取运行侧最近 N 条日志"), GUILayout.Width(120f)))
+        {
+            GmBridgeEditorRouter.Invoke("log.tail", "{\"m_Count\":" + m_DeviceLogCount + "}");
+        }
+
+        if (GUILayout.Button("清空", GUILayout.Width(60f)))
+        {
+            GmBridgeEditorServer.ClearLogs();
+        }
+        GUILayout.EndHorizontal();
+
+        string[] logs = GmBridgeEditorServer.ReadLogsCopy();
+        int logStart = Mathf.Max(0, logs.Length - 14);
+        for (int i = logStart; i < logs.Length; i++)
+        {
+            EditorGUILayout.LabelField(logs[i], EditorStyles.miniLabel);
+        }
+        GUILayout.EndVertical();
+
+        if ((GmBridgeEditorServer.ReadIsClientConnected() || GmBridgeEditorServer.ReadIsListening()) && hasFocus)
+        {
+            Repaint();
+        }
+    }
+
+    private void DrawDeviceStateSection()
+    {
+        var state = GmBridgeEditorServer.ReadDeviceState();
+        if (state == null)
+        {
+            EditorGUILayout.LabelField("真机状态：", "等待状态推送...");
+            return;
+        }
+
+        EditorGUILayout.LabelField("真机状态：", string.Format(
+            "场景 {0} | 战斗 {1}/{2} | 波次 {3} | 暂停 {4} | 冰冻 {5} | 团队经验 {6}% | FPS {7}/{8}",
+            state.m_Scene,
+            state.m_Battle,
+            state.m_GameMode,
+            state.m_Wave,
+            state.m_Paused ? "是" : "否",
+            state.m_FrozenSeatCount,
+            state.m_TeamExpPercent,
+            state.m_Fps,
+            state.m_TargetFrameRate));
+    }
+
+    // 战斗内控制：本机与真机走同一套 GM 命令，顶部只切换命令目标；
+    // 同一能力只出现一次，不再区分「本机版 / 真机版」两套按钮。
     private void DrawBattleTab()
     {
         GUILayout.BeginVertical();
 
         GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("控制目标", EditorStyles.boldLabel);
+        var target = GmBridgeEditorRouter.ReadTarget();
+        var nextTarget = (GmBridgeControlTarget)GUILayout.Toolbar((int)target, s_DeviceCommandTargetNames);
+        if (nextTarget != target)
+        {
+            GmBridgeEditorRouter.SetTarget(nextTarget);
+            target = nextTarget;
+        }
+
+        EditorGUILayout.LabelField("命令通道：", BuildCommandChannelSummary(target), EditorStyles.miniLabel);
+        GUILayout.EndVertical();
+
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
         EditorGUILayout.LabelField("进入关卡", EditorStyles.boldLabel);
         m_GmEnterStageId = EditorGUILayout.IntField("关卡 ID：", m_GmEnterStageId);
-        if (GUILayout.Button(new GUIContent("进入关卡", "直接通过关卡 ID 进入战斗，跳过大厅流程，按章节模式进入。")))
+        if (GUILayout.Button(new GUIContent("进入关卡", "通过关卡 ID 直接进入战斗，跳过大厅流程，按章节模式进入。")))
         {
-            GmEnterStage();
+            GmBridgeEditorRouter.Invoke("stage.enter", "{\"m_StageId\":" + m_GmEnterStageId + "}");
         }
+        GUILayout.EndVertical();
+
+        GUILayout.Space(8);
+
+        DrawBattleFlowSection();
+
+        GUILayout.Space(8);
+
+        DrawBattleCheatToggleSection();
+
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("波次与刷怪", EditorStyles.boldLabel);
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(new GUIContent("快速刷下一波", "只跳过下一波等待时间，不清理当前场上怪物，允许前后两波怪物同时在场。")))
+        {
+            GmBridgeEditorRouter.Invoke("battle.wave.next", "{}");
+        }
+
+        if (GUILayout.Button(new GUIContent("刷当前关卡 Boss", "优先尝试刷出当前波次配置里的 Boss；如果当前波次没有 Boss，则回退到当前关卡配置中的第一个 Boss。不会推进正式波次。")))
+        {
+            GmBridgeEditorRouter.Invoke("battle.boss.spawn", "{}");
+        }
+        GUILayout.EndHorizontal();
+
+        GUILayout.Space(4);
+        EditorGUILayout.LabelField("无尽模式", EditorStyles.boldLabel);
+        DrawEndlessWaveDebugSection();
+        GUILayout.EndVertical();
+
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("升级挑战", EditorStyles.boldLabel);
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button(new GUIContent("团队经验拉满", "把当前塔防战斗的团队经验直接补到升级挑战触发所需上限。")))
+        {
+            GmBridgeEditorRouter.Invoke("battle.challenge.exp.max", "{}");
+        }
+
+        if (GUILayout.Button(new GUIContent("棒棒糖直接炸开", "让当前升级挑战中的棒棒糖直接进入最终炸开流程。")))
+        {
+            GmBridgeEditorRouter.Invoke("battle.challenge.shatter", "{}");
+        }
+
+        if (GUILayout.Button(new GUIContent("结束升级挑战", "强制结束当前升级挑战。")))
+        {
+            GmBridgeEditorRouter.Invoke("battle.challenge.finish", "{}");
+        }
+        GUILayout.EndHorizontal();
+        GUILayout.EndVertical();
+
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("冰冻调试（buff 冰冻 923000，与 GM 暂停无关）", EditorStyles.boldLabel);
+        if (GUILayout.Button(new GUIContent("冰冻全部玩家", "给当前战斗的全部守卫英雄挂上冰冻buff(923000)，冻结3秒，走子弹命中同一条加buff链路。")))
+        {
+            GmBridgeEditorRouter.Invoke("cheat.freeze.all", "{}");
+        }
+        GUILayout.EndVertical();
+
+        GUILayout.Space(8);
+
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("结算", EditorStyles.boldLabel);
+        GUILayout.BeginHorizontal();
+        if (GUILayout.Button("快速过关"))
+        {
+            GmBridgeEditorRouter.Invoke("battle.finish", "{\"m_Success\":true}");
+        }
+
+        if (GUILayout.Button("快速失败"))
+        {
+            GmBridgeEditorRouter.Invoke("battle.finish", "{\"m_Success\":false}");
+        }
+
+        if (GUILayout.Button(new GUIContent("基地血量归零", "只把基地血量置零，不触发结算。")))
+        {
+            GmBridgeEditorRouter.Invoke("battle.base.break", "{}");
+        }
+        GUILayout.EndHorizontal();
         GUILayout.EndVertical();
 
         GUILayout.Space(8);
 
         DrawBoneRemoteDebugSection();
 
-        GUILayout.Space(8);
+        GUILayout.EndVertical();
+    }
 
-        TowerDefendBattleSpawer.m_GMDisableAutoSkill = EditorGUILayout.Toggle("禁用自动释放技能：", TowerDefendBattleSpawer.m_GMDisableAutoSkill);
-
-        DamageCal.m_GM_Invincible = EditorGUILayout.Toggle("怪物无敌：", DamageCal.m_GM_Invincible);
-        State_Move.m_GM_DisableMove = EditorGUILayout.Toggle("怪物不移动：", State_Move.m_GM_DisableMove);
-
+    private static string BuildCommandChannelSummary(GmBridgeControlTarget target)
+    {
+        if (target == GmBridgeControlTarget.Local)
         {
-            var battle = BattleManager.GetBattle();
-            if (battle != null)
+            return "本机执行（命令直接在编辑器 Play 中运行）";
+        }
+
+        if (GmBridgeEditorServer.ReadIsClientConnected())
+        {
+            return "真机执行（" + GmBridgeEditorServer.ReadDeviceSummary() + "）";
+        }
+
+        if (target == GmBridgeControlTarget.Both)
+        {
+            return "真机未连接：真机侧跳过，本机照常执行";
+        }
+
+        return "真机未连接：命令退回本机执行，请到「真机」页签检查监听与 IP";
+    }
+
+    // 战斗页签控件统一数据源口径：
+    // - 目标为本机，或目标为真机但真机未连接：读本机 Play（与 GmBridgeEditorRouter 的命令回退口径一致）
+    // - 真机已连接：只读真机推送状态；state 还没到时标记 pending 并禁用控件，不回退本机，
+    //   否则真机重连的空窗里面板会在两套数据之间来回跳。
+    private struct BattleControlSource
+    {
+        public GmBridgeStateDto m_DeviceState;
+        public IBattle m_LocalBattle;
+        public bool m_IsDevicePending;
+        public bool m_TargetIsDevice;
+    }
+
+    private static BattleControlSource ReadBattleControlSource()
+    {
+        var source = new BattleControlSource();
+        source.m_TargetIsDevice = GmBridgeEditorRouter.ReadTarget() != GmBridgeControlTarget.Local;
+        if (source.m_TargetIsDevice && GmBridgeEditorServer.ReadIsClientConnected())
+        {
+            source.m_DeviceState = GmBridgeEditorServer.ReadDeviceState();
+            source.m_IsDevicePending = source.m_DeviceState == null;
+            return source;
+        }
+
+        source.m_LocalBattle = BattleManager.GetBattle();
+        return source;
+    }
+
+    // 战斗流程：暂停开关 + 三种“停”的只读回显（GM 暂停 / 挂起 / buff 冰冻）。
+    private void DrawBattleFlowSection()
+    {
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("战斗流程", EditorStyles.boldLabel);
+
+        var source = ReadBattleControlSource();
+        bool isPaused = source.m_DeviceState != null
+            ? source.m_DeviceState.m_Paused
+            : (source.m_LocalBattle != null && source.m_LocalBattle.GM_IsPause());
+        EditorGUI.BeginDisabledGroup(source.m_IsDevicePending);
+        bool nextPaused = EditorGUILayout.Toggle(
+            new GUIContent("战斗暂停：", "战斗逻辑时间不走动，与 buff 冰冻（923000）不是一回事。"), isPaused);
+        EditorGUI.EndDisabledGroup();
+        if (!source.m_IsDevicePending && nextPaused != isPaused)
+        {
+            GmBridgeEditorRouter.Invoke("battle.pause", nextPaused ? "{\"m_Pause\":true}" : "{\"m_Pause\":false}");
+        }
+
+        DrawBattleStopStateSection();
+        GUILayout.EndVertical();
+    }
+
+    // 三个作弊开关统一用正向语义（可移动 / 可用），与运行侧 state 字段方向一致，
+    // 避免同一个能力在本机写“不移动”、在真机写“可移动”两套写法。
+    private void DrawBattleCheatToggleSection()
+    {
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("战斗作弊开关", EditorStyles.boldLabel);
+
+        var source = ReadBattleControlSource();
+        EditorGUI.BeginDisabledGroup(source.m_IsDevicePending);
+
+        bool invincible = source.m_DeviceState != null ? source.m_DeviceState.m_Invincible : DamageCal.m_GM_Invincible;
+        bool nextInvincible = EditorGUILayout.Toggle("怪物无敌：", invincible);
+        if (nextInvincible != invincible)
+        {
+            GmBridgeEditorRouter.Invoke("cheat.invincible", nextInvincible ? "{\"m_Enabled\":true}" : "{\"m_Enabled\":false}");
+        }
+
+        bool monsterMove = source.m_DeviceState != null ? source.m_DeviceState.m_MonsterMoveEnabled : !State_Move.m_GM_DisableMove;
+        bool nextMonsterMove = EditorGUILayout.Toggle("怪物可移动：", monsterMove);
+        if (nextMonsterMove != monsterMove)
+        {
+            GmBridgeEditorRouter.Invoke("cheat.monster.move", nextMonsterMove ? "{\"m_Enabled\":true}" : "{\"m_Enabled\":false}");
+        }
+
+        bool autoSkill = source.m_DeviceState != null ? source.m_DeviceState.m_AutoSkillEnabled : !TowerDefendBattleSpawer.m_GMDisableAutoSkill;
+        bool nextAutoSkill = EditorGUILayout.Toggle("自动技能可用：", autoSkill);
+        if (nextAutoSkill != autoSkill)
+        {
+            GmBridgeEditorRouter.Invoke("cheat.auto.skill", nextAutoSkill ? "{\"m_Enabled\":true}" : "{\"m_Enabled\":false}");
+        }
+
+        EditorGUI.EndDisabledGroup();
+        GUILayout.EndVertical();
+    }
+
+    // 三种“停”的只读回显：GM 暂停（时间不走动）/ 挂起（SetSuspended）/ buff 冰冻（923000）。
+    // 调试时先看这里，避免把 GM 暂停、挂起和冰冻混成一种。
+    // 固定输出 4 行：数据源在“真机推送 / 本机 Play / 无战斗”之间切时只换文案不换行数。
+    // 之前按数据源分支输出 1/2/3 行，一旦真机重连（m_StateJson 被清空）就会短暂回退去读本机战斗，
+    // 行数和内容一起变，整个面板高度跟着抖。
+    private void DrawBattleStopStateSection()
+    {
+        GUILayout.BeginVertical(EditorStyles.helpBox);
+        EditorGUILayout.LabelField("停止状态（只读）", EditorStyles.boldLabel);
+
+        string pauseText = "—";
+        string suspendText = "—";
+        string frozenText = "—";
+        string sourceText;
+
+        var source = ReadBattleControlSource();
+        if (source.m_DeviceState != null)
+        {
+            pauseText = source.m_DeviceState.m_Paused ? "是" : "否";
+            frozenText = string.Format("{0} 个", source.m_DeviceState.m_FrozenSeatCount);
+            sourceText = "真机状态推送";
+        }
+        else if (source.m_IsDevicePending)
+        {
+            // 真机已连接但 state 还没到：不回退去读本机战斗，否则行数和内容会跟着连接状态抖。
+            sourceText = "真机已连接，等待状态…";
+        }
+        else if (source.m_LocalBattle != null)
+        {
+            var spawer = source.m_LocalBattle.ReadBattleSpawer();
+            var heroes = spawer != null ? spawer.ReadHeroes() : null;
+            int heroCount = heroes != null ? heroes.Count : 0;
+            int suspendedCount = 0;
+            int frozenCount = 0;
+            for (int i = 0; i < heroCount; i++)
             {
-                bool gmPause = EditorGUILayout.Toggle("战斗时间不走动：", battle.GM_IsPause());
-                if (gmPause != battle.GM_IsPause())
+                var hero = heroes[i];
+                if (!BattleManager.ReadIsEntityValide(hero))
                 {
-                    battle.GM_SetPause(gmPause);
+                    continue;
+                }
+
+                if (hero.ReadIsSuspended())
+                {
+                    suspendedCount++;
+                }
+                if (hero.ReadIsFrozen())
+                {
+                    frozenCount++;
                 }
             }
-        }
 
-        if (GUILayout.Button("快速过关"))
+            pauseText = source.m_LocalBattle.GM_IsPause() ? "是" : "否";
+            suspendText = string.Format("{0} / {1}", suspendedCount, heroCount);
+            frozenText = string.Format("{0} / {1}", frozenCount, heroCount);
+            sourceText = source.m_TargetIsDevice ? "本机 Play（真机未连接）" : "本机 Play";
+        }
+        else
         {
-            TryFinishCurrentBattle(FinishReason.DefenseSucceeded, "快速过关", null);
+            sourceText = "当前没有进行中的战斗";
         }
 
-        if (GUILayout.Button("快速失败"))
-        {
-            TryFinishCurrentBattle(FinishReason.DefenseFailed, "快速失败", GroupId.PushGroupId);
-        }
-
-        GUILayout.Space(8);
-
-        GUILayout.BeginVertical(EditorStyles.helpBox);
-        EditorGUILayout.LabelField("升级挑战调试", EditorStyles.boldLabel);
-        if (GUILayout.Button(new GUIContent("团队经验拉满", "把当前塔防战斗的团队经验直接补到升级挑战触发所需上限。")))
-        {
-            TryAddCurrentTowerDefendTeamExpToMax();
-        }
-
-        if (GUILayout.Button(new GUIContent("快速刷下一波", "只跳过下一波等待时间，不清理当前场上怪物，允许前后两波怪物同时在场。")))
-        {
-            TrySpawnCurrentTowerDefendNextWaveNow();
-        }
-
-        if (GUILayout.Button(new GUIContent("直接刷当前关卡 Boss", "优先尝试刷出当前波次配置里的 Boss；如果当前波次没有 Boss，则回退到当前关卡配置中的第一个 Boss。不会推进正式波次。")))
-        {
-            TrySpawnCurrentTowerDefendBossNow();
-        }
-
-        if (GUILayout.Button(new GUIContent("棒棒糖直接炸开", "让当前升级挑战中的棒棒糖直接进入最终炸开流程。")))
-        {
-            TryForceCurrentTowerDefendUpgradeChallengeShatter();
-        }
+        // 注意：EditorGUILayout.LabelField 没有 (GUIContent, string) 重载，
+        // 直接传 string 会被当成 GUIStyle 做隐式转换，报 "Unable to find style '否' in skin"。
+        EditorGUILayout.LabelField(
+            new GUIContent("GM 暂停：", "战斗逻辑时间不走动，与 buff 冰冻（923000）不是一回事。"),
+            new GUIContent(pauseText));
+        EditorGUILayout.LabelField(
+            new GUIContent("挂起英雄：", "SetSuspended 的守卫英雄数量：表现与逻辑停更。真机状态不下发该统计。"),
+            new GUIContent(suspendText));
+        EditorGUILayout.LabelField(
+            new GUIContent("冰冻英雄：", "挂了 buff 923000 的守卫英雄数量：禁普攻、禁技能、禁转向。"),
+            new GUIContent(frozenText));
+        EditorGUILayout.LabelField(
+            new GUIContent("数据来源：", "这几行数据的来源。真机目标下只读真机推送状态，未连接时不会回退去读本机战斗。"),
+            new GUIContent(sourceText));
         GUILayout.EndVertical();
 
-        GUILayout.Space(8);
-
-        GUILayout.BeginVertical(EditorStyles.helpBox);
-        EditorGUILayout.LabelField("无尽模式波次调试", EditorStyles.boldLabel);
-        DrawEndlessWaveDebugSection();
-        GUILayout.EndVertical();
-
-        GUILayout.EndVertical();
+        // 只读值要实时反映变化；真机连接后即使编辑器不在 Play 也要重绘。
+        if (Application.isPlaying || GmBridgeEditorServer.ReadIsClientConnected())
+        {
+            Repaint();
+        }
     }
 
     private void DrawEndlessWaveDebugSection()
     {
-        var towerDefendBattle = BattleManager.GetBattle() as TowerDefendBattle;
-        if (towerDefendBattle == null)
-        {
-            EditorGUILayout.LabelField("当前没有进行中的塔防战斗。");
-            return;
-        }
+        var deviceState = GmBridgeEditorRouter.ReadTarget() != GmBridgeControlTarget.Local
+            ? GmBridgeEditorServer.ReadDeviceState()
+            : null;
 
-        if (towerDefendBattle.ReadGameMode() != BattleGameMode.Endless)
+        if (deviceState != null)
         {
-            EditorGUILayout.LabelField("仅在无尽模式战斗中可用。");
-            return;
-        }
+            if (deviceState.m_GameMode != BattleGameMode.Endless.ToString())
+            {
+                EditorGUILayout.LabelField(string.Format(
+                    "仅在无尽模式战斗中可用（真机当前：{0}）。",
+                    string.IsNullOrEmpty(deviceState.m_GameMode) ? "无战斗" : deviceState.m_GameMode));
+                return;
+            }
 
-        EditorGUILayout.LabelField("当前波次：", towerDefendBattle.ReadCurrentWave().ToString());
-        if (m_GmEndlessWave <= 0)
+            EditorGUILayout.LabelField("当前波次（真机）：", deviceState.m_Wave.ToString());
+            if (m_GmEndlessWave <= 0)
+            {
+                m_GmEndlessWave = Mathf.Max(1, deviceState.m_Wave);
+            }
+        }
+        else
         {
-            m_GmEndlessWave = Mathf.Max(1, towerDefendBattle.ReadCurrentWave());
+            var towerDefendBattle = BattleManager.GetBattle() as TowerDefendBattle;
+            if (towerDefendBattle == null)
+            {
+                EditorGUILayout.LabelField("当前没有进行中的塔防战斗。");
+                return;
+            }
+
+            if (towerDefendBattle.ReadGameMode() != BattleGameMode.Endless)
+            {
+                EditorGUILayout.LabelField("仅在无尽模式战斗中可用。");
+                return;
+            }
+
+            EditorGUILayout.LabelField("当前波次：", towerDefendBattle.ReadCurrentWave().ToString());
+            if (m_GmEndlessWave <= 0)
+            {
+                m_GmEndlessWave = Mathf.Max(1, towerDefendBattle.ReadCurrentWave());
+            }
         }
 
         m_GmEndlessWave = Mathf.Max(1, EditorGUILayout.IntField("目标波次：", m_GmEndlessWave));
         if (GUILayout.Button(new GUIContent("设置当前波次", "立即把无尽模式的当前波次设为上面的目标波次，并刷出该波。旧波次还没刷完的排队会被丢弃，已经在场上的怪物保留。")))
         {
-            TrySetCurrentTowerDefendWave(m_GmEndlessWave);
+            GmBridgeEditorRouter.Invoke("battle.wave.set", "{\"m_Wave\":" + m_GmEndlessWave + "}");
         }
     }
 

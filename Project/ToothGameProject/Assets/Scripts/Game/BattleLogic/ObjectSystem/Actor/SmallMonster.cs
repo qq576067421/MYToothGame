@@ -144,6 +144,7 @@ namespace GameDll
             m_StateManager.AddState(emEntityState.em_EntityState_Born, new State_Born());
             GetStateManager().AddState(emEntityState.em_EntityState_Move, new State_Move());
             GetStateManager().AddState(emEntityState.em_EntityState_Attack, new State_Attack());
+            GetStateManager().AddState(emEntityState.em_EntityState_Freeze, new State_Freeze());
             GetStateManager().AddState(emEntityState.em_EntityState_Dead, new State_Dead());
             GetRender().PlayAnimation("idle");
             TryChangeState(emEntityState.em_EntityState_Idle);

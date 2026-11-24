@@ -71,6 +71,7 @@
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\UIDepth.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\FlyCoinCtrl.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\LUITextLineBreakFormatter.cs" />
+    <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Skill\DelayedDamage.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UISliderEx.cs" />
     <Compile Include="Assets\AssetBundleManager\Scripts\StreamingAssetsBundleDownloadDecorator.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\Billboard.cs" />
@@ -101,6 +102,7 @@
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\UGUIRoot.cs" />
     <Compile Include="Assets\Scripts\SDK\Framework\PrepareRoleWaveDetector.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\IBattleSpawer.cs" />
+    <Compile Include="Assets\Scripts\SDK\Framework\GameSdkCameraCaptureFallback.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\TransformTool.cs" />
     <Compile Include="Assets\Scripts\Game\BoneParser\BoneGestureTuning.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIDraggable.cs" />
@@ -157,6 +159,7 @@
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Actor\TowerDefendRoleSnapshot.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIDotTextBlink.cs" />
     <Compile Include="Assets\Scripts\DataDll\Bean\t_guideBean.cs" />
+    <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\FSM\State_Freeze.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\FSM\State_Attack.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\Tab\LUITableTitle.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIPurchaser.cs" />
@@ -184,6 +187,7 @@
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Buff\ChangePropertyBuff.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Effect\CurveWorldVisualUtility.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIGray.cs" />
+    <Compile Include="Assets\Scripts\Game\DevTools\GmBridge\GmBridgeSettings.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIDropOn.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIFrameAnimation.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\SuperScrollView\Scripts\LoopListView2.cs" />
@@ -233,8 +237,6 @@
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\IBattleScene.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Actor\TowerDefendRoleResolver.cs" />
     <Compile Include="Assets\Scripts\SDK\Framework\GameSdkIntegrationDiagnostics.cs" />
-    <Compile Include="Assets\Scripts\SDK\Framework\GameSdkPerfOptions.cs" />
-    <Compile Include="Assets\Scripts\SDK\Framework\GameSdkCameraCaptureFallback.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Buff\ActionBuff.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\BoneInput\BoneFrameModels.cs" />
     <Compile Include="Assets\Scripts\DataDll\Bean\t_skillDescBean.cs" />
@@ -284,8 +286,10 @@
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIDragButton.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\BoneInput\BoneDebugSkeletonOverlay.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\MaskEx.cs" />
+    <Compile Include="Assets\Scripts\Game\DevTools\GmBridge\GmBridgeClient.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\ChainLightning.cs" />
     <Compile Include="Assets\AssetBundleManager\Scripts\ICommandHandler.cs" />
+    <Compile Include="Assets\Scripts\SDK\Framework\GameSdkPerfOptions.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Effect\BulletObj.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\GameCtrl\HpText.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIRotateModel.cs" />
@@ -297,6 +301,7 @@
     <Compile Include="Assets\Scripts\DataDll\Bean\t_heroBean.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\ProjectileMover.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\DelayHide.cs" />
+    <Compile Include="Assets\Scripts\Game\DevTools\GmBridge\GmBridgeBootstrap.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\AutoAddURPCameraStack.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Start\IGameInterface.cs" />
     <Compile Include="Assets\Scripts\DataDll\Bean\t_talentBean.cs" />
@@ -306,6 +311,7 @@
     <Compile Include="Assets\Scripts\Game\Base\GraphicsInterface\Unity\Component\HudManager.cs" />
     <Compile Include="Assets\Scripts\DataDll\Bean\t_modelBean.cs" />
     <Compile Include="Assets\Scripts\Game\Base\Util\MyExtensionMethods.cs" />
+    <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Buff\FreezeBuff.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\BattleConst.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\IBattle.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIScrollPageTween.cs" />
@@ -322,6 +328,7 @@
     <Compile Include="Assets\Scripts\Game\Base\RenderEffManager.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\CommonLogicCtrl\SpineRotator.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\PrefabHolder.cs" />
+    <Compile Include="Assets\Scripts\Game\DevTools\GmBridge\GmBridgeProtocol.cs" />
     <Compile Include="Assets\Scripts\Game\BoneParser\IBoneParserRuntime.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\FSM\State_Idle.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\FSM\State_Born.cs" />
@@ -357,6 +364,7 @@
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIHelper.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\PositionHelper.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIArray.cs" />
+    <Compile Include="Assets\Scripts\Game\DevTools\GmBridge\GmBridgeFrameCodec.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Effect\PlayableEffectObj.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Others\SetPropertyAttribute.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\ObjectManager.cs" />
@@ -375,12 +383,14 @@
     <Compile Include="Assets\Scripts\DataDll\Bean\t_buff.cs" />
     <Compile Include="Assets\Scripts\Game\Base\RenderEvent.cs" />
     <Compile Include="Assets\Scripts\DataDll\Bean\t_endlessStageBean.cs" />
+    <Compile Include="Assets\Scripts\Game\DevTools\GmBridge\GmBridgeCommandDispatcher.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\ObjectSystem\Buff\DamageBuff.cs" />
     <Compile Include="Assets\Scripts\Game\Base\GraphicsInterface\Unity\UEffect.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Component\ArtScript\PrefabCenter.cs" />
     <Compile Include="Assets\Scripts\Game\BattleLogic\Battle\TowerDefend\TowerDefendBattleProcess.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UIParticle\Demo\UIParticleSystem_Demo.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\CameraFoot.cs" />
+    <Compile Include="Assets\Scripts\Game\DevTools\GmBridge\GmBridgeLogBuffer.cs" />
     <Compile Include="Assets\PluginAssets\SlideShow ScrollView Pro\Scripts\SlideShowScrollViewPro_Editor.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UGUIOverride\LUIButton.cs" />
   </ItemGroup>
@@ -722,7 +732,6 @@
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Vertical Rolloff\CurvedWorld_SpiralVerticalRolloff_X_ID11.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Little Planet\CurvedWorld_LittlePlanet_X_ID2.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Vertical\CurvedWorld_SpiralVertical_Z_Negative_ID31.cginc" />
-    <None Include="Assets\art\out\prefab\bullet\aaa projectiles\shaders\add_distorttexture.shader" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal\CurvedWorld_SpiralHorizontal_X_Negative_ID13.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal Double\CurvedWorld_SpiralHorizontalDouble_X_ID3.cginc" />
     <None Include="Assets\art\out\shader\linear_gamma_convert.hlsl" />
@@ -864,7 +873,6 @@
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Cylindrical Rolloff\CurvedWorld_CylindricalRolloff_X_ID3.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal\CurvedWorld_SpiralHorizontal_X_Positive_ID14.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\Universal\Lit\DepthOnlyPass.hlsl" />
-    <None Include="Assets\art\out\prefab\bullet\aaa projectiles\shaders\blend_centerglow.shader" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Little Planet\CurvedWorld_LittlePlanet_Y_ID9.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal Rolloff\CurvedWorld_SpiralHorizontalRolloff_X_ID13.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Classic Runner\CurvedWorld_ClassicRunner_Z_Negative_ID20.cginc" />
@@ -1025,7 +1033,6 @@
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Cylindrical Rolloff\CurvedWorld_CylindricalRolloff_Z_ID9.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal Rolloff\CurvedWorld_SpiralHorizontalRolloff_Z_ID22.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal\CurvedWorld_SpiralHorizontal_Z_Positive_ID18.cginc" />
-    <None Include="Assets\art\out\prefab\bullet\aaa projectiles\shaders\electricity.shader" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal Double\CurvedWorld_SpiralHorizontalDouble_X_ID27.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Cylindrical Rolloff\CurvedWorld_CylindricalRolloff_Z_ID21.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Cylindrical Rolloff\CurvedWorld_CylindricalRolloff_X_ID24.cginc" />
@@ -1069,7 +1076,6 @@
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Vertical\CurvedWorld_SpiralVertical_X_Positive_ID32.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Twisted Spiral\CurvedWorld_TwistedSpiral_Z_Positive_ID22.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal\CurvedWorld_SpiralHorizontal_X_Positive_ID5.cginc" />
-    <None Include="Assets\art\out\prefab\bullet\aaa projectiles\shaders\addtrail.shader" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Vertical\CurvedWorld_SpiralVertical_X_Negative_ID6.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Twisted Spiral\CurvedWorld_TwistedSpiral_Z_Negative_ID1.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Cylindrical Rolloff\CurvedWorld_CylindricalRolloff_Z_ID25.cginc" />
@@ -1185,7 +1191,6 @@
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Twisted Spiral\CurvedWorld_TwistedSpiral_Z_Negative_ID2.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal\CurvedWorld_SpiralHorizontal_X_Positive_ID15.cginc" />
     <None Include="Assets\art\out\shader\customshaders\ui default rawimage.shader" />
-    <None Include="Assets\art\out\prefab\bullet\aaa projectiles\shaders\add_trail_stopuse.shader" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal Rolloff\CurvedWorld_SpiralHorizontalRolloff_Z_ID32.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Classic Runner\CurvedWorld_ClassicRunner_X_Positive_ID28.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Classic Runner\CurvedWorld_ClassicRunner_Z_Negative_ID17.cginc" />
@@ -1373,10 +1378,8 @@
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Twisted Spiral\CurvedWorld_TwistedSpiral_X_Positive_ID27.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Vertical Double\CurvedWorld_SpiralVerticalDouble_X_ID4.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Classic Runner\CurvedWorld_ClassicRunner_Z_Negative_ID14.cginc" />
-    <None Include="Assets\art\out\prefab\bullet\aaa projectiles\shaders\add_centerglow.shader" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\Universal\Particles\ParticlesUnlitForwardPass.hlsl" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Cylindrical Tower\CurvedWorld_CylindricalTower_Z_ID17.cginc" />
-    <None Include="Assets\art\out\prefab\bullet\aaa projectiles\shaders\blend_distorttexture.shader" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Vertical\CurvedWorld_SpiralVertical_X_Positive_ID24.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Horizontal\CurvedWorld_SpiralHorizontal_Z_Positive_ID25.cginc" />
     <None Include="Assets\PluginAssets\Amazing Assets\Curved World\Shaders\CGINC\Spiral Vertical Double\CurvedWorld_SpiralVerticalDouble_X_ID18.cginc" />

@@ -34,7 +34,9 @@ namespace GameDll
         em_EntityState_Skill,
         em_EntityState_Stand,
         em_EntityState_Dead,
-        em_EntityState_Born
+        em_EntityState_Born,
+        // 唯一“冰冻”语义：只由冰冻 buff（t_class_id=1016 / FreezeBuff）切入，解冻时切回 Idle。
+        em_EntityState_Freeze
     }
     public class PropertyEntity : Entity
     {
@@ -237,6 +239,12 @@ namespace GameDll
                 {
                     return false;
                 }
+                // 冰冻期间只有死亡可以打断，攻击/移动等状态请求一律拒绝。
+                if (curState.m_StateType == emEntityState.em_EntityState_Freeze &&
+                    em_EntityState != emEntityState.em_EntityState_Dead)
+                {
+                    return false;
+                }
             }
             if (curState.GetStateType() != em_EntityState)
             {
@@ -406,7 +414,7 @@ namespace GameDll
         {
             base.InitInstance();
             m_MaxHpScalePermille = 1.0f;
-            m_IsFreeze = false;
+            m_IsSuspended = false;
             m_BuffManager.SetOwner(this);
             m_BuffManager.Init();
         }
@@ -459,6 +467,13 @@ namespace GameDll
                 }
             }
 
+            // 复用池不会销毁渲染对象，复用时兜底清掉上一轮留在身上的命中残留特效
+            var stickRender = GetRender();
+            if (stickRender != null)
+            {
+                stickRender.ClearHitStickEffects();
+            }
+
             m_CoinBuff = null;
             m_CannotUseNormalAttackNum = 0;
             m_CannotUseSkillNum = 0;
@@ -482,7 +497,7 @@ namespace GameDll
             SetMagicRuntime(0);
             SetCanBeHurt(true);
             SetCanBeTarget(true);
-            SetFreeze(false);
+            SetSuspended(false);
         }
 
         protected virtual void InitProperties(long cfgId)
@@ -663,10 +678,15 @@ namespace GameDll
         public override void Update(float dt) 
         {
             base.Update(dt);
-            if (m_IsFreeze)
+            if (m_IsSuspended)
             {
                 return;
             }
+
+            // 冰冻不在这里早退：BuffManager 负责冰冻 buff 的到期移除（Buff.Update 按战斗时间检测），
+            // 早退会让冰冻永久不解除；技能冷却也在 SkillManager.Update 里按战斗时间刷新，早退会白扣一段 CD。
+            // 冰冻的“不能行动”由攻击/技能入口（CanConsumeGuardHeroBoneAction、IsCanUseBoneSkillDirect）
+            // 与 CanMove 拦截，FreezeBuff 另外用禁攻禁技计数兜底。
             if (m_SkillManager != null)
             {
                 m_SkillManager.Update(dt);
@@ -705,16 +725,20 @@ namespace GameDll
         /////////////////////////属性////////////////////////////////
         #region 属性
         protected int m_Level;
-        protected bool m_IsFreeze = false;
+        // 表现挂起标记：只服务升级挑战/回收等流程的定格表现，不是战斗控制。
+        // 真正的冰冻（禁普攻、禁技能、禁转向）走 buff → FreezeBuff → em_EntityState_Freeze，查询用 ReadIsFrozen()。
+        protected bool m_IsSuspended = false;
         protected void _SetLevel(int level)
         {
             m_Level = level;
             GetRender().SetLevel(m_Level);
         }
 
-        public virtual void SetFreeze(bool v)
+        // 暂停表现与逻辑推进（定格动画、停技能进度），用于升级挑战、怪物回收等流程。
+        // 与冰冻 buff 无关：不给禁攻/禁技计数，也不切 em_EntityState_Freeze。
+        public virtual void SetSuspended(bool v)
         {
-            m_IsFreeze = v;
+            m_IsSuspended = v;
             var currentSkill = m_SkillManager != null ? m_SkillManager.GetCurrentSkill() : null;
             if (v && currentSkill != null && currentSkill.ReadIsBoneNormalAttack())
             {
@@ -728,9 +752,17 @@ namespace GameDll
             }
         }
 
-        public virtual bool ReadIsFreeze()
+        public virtual bool ReadIsSuspended()
         {
-            return m_IsFreeze;
+            return m_IsSuspended;
+        }
+
+        // 冰冻状态查询（唯一入口）：只认 buff 冰冻切入的 em_EntityState_Freeze，
+        // 处于该状态时任何控制输入（转向/瞄准/攻击）都应被拒绝。
+        public bool ReadIsFrozen()
+        {
+            var stateMgr = GetStateManager();
+            return stateMgr != null && stateMgr.ReadIsState(emEntityState.em_EntityState_Freeze);
         }
 
         protected int _GetLevel()

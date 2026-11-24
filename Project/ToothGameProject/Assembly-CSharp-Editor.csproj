@@ -50,6 +50,8 @@
   <ItemGroup>
     <Compile Include="Assets\Editor\UIToolsWindow.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Editor\WindowEditor\CreateComponentCommon.cs" />
+    <Compile Include="Assets\Editor\GMTools\DeviceBridge\GmBridgeEditorSettings.cs" />
+    <Compile Include="Assets\Editor\GMTools\DeviceBridge\GmBridgeEditorRouter.cs" />
     <Compile Include="Assets\Editor\AndroidPostBuildProcessor.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Editor\EditorTool.cs" />
     <Compile Include="Assets\Editor\GMTools\GMTools.cs" />
@@ -69,6 +71,7 @@
     <Compile Include="Assets\Scripts\Local\Classes\Editor\AtlasEditor\UIAtalsEditor.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\Editor\UIGrayEditor.cs" />
     <Compile Include="Assets\Scripts\Local\Classes\Editor\CodeManagerEditor.cs" />
+    <Compile Include="Assets\Editor\GMTools\DeviceBridge\GmBridgeEditorServer.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\SuperScrollView\Editor\LoopListViewEditor2.cs" />
     <Compile Include="Assets\PluginAssets\Unity-Logs-Viewer\Reporter\Editor\ReporterEditor.cs" />
     <Compile Include="Assets\Scripts\ThirdParty\UnityUI\Component\UGUIOverride\Editor\LUIRawImageEditor.cs" />

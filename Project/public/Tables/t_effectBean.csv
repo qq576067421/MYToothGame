@@ -6,6 +6,7 @@ Id,,特效缩放比1000倍,特效持续时间(该时间要比预制件上长些�
 1,prefab/effects/eff_player0_dazhao_attack.jpg,1000,3000,
 2,prefab/effects/eff_maxlevel.jpg,1000,3000,
 3,prefab/effects/eff_xiaosan.jpg,1000,3000,
+4,prefab/effects/eff_bingkuai.jpg,1000,3000,107
 20,prefab/effects/eff_player1_beemfire.jpg,1000,3000,
 21,prefab/effects/eff_player1_beemhit.jpg,1000,3000,
 22,prefab/effects/eff_player1_dazhao_attack.jpg,1000,5000,
@@ -13,10 +14,12 @@ Id,,特效缩放比1000倍,特效持续时间(该时间要比预制件上长些�
 54,prefab/effects/eff_player2_attack.jpg,1000,3000,
 55,prefab/effects/eff_player2_attack_big.jpg,1000,3000,
 60,prefab/effects/eff_player3_attack.jpg,1000,3000,
-61,prefab/effects/eff_player3_dazhao.jpg,1000,3000,
+61,prefab/effects/eff_player3_dazhao.jpg,1000,3000,43
+62,prefab/effects/eff_player3_arrow.jpg,1000,3000,
 80,prefab/effects/eff_bangbangtang_hit.jpg,1000,3000,
 81,prefab/effects/eff_disappear.jpg,1000,3000,
 99,prefab/effects/eff_level_up.jpg,1000,3000,
 100,prefab/effects/line_hit_eff.jpg,1000,0,
 101,prefab/effects/eff_player0_buff.jpg,1000,0,
 102,prefab/effects/eff_player2_buff.jpg,1000,0,
+103,prefab/effects/eff_longjuanfeng_hit.jpg,1000,2000,

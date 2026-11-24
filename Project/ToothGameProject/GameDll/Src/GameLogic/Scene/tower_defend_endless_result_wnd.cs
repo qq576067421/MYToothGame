@@ -3,6 +3,7 @@ using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using GameDll;
+using UnityUI;
 
 namespace GameHot
 {
@@ -117,8 +118,9 @@ namespace GameHot
             }
 
             model.m_OnContinue.Invoke();
-            CloseWithLoadingDelayIfNeeded();
         }
+
+        public bool CanContinue => GetModel<tower_defend_endless_result_model>()?.m_OnContinue != null;
 
         public bool TryContinueByGesture()
         {
@@ -129,7 +131,7 @@ namespace GameHot
             }
 
             OnClickContinue();
-            return true;
+            return loading_wnd.IsBlockingFlowInput();
         }
 
         public bool TryReturnByRemote()
@@ -148,22 +150,6 @@ namespace GameHot
         {
             var model = GetModel<tower_defend_endless_result_model>();
             model.m_OnReturn?.Invoke();
-            CloseWithLoadingDelayIfNeeded();
-        }
-
-        private void CloseWithLoadingDelayIfNeeded()
-        {
-            var delayMs = loading_wnd.GetRemainingVisibleMilliseconds();
-            if (delayMs > 0)
-            {
-                AddCounter(delayMs, 1, null, 0, () =>
-                {
-                    UIManager.CloseWindow(this);
-                });
-                return;
-            }
-
-            UIManager.CloseWindow(this);
         }
 
         private void RefreshView()
@@ -181,6 +167,7 @@ namespace GameHot
 
             RenderAPI.SetTextLan(m_View.m_txt_title, m_LanTdEndlessResultTitle);
             RenderAPI.SetTextLan(m_View.m_txt_wave, m_LanTdEndlessResultWave, result.m_BestProgressWave);
+            RenderAPI.SetText(m_View.m_txt_level, result.m_BestProgressWave.ToString());
             RenderAPI.SetTextLan(m_View.m_txt_best_wave, m_LanTdEndlessResultBestWave, result.m_BestEndlessWave);
             RenderAPI.SetTextLan(
                 m_View.m_txt_kill_summary,
@@ -191,7 +178,8 @@ namespace GameHot
             RenderAPI.SetText(m_View.m_txt_kill_detail, BuildKillDetailText(result));
             RenderAPI.SetTextLan(m_View.m_txt_reward_kill, m_LanTdEndlessResultKillReward, result.m_KillRewardGold);
             RenderAPI.SetTextLan(m_View.m_txt_reward_total, m_LanTdEndlessResultTotalReward, result.m_TotalRewardGold);
-            RenderAPI.SetText(m_View.m_txt_rank_status, BuildRankStatusText(result));
+            RenderAPI.SetText(m_View.m_txt_reward_kill_new1, "+"+ result.m_TotalRewardGold.ToString());
+            RefreshLeaderboardStatus(result);
             RenderAPI.SetActive(m_View.m_btn_continue.gameObject, true);
             RenderAPI.SetActive(m_ContinueRaiseHint, true);
         }
@@ -223,11 +211,26 @@ namespace GameHot
                     m_LanTdEndlessResultKillDetailLine,
                     displayName,
                     detail.m_KillCount));
+                AddCounter(200 * (i+1), 1, () =>
+                {
+                    var item = GameObject.Instantiate<GameObject>(m_View.m_item.gameObject, m_View.m_itemParent.transform);
+                    item.gameObject.SetActive(true);
+                    item.transform.Find("txt").GetComponent<LUITextMesh>().text = "x" + detail.m_KillCount;
+                });
             }
 
             return builder.Length > 0
                 ? builder.ToString()
                 : RenderAPI.GetTextByLanId(m_LanTdEndlessResultKillDetailEmpty);
+        }
+
+        internal void RefreshLeaderboardStatus(BattleResultData result)
+        {
+            if (IsInitializedView() && GetModel<tower_defend_endless_result_model>()?.m_Result == result)
+            {
+                RenderAPI.SetText(m_View.m_txt_reward_rankScore, result.m_LeaderboardSubmission.m_Score.ToString());
+                RenderAPI.SetText(m_View.m_txt_rank_status, BuildRankStatusText(result));
+            }
         }
 
         private string BuildRankStatusText(BattleResultData result)

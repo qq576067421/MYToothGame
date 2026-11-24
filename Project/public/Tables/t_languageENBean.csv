@@ -80,11 +80,11 @@ td_result_endless_wave,td_result_endless_wave
 td_result_endless_best_wave,td_result_endless_best_wave
 td_result_endless_kill_detail_line,td_result_endless_kill_detail_line
 td_result_endless_kill_detail_empty,td_result_endless_kill_detail_empty
-td_result_endless_rank_score,td_result_endless_rank_score
-td_result_endless_rank_position,td_result_endless_rank_position
-td_result_endless_rank_pending,td_result_endless_rank_pending
-td_result_endless_rank_submitted,td_result_endless_rank_submitted
-td_result_endless_rank_failed,td_result_endless_rank_failed
+td_result_endless_rank_score,Leaderboard score: {0}
+td_result_endless_rank_position,Current rank: {0}
+td_result_endless_rank_pending,Leaderboard setup pending
+td_result_endless_rank_submitted,Leaderboard score submitted
+td_result_endless_rank_failed,Could not submit the leaderboard score
 td_result_endless_fail,The snack army has damaged your teeth.
 td_result_endless_win,You successfully defeated the army of snacks.
 td_loading_enter_battle,td_loading_enter_battle
@@ -328,3 +328,23 @@ td_lobby_player_count_three,Three Player
 td_lobby_player_count_four,Four Player
 td_lobby_prepare_title,"Once everyone is ready, we can start."
 td_lobby_prepare_cut,Wave your hand to switch roles
+td_prepare_start_countdown,Game starts in {0} seconds
+td_prepare_open_failed,Could not open the ready screen. Please try again.
+td_prepare_start_failed,Could not start the battle. Make sure everyone is ready and try again.
+td_prepare_exit_failed,Could not leave the ready screen. Please try again.
+td_lobby_exit_failed,Could not leave the lobby. Please try again.
+td_pause_resume_failed,Could not resume the battle. Please try again.
+td_pause_restart_failed,Could not restart the battle. Make sure everyone is back in view. Resume the battle if players need to be recognized again.
+td_pause_return_failed,Could not return to the lobby. Please try again.
+td_loading_lobby_failed,Could not load the lobby. Please try again.
+td_loading_login_failed,Could not load the sign-in screen. Please try again.
+td_loading_battle_failed_return,Could not load the battle. Returning to the lobby.
+ui_retry,Retry
+td_loading_battle_busy,The battle is loading.
+td_loading_login_busy,Returning to the sign-in screen.
+td_loading_screen_busy,Please wait while the screen changes.
+td_lobby_start_unavailable,Cannot enter a battle right now.
+td_lobby_chapter_locked,This theme is still locked.
+td_pause_resume_tracking,Restoring tracking…
+td_login_save_account_wait,"A save request from the previous account is still pending. Retry or restart the game. If you continue in read-only mode, progress from this session will not be uploaded."
+td_login_save_readonly,Continue read-only

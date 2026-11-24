@@ -38,6 +38,7 @@ namespace GameDll
         private readonly string[] m_BusVolumeKeys = { "AudioMusicVolume", "AudioUIVolume", "AudioWorldVolume", "AudioVoiceVolume" };
         private readonly float[] m_DefaultTransitionSeconds = { 1f, 0f, 0f, 0.15f };
         private readonly float[] m_BusVolumes = { 1f, 1f, 1f, 1f };
+        private readonly float[] m_DefaultBusVolumes = { 1f, 1f, 1f, 1f };
         private readonly float[] m_DuckVolumes = { 1f, 1f, 1f, 1f };
         private readonly AudioControlState[] m_ControlStates = new AudioControlState[4];
         private readonly Action<AudioBus> m_OnPauseBus;
@@ -268,17 +269,15 @@ namespace GameDll
         /// <summary>SDK 存档就绪后应用已保存的音量与静音设置；未保存过（-1）保持默认。</summary>
         internal void ApplySaveVolumes(float[] savedVolumes, bool muted)
         {
-            if (savedVolumes == null)
-            {
-                return;
-            }
-
             bool changed = false;
-            for (int i = 0; i < m_BusVolumes.Length && i < savedVolumes.Length; i++)
+            for (int i = 0; i < m_BusVolumes.Length; i++)
             {
-                if (savedVolumes[i] >= 0f && !Mathf.Approximately(m_BusVolumes[i], savedVolumes[i]))
+                float volume = savedVolumes != null && i < savedVolumes.Length && savedVolumes[i] >= 0f
+                    ? Mathf.Clamp01(savedVolumes[i])
+                    : m_DefaultBusVolumes[i];
+                if (!Mathf.Approximately(m_BusVolumes[i], volume))
                 {
-                    m_BusVolumes[i] = Mathf.Clamp01(savedVolumes[i]);
+                    m_BusVolumes[i] = volume;
                     ApplyBusVolume((AudioBus)i);
                     changed = true;
                 }
@@ -333,7 +332,8 @@ namespace GameDll
                     vol = DecibelToLinear(vol);
                 }
 
-                m_BusVolumes[i] = Mathf.Clamp01(vol);
+                m_DefaultBusVolumes[i] = Mathf.Clamp01(vol);
+                m_BusVolumes[i] = m_DefaultBusVolumes[i];
                 ApplyBusVolume(bus);
             }
 

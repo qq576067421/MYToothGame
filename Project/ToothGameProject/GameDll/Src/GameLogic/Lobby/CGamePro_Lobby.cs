@@ -10,6 +10,8 @@ using UnityEngine;
 using UnityEngine.InputSystem;
 using UnityUI;
 using GameDll;
+using YoudooGame.Framework;
+using YoudooGame.MatchFlow;
 using YoudooGame.MatchFlow.Runtime;
 
 namespace GameHot
@@ -24,6 +26,7 @@ namespace GameHot
         GoingLogin,
         GoScene,
         GoingScene,
+        LobbySceneLoadFailed,
     }
     public class CGamePro_Lobby : CGameProcedure
     {
@@ -47,8 +50,11 @@ namespace GameHot
         private const string m_LanTdErrorStageGuardSlotMissing = "td_error_stage_guard_slot_missing";
         private const string m_LanTdErrorSelectedRoleMissing = "td_error_selected_role_missing";
         private const string m_LanTdErrorBuildPlayerRoleMissing = "td_error_battle_player_role_missing";
+        private int m_LobbySceneLoadId;
+        private bool m_IsLoadingLobbyScene;
         private lobby_main_wnd m_LobbyMainWnd;
         private BattleStartupRequest m_PendingBattleRequest;
+        private MatchSessionSnapshot m_PendingBattleRoster;
         private BattleStartupRequest m_LastBattleRequest;
         private BattleStartupRequest m_PendingPrepareRequest;
         private BattleGameMode m_SelectedGameMode = BattleGameMode.Chapter;
@@ -57,6 +63,7 @@ namespace GameHot
         private bool m_IsBattleSceneTransitionRequested = false;
         private bool m_IsBackLoginTransitionRequested = false;
         private bool m_IsPrepareCloseTransition = false;
+        private float m_NextAccountLoginRetryAt;
 
 
         // 初始化大厅流程：恢复上次选择，并把大厅默认状态和战斗入口数据准备好。
@@ -66,6 +73,7 @@ namespace GameHot
             LobbyPlayer.GetInstance().SetPlayerState(PlayerState.Lobby);
             LoadBattleSelection();
             InitializeBattleSelection();
+            m_NextAccountLoginRetryAt = 0f;
             m_IsBattleSceneTransitionRequested = false;
             m_IsBackLoginTransitionRequested = false;
 
@@ -76,6 +84,7 @@ namespace GameHot
 
         protected override void UnInit()
         {
+            m_IsLoadingLobbyScene = false;
             Event.OnInputAction -= OnInput;
             Event.OnEscapPressed -= OnEscape;
             RenderEvent.Event.OnGmStartBattleRequest -= StartBattleFromRequest;
@@ -93,14 +102,12 @@ namespace GameHot
 
                 case LobbyStatus.LoadLobbyScene:
                     {
-                        var ab = "scene/lobby.jpg";
-                        var assetName = "lobby";
-                        UIRes.LoadLevel(ab, assetName, 0, () =>
-                        {
-                            OnLoadMainUI();
-
-                        });
                         m_Status = (int)LobbyStatus.LoadingLobbyScene;
+                        m_IsLoadingLobbyScene = true;
+                        int loadId = ++m_LobbySceneLoadId;
+                        UIRes.LoadLevel("scene/lobby.jpg", "lobby", 0, OnLobbySceneLoaded,
+                            () => m_IsLoadingLobbyScene && loadId == m_LobbySceneLoadId &&
+                                  m_Status == (int)LobbyStatus.LoadingLobbyScene);
                         break;
                     }
                 case LobbyStatus.LoadingLobbyScene:
@@ -118,6 +125,14 @@ namespace GameHot
 
                 case LobbyStatus.RPGLoop:
                     {
+                        if (GameSaveService.Instance?.RequiresProfileReload == true &&
+                            GameProductUiAdapter.Instance?.IsApplicationForeground != false &&
+                            !m_IsPrepareCloseTransition && !loading_wnd.IsBlockingFlowInput() &&
+                            GameProductUiAdapter.ForegroundRealtime >= m_NextAccountLoginRetryAt)
+                        {
+                            m_NextAccountLoginRetryAt = GameProductUiAdapter.ForegroundRealtime + m_BattleLoadingMinVisibleSeconds;
+                            BackLogin();
+                        }
                         break;
                     }
                 case LobbyStatus.GoingLogin:
@@ -127,8 +142,8 @@ namespace GameHot
                 case LobbyStatus.GoScene:
                     {
                         loading_wnd.SetLoadingInfo(0.0f, RenderAPI.GetTextByLanId(m_LanTdLoadingEnterBattle));
-                        loading_wnd.OpenLoading(m_BattleLoadingMinVisibleSeconds, BeginGoSceneAfterLoading);
                         m_Status = (int)LobbyStatus.GoingScene;
+                        loading_wnd.OpenLoading(m_BattleLoadingMinVisibleSeconds, BeginGoSceneAfterLoading);
                         break;
                     }
                 case LobbyStatus.GoingScene:
@@ -139,9 +154,35 @@ namespace GameHot
         }
 
         // 加载并打开大厅主界面窗口。
-        private void OnLoadMainUI()
+        private void OnLobbySceneLoaded(bool loaded)
         {
-            m_LobbyMainWnd = UIManager.OpenWindowEX<lobby_main_wnd>(null);
+            if (!m_IsLoadingLobbyScene || m_Status != (int)LobbyStatus.LoadingLobbyScene)
+            {
+                return;
+            }
+
+            m_IsLoadingLobbyScene = false;
+            if (loaded)
+            {
+                m_LobbyMainWnd = UIManager.OpenWindowEX<lobby_main_wnd>(null);
+                return;
+            }
+
+            HandleLobbySceneLoadFailure("资源加载失败");
+        }
+
+        private void HandleLobbySceneLoadFailure(string reason)
+        {
+            m_Status = (int)LobbyStatus.LobbySceneLoadFailed;
+            Debug.LogError("[大厅加载] 场景加载失败，等待重试。reason=" + reason + " path=scene/lobby.jpg");
+            loading_wnd.ShowSceneLoadRetry(RenderAPI.GetTextByLanId("td_loading_lobby_failed"), () =>
+            {
+                if (m_Status == (int)LobbyStatus.LobbySceneLoadFailed)
+                {
+                    m_Status = (int)LobbyStatus.LoadLobbyScene;
+                    loading_wnd.OpenLoading();
+                }
+            });
         }
 
         private void BeginGoSceneAfterLoading()
@@ -153,7 +194,7 @@ namespace GameHot
 
             m_IsBattleSceneTransitionRequested = false;
 
-            // 战斗 HUD 继续使用框架相机纹理；切场景只暂停采集，保留唯一的原生纹理桥。
+            // 战斗 HUD 继续使用框架相机纹理，切场景只收回准备界面视图。
             if (GameProductUiAdapter.HasLiveSession)
             {
                 GameProductUiAdapter.HandoffCameraBeforeScene("enter-battle", EnterBattleSceneAfterLoading, false);
@@ -165,6 +206,15 @@ namespace GameHot
 
         private void EnterBattleSceneAfterLoading()
         {
+            if (GameSaveService.Instance?.RequiresProfileReload == true)
+            {
+                m_PendingBattleRequest = null;
+                m_PendingBattleRoster = null;
+                m_Status = (int)LobbyStatus.RPGLoop;
+                loading_wnd.CloseLoading();
+                return;
+            }
+
             ExitLobby(true);
             LobbyPlayer.GetInstance().SetPlayerState(PlayerState.Battle);
             SetNextProc(CGameProcedure.s_ProcScene);
@@ -244,17 +294,13 @@ namespace GameHot
             SaveBattleSelection();
         }
         // 消费一次战斗启动请求，供场景流程使用。
-        public bool TryConsumeBattleStartRequest(out BattleStartupRequest request)
+        internal bool TryConsumeBattleStartRequest(out BattleStartupRequest request, out MatchSessionSnapshot roster)
         {
-            if (m_PendingBattleRequest == null)
-            {
-                request = null;
-                return false;
-            }
-
             request = m_PendingBattleRequest;
+            roster = m_PendingBattleRoster;
             m_PendingBattleRequest = null;
-            return true;
+            m_PendingBattleRoster = null;
+            return request != null;
         }
 
         // 获取上一场正式战斗请求的克隆件，便于结算后重开或调试查看。
@@ -273,6 +319,9 @@ namespace GameHot
             }
 
             m_PendingPrepareRequest = request.CloneRequest();
+            m_PendingPrepareRequest.m_FrameworkSessionToken = -1;
+            m_PendingPrepareRequest.m_FrameworkRoundId = null;
+            m_PendingPrepareRequest.m_RestartFrameworkRound = false;
             int preparePlayerCount = m_PendingPrepareRequest.ReadPreparePlayerCount();
             if (preparePlayerCount <= 0)
             {
@@ -286,7 +335,6 @@ namespace GameHot
             }
 
             m_PendingPrepareRequest.SetPreparePlayerCount(preparePlayerCount);
-            GameFrameworkBootstrap.TrySetSessionPlayerCount(m_PendingPrepareRequest.ReadPreparePlayerCount());
             m_PendingPrepareRequest.ClearSdkSlotBindings();
             m_PendingPrepareRequest.ClearPersonIdBindings();
             if (m_PendingPrepareRequest.m_Players == null)
@@ -332,19 +380,6 @@ namespace GameHot
 
             int previousPlayerCount = request.ReadPreparePlayerCount();
             request.SetPreparePlayerCount(playerCount);
-            // 会话人数是准备界面的实际数据来源：没有生效就必须回滚，
-            // 否则会出现“选人界面显示两人、实际只有一人”的错位。
-            if (GameFrameworkBootstrap.CompositionRoot != null &&
-                !GameFrameworkBootstrap.TrySetSessionPlayerCount(request.ReadPreparePlayerCount()))
-            {
-                request.SetPreparePlayerCount(previousPlayerCount);
-                GameFrameworkBootstrap.TrySetSessionPlayerCount(previousPlayerCount);
-                error = "切换人数失败：会话人数未生效，请重试。";
-                Debug.Log("[人数] 设置准备人数失败 request=" + playerCount +
-                          " 恢复为 previous=" + previousPlayerCount);
-                return false;
-            }
-
             Debug.Log("[人数] 设置准备人数 request=" + playerCount + " previous=" + previousPlayerCount);
             request.ClearSdkSlotBindings();
             // 重新选择人数代表重新开始本次准备，具体初始角色由准备界面按席位顺序分配。
@@ -609,20 +644,88 @@ namespace GameHot
             return true;
         }
 
-        // 外部直接给入正式请求时，仍走统一校验后再进入战斗。
         public bool StartBattleFromRequest(BattleStartupRequest request, out string error)
+        {
+            return TryStartBattle(request, false, out error);
+        }
+
+        public bool StartBattleFromFrameworkRequest(BattleStartupRequest request, out string error)
+        {
+            return TryStartBattle(request, true, out error);
+        }
+
+        private bool TryStartBattle(BattleStartupRequest request, bool requireFramework, out string error)
         {
             if (!CanAcceptBattleStartRequest(out error))
             {
                 return false;
             }
 
-            if (!TryQueueBattleStartRequest(request, out error))
+            if (!TryPrepareBattleStartRequest(request, out var sanitizedRequest, out error))
             {
                 return false;
             }
 
+            MatchSessionSnapshot roster = null;
+            if (requireFramework && !TryStartFrameworkRound(sanitizedRequest, out roster, out error))
+            {
+                return false;
+            }
+
+            StoreBattleStartRequest(sanitizedRequest, roster);
             BeginBattleSceneTransition();
+            return true;
+        }
+
+        private static bool TryStartFrameworkRound(BattleStartupRequest request, out MatchSessionSnapshot roster, out string error)
+        {
+            roster = null;
+            error = string.Empty;
+            if (!YoudooAPI.TryGetSessionSnapshot(out var session) ||
+                GameProductUiAdapter.Instance?.IsPrepareTrackingReady(session) != true ||
+                session.GameplayEndMode != GameplayEndMode.ProjectControlled ||
+                session.AvatarSelectionRecovery?.IsBlocking == true ||
+                string.IsNullOrEmpty(session.RoundSnapshot?.RoundId) ||
+                (session.Phase != GameSessionPhase.Matching && session.Phase != GameSessionPhase.Countdown &&
+                 session.Phase != GameSessionPhase.Playing))
+            {
+                error = RenderAPI.GetTextByLanId("td_prepare_start_failed");
+                Debug.LogWarning("[大厅战斗请求] SDK 会话无法开战。session=" + session?.SessionToken +
+                                 " phase=" + session?.Phase + " frame=" + session?.FrameState);
+                return false;
+            }
+
+            foreach (var player in request.m_Players)
+            {
+                if (!request.TryGetSdkSlotIndexForSeat(player.m_SeatId, out var slotIndex) ||
+                    !request.TryGetPersonIdForSeat(player.m_SeatId, out var personId) ||
+                    !session.TryGetSlot(slotIndex, out var slot) || !slot.IsReady || !slot.IsFormalBinding ||
+                    slot.BoundPersonId != personId || (!Application.isEditor && !session.TryGetBoundPlayer(slotIndex, out _)))
+                {
+                    Debug.LogWarning("[大厅战斗请求] 准备席位未就绪或绑定已变化。seat=" + player.m_SeatId);
+                    error = RenderAPI.GetTextByLanId(m_LanTdErrorPrepareSdkBindingMissing);
+                    return false;
+                }
+
+                request.m_SdkMatchPlayerIdsBySeat[player.m_SeatId] = slot.MatchPlayerId;
+            }
+
+            if (session.Phase != GameSessionPhase.Playing &&
+                (!YoudooAPI.StartGameplay() || !YoudooAPI.TryGetSessionSnapshot(out var startedSession) ||
+                 startedSession.SessionToken != session.SessionToken ||
+                 startedSession.RoundSnapshot?.RoundId != session.RoundSnapshot.RoundId ||
+                 (startedSession.Phase != GameSessionPhase.Playing && startedSession.Phase != GameSessionPhase.Paused)))
+            {
+                error = RenderAPI.GetTextByLanId("td_prepare_start_failed");
+                Debug.LogWarning("[大厅战斗请求] SDK 未确认开战，保留准备界面。session=" + session.SessionToken +
+                                 " phase=" + session.Phase + " error=" + YoudooAPI.SessionLastError);
+                return false;
+            }
+
+            request.m_FrameworkSessionToken = session.SessionToken;
+            request.m_FrameworkRoundId = session.RoundSnapshot.RoundId;
+            request.m_RestartFrameworkRound = false;
+            roster = session;
             return true;
         }
 
@@ -653,27 +756,33 @@ namespace GameHot
         private bool CanAcceptBattleStartRequest(out string error)
         {
             error = string.Empty;
+            if (GameSaveService.Instance?.RequiresProfileReload == true)
+            {
+                error = RenderAPI.GetTextByLanId("td_lobby_start_unavailable");
+                return false;
+            }
+
             if (m_IsBattleSceneTransitionRequested || m_Status == (int)LobbyStatus.GoScene || m_Status == (int)LobbyStatus.GoingScene)
             {
-                error = "战斗正在加载中。";
+                error = RenderAPI.GetTextByLanId("td_loading_battle_busy");
                 return false;
             }
 
             if (m_IsBackLoginTransitionRequested || m_Status == (int)LobbyStatus.GoingLogin)
             {
-                error = "正在返回登录。";
+                error = RenderAPI.GetTextByLanId("td_loading_login_busy");
                 return false;
             }
 
             if (loading_wnd.IsBlockingFlowInput())
             {
-                error = "加载界面处理中。";
+                error = RenderAPI.GetTextByLanId("td_loading_screen_busy");
                 return false;
             }
 
             if (!CanBeginBattleSceneTransition())
             {
-                error = "当前大厅状态不能进入战斗。";
+                error = RenderAPI.GetTextByLanId("td_lobby_start_unavailable");
                 return false;
             }
 
@@ -706,12 +815,21 @@ namespace GameHot
             m_IsBattleSceneTransitionRequested = false;
             m_IsBackLoginTransitionRequested = false;
             m_PendingBattleRequest = null;
+            m_PendingBattleRoster = null;
             m_PendingPrepareRequest = null;
 
             Debug.Log("[返回] lobby BackLogin begin liveSession=" + GameProductUiAdapter.HasLiveSession);
             loading_wnd.OpenLoading(m_BattleLoadingMinVisibleSeconds, () =>
             {
-                if (GameProductUiAdapter.HasLiveSession)
+                bool accountChanged = GameSaveService.Instance?.RequiresProfileReload == true;
+                if (!GameFrameworkBootstrap.TryLeaveSession("back-login", completeRound: accountChanged))
+                {
+                    loading_wnd.CloseLoading();
+                    tip_wnd.GetInstance().OnShowTipLanId("td_lobby_exit_failed");
+                    return;
+                }
+
+                if (GameProductUiAdapter.Instance != null)
                 {
                     GameProductUiAdapter.HandoffCameraBeforeScene("back-login", EnterBackLogin);
                     return;
@@ -724,13 +842,26 @@ namespace GameHot
         private void EnterBackLogin()
         {
             Debug.Log("[返回] lobby EnterBackLogin");
+            if (GameSaveService.Instance?.RequiresProfileReload == true)
+            {
+                ClearBattleRequestsForAccountChange();
+            }
             ExitLobby();
             BackLoginCommon();
             SetNextProc(CGameProcedure.s_ProcLogIn);
             CGameProcedure.s_ProcLogIn.SetStatus((int)LoginStatus.EnterLoginScene);
         }
+        internal void ClearBattleRequestsForAccountChange()
+        {
+            m_PendingBattleRequest = null;
+            m_PendingBattleRoster = null;
+            m_PendingPrepareRequest = null;
+            m_LastBattleRequest = null;
+            m_IsBattleSelectionInitialized = false;
+        }
+
         // 统一执行战斗请求的拷贝、关卡校验和基础字段校验。
-        private bool TryPrepareBattleStartRequest(BattleStartupRequest request, out BattleStartupRequest sanitizedRequest, out string error)
+        internal bool TryPrepareBattleStartRequest(BattleStartupRequest request, out BattleStartupRequest sanitizedRequest, out string error)
         {
             sanitizedRequest = request != null ? request.CloneRequest() : null;
             error = string.Empty;
@@ -762,9 +893,10 @@ namespace GameHot
         }
 
         // 缓存待消费的战斗请求，并记录最后一次正式请求。
-        private void StoreBattleStartRequest(BattleStartupRequest request)
+        internal void StoreBattleStartRequest(BattleStartupRequest request, MatchSessionSnapshot roster = null)
         {
             m_PendingBattleRequest = request;
+            m_PendingBattleRoster = roster;
             m_LastBattleRequest = request != null ? request.CloneRequest() : null;
             if (request == null)
             {
@@ -1214,7 +1346,9 @@ namespace GameHot
         protected override void OnEscape(InputAction.CallbackContext context)
         {
             if (m_IsBackLoginTransitionRequested || m_IsBattleSceneTransitionRequested ||
-                m_IsPrepareCloseTransition || loading_wnd.IsBlockingFlowInput())
+                m_IsPrepareCloseTransition || loading_wnd.IsBlockingFlowInput() ||
+                m_Status == (int)LobbyStatus.LoadingLobbyScene ||
+                m_Status == (int)LobbyStatus.LobbySceneLoadFailed)
             {
                 return;
             }
@@ -1241,14 +1375,17 @@ namespace GameHot
                 return false;
             }
 
-            // 准备界面关闭走确定性逻辑：先由 SDK 适配器暂停相机、收回视图，
-            // 再关闭窗口（旧纹理桥随窗口销毁做原生清理），最后延迟停止框架相机。
-            // 不依赖窗口关闭动画/OnClose 的时序。
-            if (currentWindow is tower_defend_prepare_wnd prepareWindow &&
-                GameProductUiAdapter.HasLiveSession)
+            // 关闭窗口前把准备视图交还给框架根节点。
+            if (currentWindow is tower_defend_prepare_wnd prepareWindow)
             {
                 if (m_IsPrepareCloseTransition)
                 {
+                    return true;
+                }
+
+                if (!GameFrameworkBootstrap.TryLeaveSession("prepare-cancel"))
+                {
+                    tip_wnd.GetInstance().OnShowTipLanId("td_prepare_exit_failed");
                     return true;
                 }
 

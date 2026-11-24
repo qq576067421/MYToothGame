@@ -53,6 +53,10 @@ private static string m_FileName = "t_bullet.csv";
     public int t_trigger_type{ get { return _t_trigger_type; }}
     private int _t_trigger_Y;
     public int t_trigger_Y{ get { return _t_trigger_Y; }}
+    private int _t_hit_stick_eff;
+    public int t_hit_stick_eff{ get { return _t_hit_stick_eff; }}
+    private int _t_delay_damage;
+    public int t_delay_damage{ get { return _t_delay_damage; }}
     private static List<int> m_Keys = new List<int>();
     public static List<int> GetKeys()
     {
@@ -121,6 +125,8 @@ private static string m_FileName = "t_bullet.csv";
         _t_trigger_bullet_count = source._t_trigger_bullet_count;
         _t_trigger_type = source._t_trigger_type;
         _t_trigger_Y = source._t_trigger_Y;
+        _t_hit_stick_eff = source._t_hit_stick_eff;
+        _t_delay_damage = source._t_delay_damage;
     }
     private static t_bullet GetCSVConfigImp(int key)
     {
@@ -149,6 +155,8 @@ private static string m_FileName = "t_bullet.csv";
             bean._t_trigger_bullet_count = ReadInt(datas[index++]);
             bean._t_trigger_type = ReadInt(datas[index++]);
             bean._t_trigger_Y = ReadInt(datas[index++]);
+            bean._t_hit_stick_eff = ReadInt(datas[index++]);
+            bean._t_delay_damage = ReadInt(datas[index++]);
         }
         if(bean == null)
         {
@@ -185,6 +193,8 @@ private static string m_FileName = "t_bullet.csv";
             bean._t_trigger_bullet_count = SqliteDataManager_ReadInt();
             bean._t_trigger_type = SqliteDataManager_ReadInt();
             bean._t_trigger_Y = SqliteDataManager_ReadInt();
+            bean._t_hit_stick_eff = SqliteDataManager_ReadInt();
+            bean._t_delay_damage = SqliteDataManager_ReadInt();
         }
         SqliteDataManager_EndRead();
         StringBuilder.Clear();

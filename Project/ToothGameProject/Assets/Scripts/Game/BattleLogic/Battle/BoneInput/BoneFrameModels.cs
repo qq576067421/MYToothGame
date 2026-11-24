@@ -134,6 +134,7 @@ namespace GameDll
     public sealed class BoneFrameData
     {
         public bool m_HasFrameData;
+        public bool m_HasAuthoritativeSlotBindings;
         public int m_FrameSerial;
         public bool m_IsSimulated;
         public long m_FrameTimeMs;
@@ -144,6 +145,7 @@ namespace GameDll
         public void Reset()
         {
             m_HasFrameData = false;
+            m_HasAuthoritativeSlotBindings = false;
             m_FrameSerial = 0;
             m_IsSimulated = false;
             m_FrameTimeMs = 0;

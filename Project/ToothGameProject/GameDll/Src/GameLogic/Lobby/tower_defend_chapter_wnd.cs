@@ -12,7 +12,7 @@ namespace GameHot
     public class tower_defend_chapter_model : WindowModel
     {
         public BattleStartupRequest m_Request;
-        public Func<WindowBase> m_OnConfirm;
+        public Func<int, WindowBase> m_OnConfirm;
         public Action m_OnCancel;
 
         public override void Clear()
@@ -44,7 +44,6 @@ namespace GameHot
         private static readonly string[] m_ThemeNames = { "1", "2", "3", "4", "5" };
         private const float m_SlotStepSpeed = 6.50f;
         private const float m_SlotEpsilon = 0.001f;
-        public static int m_chapterId;
 
         private static readonly Vector2[] m_SlotAnchors =
         {
@@ -84,7 +83,7 @@ namespace GameHot
 
         public void SetRequest(
             BattleStartupRequest request,
-            Func<WindowBase> onConfirm,
+            Func<int, WindowBase> onConfirm,
             Action onCancel)
         {
             var model = GetModel<tower_defend_chapter_model>();
@@ -142,14 +141,15 @@ namespace GameHot
         {
             var model = GetModel<tower_defend_chapter_model>();
             var request = model.m_Request;
-            var unlockCount = (LobbyPlayer.GetInstance().GetUnlockedStage() - 1) / m_SlotCount + 1;
-            if (request != null && ResolveBottomStageId() > unlockCount)
+            int chapterId = ResolveBottomStageId();
+            int unlockCount = (LobbyPlayer.GetInstance().GetUnlockedStage() - 1) / tower_defend_lvchoose_wnd.m_LevelsPerChapter + 1;
+            if (request != null && (chapterId <= 0 || chapterId > unlockCount))
             {
                 // 转盘滑动到目标槽位后才触发抖动，等待逻辑见 UpdatePendingLockedShake
                 KillPlateTweens();
                 m_IsPendingLockedShake = true;
                 AudioManager.GetInstance().Play2D(7);
-                tip_wnd.GetInstance().OnShowTip("当前主题暂未解锁");
+                tip_wnd.GetInstance().OnShowTipLanId("td_lobby_chapter_locked");
                 return;
             }
 
@@ -159,9 +159,7 @@ namespace GameHot
                 return;
             }
 
-            // 先记录章节号再打开选关窗口，选关窗口初始化时会读取它换算章内解锁数
-            m_chapterId = ResolveBottomStageId();
-            var targetWindow = model.m_OnConfirm();
+            var targetWindow = model.m_OnConfirm(chapterId);
             if (targetWindow == null)
             {
                 return;
@@ -298,7 +296,7 @@ namespace GameHot
         private void InitUnlockCount()
         {
             var request = GetModel<tower_defend_chapter_model>().m_Request;
-            int UnlockCount = (LobbyPlayer.GetInstance().GetUnlockedStage() - 1) / m_SlotCount + 1;
+            int UnlockCount = (LobbyPlayer.GetInstance().GetUnlockedStage() - 1) / tower_defend_lvchoose_wnd.m_LevelsPerChapter + 1;
 
             for(int i=0;i< m_Btn_Lv.Count(); i++)
             {

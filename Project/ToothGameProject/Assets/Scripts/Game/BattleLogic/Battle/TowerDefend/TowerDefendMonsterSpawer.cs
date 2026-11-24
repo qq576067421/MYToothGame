@@ -134,6 +134,7 @@ namespace GameDll
 
         private List<PropertyEntity> m_Monsters = new List<PropertyEntity>();
         private readonly Dictionary<int, MonsterType> m_MonsterKinds = new Dictionary<int, MonsterType>();
+        private readonly Dictionary<int, MasterHero> m_TrackedBosses = new Dictionary<int, MasterHero>();
         private readonly Dictionary<int, int> m_MonsterLaneIndices = new Dictionary<int, int>();
         private readonly Dictionary<int, MonsterPresentationFadeRuntime> m_MonsterPresentationFadeRuntimes = new Dictionary<int, MonsterPresentationFadeRuntime>();
         private readonly Dictionary<MonsterRecycleKey, Queue<PropertyEntity>> m_RecycledMonsters = new Dictionary<MonsterRecycleKey, Queue<PropertyEntity>>();
@@ -284,7 +285,25 @@ namespace GameDll
             }
         }
 
-        // 控制场上怪物的可见性、是否可选中以及是否暂停（用于升级挑战期间冻结怪物与刷怪节奏）。
+        public void ReadAliveBosses(List<MasterHero> output)
+        {
+            output.Clear();
+            foreach (var boss in m_TrackedBosses.Values)
+            {
+                if (BattleManager.ReadIsEntityValide(boss))
+                {
+                    output.Add(boss);
+                }
+            }
+        }
+
+        public bool TryReadAliveBoss(int entityId, out MasterHero boss)
+        {
+            return m_TrackedBosses.TryGetValue(entityId, out boss) &&
+                BattleManager.ReadIsEntityValide(boss, entityId);
+        }
+
+        // 控制场上怪物的可见性、是否可选中以及是否挂起（用于升级挑战期间暂停怪物与刷怪节奏）。
         public void SetMonsterPresentation(bool visible, bool canBeTarget, bool suspend)
         {
             bool needReseedAnimationPhase = m_IsMonsterSuspended && !suspend && !m_MonsterVisible && visible;
@@ -367,6 +386,7 @@ namespace GameDll
             ClearMonsterPresentationFadeRuntimes();
             m_Monsters.Clear();
             m_MonsterKinds.Clear();
+            m_TrackedBosses.Clear();
             m_MonsterLaneIndices.Clear();
             m_SummonCloneEntityIds.Clear();
             m_CurrentWaveHasElite = false;
@@ -390,6 +410,7 @@ namespace GameDll
             ClearMonsterPresentationFadeRuntimes();
             m_Monsters.Clear();
             m_MonsterKinds.Clear();
+            m_TrackedBosses.Clear();
             m_MonsterLaneIndices.Clear();
             m_LastSpecialMonsterLaneIndex = -1;
         }
@@ -480,6 +501,7 @@ namespace GameDll
             m_ReadyRecycleMonsterIds.Remove(entityId);
             m_SummonCloneEntityIds.Remove(entityId);
             m_MonsterKinds.Remove(entityId);
+            m_TrackedBosses.Remove(entityId);
             m_MonsterLaneIndices.Remove(entityId);
             m_Monsters.RemoveAt(monsterIndex);
         }
@@ -528,11 +550,13 @@ namespace GameDll
                 render.SetShowHud(false);
                 render.DisableHudRender();
                 render.ClearColorAlphaProperty(m_MonsterPresentationColorPropertyId);
+                // 尸体进复用池时不会销毁渲染对象，命中残留特效（插在身上的箭）必须在这里回收
+                render.ClearHitStickEffects();
             }
 
             monster.SetCanBeTarget(false);
             monster.SetCanBeHurt(false);
-            monster.SetFreeze(false);
+            monster.SetSuspended(false);
             monster.SetVisiable(false);
         }
 
@@ -2584,6 +2608,11 @@ namespace GameDll
             objMgr.AddPropertyEntity(monster);
 
             m_Monsters.Add(monster);
+            if (monsterKind == MonsterType.Boss && monster is MasterHero boss)
+            {
+                m_TrackedBosses.Add(boss.ReadId(), boss);
+            }
+
             ApplyMonsterPresentation(monster);
         }
 
@@ -2602,7 +2631,7 @@ namespace GameDll
 
             monster.SetCanBeTarget(m_MonsterCanBeTarget);
             monster.SetCanBeHurt(m_MonsterCanBeTarget);
-            monster.SetFreeze(m_IsMonsterSuspended);
+            monster.SetSuspended(m_IsMonsterSuspended);
             var render = monster.GetRender();
             if (render != null)
             {
@@ -2618,8 +2647,8 @@ namespace GameDll
                 return;
             }
 
-            // 死亡表现必须压过棒棒糖表现：一旦进入死亡态，先撤掉冻结，避免死亡动画与溶解被暂停。
-            monster.SetFreeze(false);
+            // 死亡表现必须压过棒棒糖表现：一旦进入死亡态，先撤掉挂起，避免死亡动画与溶解被暂停。
+            monster.SetSuspended(false);
 
             // 棒棒糖阶段使用 `_BaseColor.a` 做场景显隐，怪物进入死亡态后需要撤掉这条覆盖，
             // 否则死亡溶解虽然仍在跑，但会被残留的颜色透明度压住，看起来像死亡材质动画失效。

@@ -17,6 +17,8 @@ namespace GameDll
         private const float m_ReuseDelay = 1.5f;
         private const float m_CacheMaxTime = 10.0f;
         private const float m_CleanupInterval = 1.0f;
+        // 同一份配置的可缓存实例上限：表现时长配得异常长时提供兜底，避免实例无限增长
+        private const int m_MaxCachedCountPerCfg = 64;
         private float m_LastCleanupTime;
 
         public void OnCreate()
@@ -45,25 +47,49 @@ namespace GameDll
             if(m_CacheDict.ContainsKey(cfgId))
             {
                 var objs = m_CacheDict[cfgId];
-                if (objs.m_List.Count > 0)
+                var btime = BattleManager.ReadBattleTime();
+                int count = objs.m_List.Count;
+                for (int i = 0; i < count; i++)
                 {
-                    var eff = objs.m_List[0];
-                    var time = eff.GetHideTime();
-                    var btime = BattleManager.ReadBattleTime();
-                    if (btime - time >= m_ReuseDelay)
+                    var eff = objs.m_List[i];
+                    if (eff == null || btime - eff.GetHideTime() < m_ReuseDelay)
                     {
-                        obj = (T)eff;
-                        objs.m_List.RemoveAt(0);
-                        obj.IsPooled = false;
+                        continue;
+                    }
+                    obj = TakeReusableEffect(objs, eff);
+                    if (obj != null)
+                    {
                         return obj;
                     }
-                }   
+                }
+
+                // 全部实例都还在表现期内时仍然要发弹：到达池容量上限后取最早入池的兜底，
+                // 避免表现时长配得过长把实例数量无限拉高。
+                if (count >= m_MaxCachedCountPerCfg)
+                {
+                    obj = TakeReusableEffect(objs, objs.m_List[0]);
+                    if (obj != null)
+                    {
+                        return obj;
+                    }
+                }
             }
 
             obj = (T)BattleManager.GetBattle().GetObjectManager().NewEffObject(type);
             obj.SetBean(bean);
             obj.CreateRender(null, resType);
             obj.InitInstance();
+            obj.IsPooled = false;
+            return obj;
+        }
+
+        private T TakeReusableEffect(PlayableEffectObjList objs, PlayableEffectObj eff)
+        {
+            if (eff == null || !objs.m_List.Remove(eff))
+            {
+                return null;
+            }
+            var obj = (T)eff;
             obj.IsPooled = false;
             return obj;
         }
@@ -79,7 +105,15 @@ namespace GameDll
                 return;
             }
 
-            obj.SetHideTime(BattleManager.ReadBattleTime());
+            // 回收起点默认是当前时间；若命中/枪口特效还没显示完，就顺延到它收尾之后，
+            // 否则下次复用时重新发弹会立刻清掉这一发还没到时间的表现。
+            float reuseTime = BattleManager.ReadBattleTime();
+            float visualRemain = obj.ReadVisualRemainTime();
+            if (visualRemain > 0f)
+            {
+                reuseTime += visualRemain;
+            }
+            obj.SetHideTime(reuseTime);
             if (m_CacheDict.ContainsKey(cfgId))
             {
                 var list = m_CacheDict[cfgId];

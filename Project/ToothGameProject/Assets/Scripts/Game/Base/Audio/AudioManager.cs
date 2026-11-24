@@ -64,8 +64,6 @@ namespace GameDll
             m_PlaybackController = new AudioPlaybackController();
             m_BusController = new AudioBusController(m_PlaybackController.PauseBusRequests);
             GameSaveService.SaveDataReady += ApplySavedVolumeSettings;
-            // 存档可能在本实例创建前就已就绪，事件不会重放，这里主动应用一次。
-            ApplySavedVolumeSettings();
             m_DuckingController = new AudioDuckingController(m_BusController);
             m_ListenerController = new AudioListenerController();
         }
@@ -77,7 +75,7 @@ namespace GameDll
         private void ApplySavedVolumeSettings()
         {
             var saveService = GameSaveService.Instance;
-            if (saveService == null || !saveService.IsReady)
+            if (m_LifecycleState != AudioManagerLifecycleState.Ready || saveService == null || !saveService.IsReady)
             {
                 return;
             }
@@ -712,6 +710,7 @@ namespace GameDll
             m_TransitionController = transitionController;
             m_PlaybackController.Initialize(m_SoundRoot, transitionController, m_BusController, m_DuckingController, m_LifecycleVersion, m_IsGameAudioPaused, m_IsSystemPaused);
             m_LifecycleState = AudioManagerLifecycleState.Ready;
+            ApplySavedVolumeSettings();
             if (m_IsSystemPaused)
             {
                 m_TransitionController.SetFrozen(true);

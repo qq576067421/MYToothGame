@@ -1,5 +1,6 @@
 ﻿#if UNITY_EDITOR
 using UnityEngine;
+using YoudooGame.Action;
 using YoudooGame.Core;
 using YoudooGame.MatchFlow.Runtime;
 using YoudooGame.Platform;
@@ -152,7 +153,8 @@ internal sealed class GameEditorSyntheticMatchSessionRuntime :
             0.04f,
             Mathf.Clamp01(centerX + halfWidth),
             0.97f);
-        return new TrackedPlayer(1000 + slotIndex, bounds, 0.98f, joints);
+        return new TrackedPlayer(
+            1000 + slotIndex, bounds, 0.98f, (int)ProviderPoseTypeFlags.BothHandsRaised, joints);
     }
 
     private static float ReadPlayerHalfWidth()

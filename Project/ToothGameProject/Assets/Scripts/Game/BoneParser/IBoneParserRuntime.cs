@@ -8,6 +8,8 @@ namespace GameDll
 
         void Reset();
 
+        void ResetSeat(int seatIndex);
+
         BoneParserFrameResult Update(BoneTrackedFrame frameData, IList<BoneParserSeatDefinition> seatDefinitions);
 
         bool ApplyActionConsumeResult(BoneActionConsumeResult consumeResult);

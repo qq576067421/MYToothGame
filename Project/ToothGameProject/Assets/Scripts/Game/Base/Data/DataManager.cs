@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
@@ -10,6 +10,8 @@ namespace GameDll
         private static Dictionary<string, Dictionary<long, List<string>>> m_LongDatas = new Dictionary<string, Dictionary<long, List<string>>>();
         private static Dictionary<string, Dictionary<string, List<string>>> m_StringDatas = new Dictionary<string, Dictionary<string, List<string>>>();
         private static List<string> m_Tables = new List<string>();
+        public static bool IsInitialized { get; private set; }
+
         public static bool Init()
         {
             if (RenderAPI.IsUseCSV())
@@ -42,6 +44,7 @@ namespace GameDll
                 UDebug.LogError("读取数据表错误：" + e.ToString());
             }
 #endif
+                IsInitialized = true;
                 watch.Stop();
 
                 long time = watch.ElapsedMilliseconds;
@@ -347,6 +350,7 @@ namespace GameDll
 
         public static void Destroy()
         {
+            IsInitialized = false;
             if (RenderAPI.IsUseCSV())
             {
                 m_Tables.Clear();

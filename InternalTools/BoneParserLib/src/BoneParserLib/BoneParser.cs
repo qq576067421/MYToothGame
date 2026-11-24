@@ -29,6 +29,14 @@ namespace CompanyInternalTools.BoneParserLib
             m_EventWriter.Reset();
         }
 
+        public void ResetSeat(int seatIndex)
+        {
+            if (seatIndex >= 0 && seatIndex < m_SeatStates.Count)
+            {
+                m_SeatStates[seatIndex].ResetForRelease();
+            }
+        }
+
         public BoneParserFrameResult Update(BoneTrackedFrame frameData, IList<BoneParserSeatDefinition> seatDefinitions)
         {
             int slotCount = seatDefinitions != null ? seatDefinitions.Count : 0;
@@ -138,8 +146,12 @@ namespace CompanyInternalTools.BoneParserLib
             seatState.m_MissingFrameCount++;
             float deltaTimeSeconds = ReadDeltaTimeSeconds(frameData, seatState);
             m_TurnEstimator.UpdateMissing(seatState, result, deltaTimeSeconds);
-            if (seatState.m_MissingFrameCount > m_Config.m_MaxMissingFrameCount &&
-                !seatState.m_HasAimOutput)
+            // 出过瞄准输出时先保持最后角度，避免遮挡/转身期间转向回中；
+            // 但缺失时间超过宽限上限的数倍后必须释放座位，否则旧 PersonId 会一直占着这个帧下标，
+            // 而下游只有在座位释放后才会把新的人送到这个下标上。
+            int releaseFrameCount = m_Config.m_MaxMissingFrameCount;
+            if (seatState.m_MissingFrameCount > releaseFrameCount &&
+                (!seatState.m_HasAimOutput || seatState.m_MissingFrameCount > releaseFrameCount * 4))
             {
                 seatState.ResetForRelease();
             }

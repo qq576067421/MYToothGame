@@ -222,38 +222,41 @@ namespace LCL
 
         public static Texture LoadTexture(string path)
         {
-
-            //创建文件读取流
-            FileStream fileStream = null;
             try
             {
-                fileStream = new FileStream(path, FileMode.Open, FileAccess.Read);
-                fileStream.Seek(0, SeekOrigin.Begin);
-                //创建文件长度缓冲区
-                byte[] bytes = new byte[fileStream.Length];
-                //读取文件
-                fileStream.Read(bytes, 0, (int)fileStream.Length);
-                //释放文件读取流
-
-
-                //创建Texture
-                Texture2D texture = new Texture2D(0, 0);
-                texture.LoadImage(bytes);
-                return texture;
+                return LoadTextureFromBytes(File.ReadAllBytes(path));
             }
-            catch(Exception e)
+            catch (Exception e)
             {
                 Debug.LogError("加载图片失败，error：" + e.ToString());
+                return null;
             }
-            finally
-            {
-                if(fileStream != null)
-                {
-                    fileStream.Close();
-                    fileStream.Dispose();
-                    fileStream = null;
-                }
+        }
 
+        public static Texture LoadTextureFromBytes(byte[] bytes)
+        {
+            if (bytes == null || bytes.Length == 0)
+            {
+                return null;
+            }
+
+            Texture2D texture = null;
+            try
+            {
+                texture = new Texture2D(2, 2);
+                if (texture.LoadImage(bytes))
+                {
+                    return texture;
+                }
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning("图片解码失败，error：" + e.Message);
+            }
+
+            if (texture != null)
+            {
+                UnityEngine.Object.Destroy(texture);
             }
             return null;
         }

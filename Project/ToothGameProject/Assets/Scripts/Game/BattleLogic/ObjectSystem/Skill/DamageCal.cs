@@ -57,9 +57,11 @@ namespace GameDll
             var nextHp = Math.Max(0, hp - hpDamage);
             defender.SetHpRuntime(nextHp);
             defender.OnHpChanged();
-            if (hpDamage > 0)
+            // 伤害数字按这一击的伤害显示：护盾吸收只会减少扣血量，
+            // 被护盾完全吸收时扣血量为 0，但玩家仍需看到伤害数字反馈。
+            if (hurt > 0)
             {
-                ShowDamageNumber(attacker, defender, hpDamage, worldPos, hurtInfo.m_IsCrit);
+                ShowDamageNumber(attacker, defender, hurt, worldPos, hurtInfo.m_IsCrit);
             }
             hurtInfo.ClearDamageNumberWorldPos();
             TryHandleMonsterDeathStarsEffect(defender);

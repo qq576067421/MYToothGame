@@ -66,18 +66,47 @@ namespace LCL
             return abrequest;
         }
 
-        public static void LoadLevel(string abName, string assetName, int mode, Action func)
+        public static void LoadLevel(string abName, string assetName, int mode, Action onLoaded)
         {
+            LoadLevel(abName, assetName, mode, loaded =>
+            {
+                if (loaded)
+                {
+                    onLoaded?.Invoke();
+                }
+            });
+        }
+
+        public static void LoadLevel(string abName, string assetName, int mode, Action<bool> onCompleted)
+        {
+            LoadLevel(abName, assetName, mode, onCompleted, null);
+        }
+
+        public static void LoadLevel(string abName, string assetName, int mode, Action<bool> onCompleted, Func<bool> isCurrent)
+        {
+            if (isCurrent?.Invoke() == false)
+            {
+                return;
+            }
+
+            void CompleteIfCurrent(bool loaded)
+            {
+                if (isCurrent?.Invoke() != false)
+                {
+                    onCompleted?.Invoke(loaded);
+                }
+            }
+
             if (m_UseAB)
             {
-                m_ResMgr.LoadLevel(abName, assetName, mode, func);
+                m_ResMgr.LoadLevel(abName, assetName, mode, CompleteIfCurrent, isCurrent);
             }
             else
             {
 #if UNITY_EDITOR
-                m_ResRawMgr.LoadLevel(abName, assetName, mode, func);
+                m_ResRawMgr.LoadLevel(abName, assetName, mode, CompleteIfCurrent);
 #else
-
+                CompleteIfCurrent(false);
 #endif
             }
         }

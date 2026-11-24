@@ -234,55 +234,16 @@ namespace GameDll
             if (m_Attacker != null)
             {
                 SetCurAction();
-                PlayAction(m_CurAction.t_ac_name);
+                if (!ReadIsPassiveCast())
+                {
+                    PlayAction(m_CurAction.t_ac_name);
+                }
                 //PlayWeaponEff();
                 PlayAttackSound(m_SkillDescBean != null ? m_SkillDescBean.t_attackSound : 0, m_Attacker.GetPosition());
 
                 if (m_SkillDescBean != null && m_SkillDescBean.t_atk_eff != 0)
                 {
-                    string[] mountPaths = ParseMountPaths(m_SkillDescBean.t_atk_eff_pos);
-                    bool hasMounted = false;
-
-                    if (mountPaths.Length > 0 && m_Attacker != null)
-                    {
-                        foreach (var singlePath in mountPaths)
-                        {
-                            var mount = m_Attacker.ReadMountTransform(singlePath);
-                            if (mount == null) continue;
-
-                            var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_eff);
-                            if (eff == null) continue;
-
-                            if (m_SkillDescBean.t_atk_eff_parent == 0)
-                            {
-                                eff.SetParent(mount);
-                                eff.ShowEff(true, Vector3.zero, Vector2.zero, Vector3.one);
-                            }
-                            else
-                            {
-                                eff.SetParent(GameDll.RenderEffManager.GetInstance().GetRenderEffParent());
-                                var pos = mount.position;
-                                var rot = mount.eulerAngles;
-                                var scale = mount.localScale;
-                                eff.ShowEff(false, pos, rot, scale);
-                            }
-                            eff.SetDuringTime(2.0f);
-                            RenderEffManager.GetInstance().SetAutoPool(eff);
-                            hasMounted = true;
-                        }
-                    }
-
-                    if (!hasMounted)
-                    {
-                        var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_eff);
-                        if (eff != null)
-                        {
-                            var pos = ReadCastFirePoint();
-                            eff.ShowEff(false, pos, Vector3.zero, Vector3.one);
-                            eff.SetDuringTime(2.0f);
-                            RenderEffManager.GetInstance().SetAutoPool(eff);
-                        }
-                    }
+                    PlaySkillEffect();
                 }
 
                 //if (m_SkillDescBean.t_atk_eff_time_point == 0)

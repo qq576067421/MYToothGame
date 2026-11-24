@@ -188,6 +188,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   m_PlayerCount: 4
+  m_EndlessLeaderboardKey:
 --- !u!1 &891354099
 GameObject:
   m_ObjectHideFlags: 0

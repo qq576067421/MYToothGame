@@ -69,7 +69,7 @@ namespace GameDll
             }
         }
 
-        private static CurvedWorldController ReadController()
+        internal static CurvedWorldController ReadController()
         {
             if (s_Controller == null)
             {

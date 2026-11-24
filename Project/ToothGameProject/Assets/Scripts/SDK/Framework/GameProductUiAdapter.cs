@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections;
 using System.Reflection;
 using System.Text;
 using UnityEngine;
@@ -19,7 +18,8 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
     public MatchSessionSnapshot SessionSnapshot { get; private set; }
 
     public static bool HasLiveSession =>
-        Instance != null && Instance.IsAttached && Instance.UiSnapshot != null;
+        Instance != null && Instance.IsAttached && Instance.UiSnapshot != null &&
+        Instance.SessionSnapshot?.LifecycleState == MatchSessionLifecycleState.Running;
 
     public static CameraImageView[] SplitCameraViews => m_SplitCameraViews;
 
@@ -55,27 +55,108 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
     private static CameraImageView[] m_SplitCameraViews;
     private static CameraImageSplitLayout m_SplitCameraLayout;
 
-    // 准备界面看护状态：视图可见且持续 3 秒仍拿不到画面时，回退采集档位并重启相机。
-    // 标记而不是 Coroutine 引用：协程随组件禁用自动终止，跨实例 StopCoroutine 会失效。
-    private static bool s_CameraWatchdogRunning;
-    private static bool s_CameraWatchdogConfirmed;
-    private static bool s_CameraWatchdogRecovering;
-    private static bool s_CameraWatchdogProbing;
-    private static float s_SplitViewVisibleSince = -1f;
-    private static int s_CameraWatchdogRecoverCount;
-    // 准备界面首次拿到帧的宽高比基线：之后只要对不上，说明采集档位被改过，
-    // 画面会被压扁，必须恢复设备默认档。
+    private enum CameraUse
+    {
+        Idle,
+        Prepare,
+        Battle,
+        LoginHandoff
+    }
+
+    private enum CameraPhase
+    {
+        Idle,
+        Suspending,
+        Starting,
+        WaitingForFirstFrame,
+        Active,
+        Quiescing,
+        Releasing,
+        Failed
+    }
+
+    private const int m_MaxCameraCommandAttempts = 3;
+    private const int m_MaxBattleCameraRecoveries = 2;
+    private const float m_CameraCommandRetrySeconds = 0.5f;
+    private const float m_PrepareCameraFirstFrameTimeoutSeconds = 3f;
+    private const float m_BattleCameraFirstFrameTimeoutSeconds = 7f;
+    private const float m_CameraStreamCheckIntervalSeconds = 0.5f;
+    private const float m_CameraStreamStallSeconds = 2f;
+    private const float m_CameraStreamStableSeconds = 5f;
+    private static readonly float[] m_CameraRebindDelays = { 0.2f, 0.8f, 1.8f, 3.2f };
     private static float s_BaselineAspect;
-    // 本次运行期记住“这台机器上该档位不可用”（黑屏或比例异常过），
-    // 避免每次进界面都停一次相机、黑一下再自愈。
     private static bool s_PrepareCaptureUnavailable;
-    private static bool s_BattleCaptureUnavailable;
-    // 准备界面是否正在使用相机。
-    //
-    // 不能只靠“视图 GameObject 是否 activeInHierarchy”判断：视图的激活由准备窗逻辑控制，
-    // 一旦它被提前关掉（切场景前收回、或沿用了上一次的隐藏状态），看护协程就会永久沉默。
-    // 真机上出现过四个座位框全黑、而 watchdog 一次探测都没发起的情况，就是被这个判断挡住的。
-    private static bool s_PrepareCameraInUse;
+    private CameraUse m_CameraUse;
+    private CameraPhase m_CameraPhase;
+    private string m_CameraReason;
+    private Action m_CameraHandoffCompleted;
+    private bool m_IsCameraRecovery;
+    private bool m_ApplyCameraCaptureStage;
+    private string m_RequestedCameraCaptureStage;
+    private int m_CameraEarliestFrame;
+    private float m_CameraEarliestTime;
+    private int m_CameraStartAttempts;
+    private int m_CameraStopAttempts;
+    private int m_BattleCameraRecoverCount;
+    private bool m_CameraPauseAccepted;
+    private float m_CameraFirstFrameDeadline;
+    private CameraImageFrame m_LastCameraStreamFrame;
+    private float m_LastCameraStreamAdvanceAt;
+    private float m_CameraStreamHealthySince;
+    private float m_NextCameraStreamCheckAt;
+    private int m_CameraReleaseFrame;
+    private float m_CameraReleaseTime;
+    private int m_PrepareSessionResumeFrame = -1;
+    private int m_CameraRebindStep = -1;
+    private float m_NextCameraRebindAt;
+    private int m_CameraProbeGeneration;
+    private bool m_CameraProbePending;
+    private bool m_CameraWatchdogConfirmed;
+    private int m_CameraWatchdogRecoverCount;
+    private float m_NextCameraHealthProbeAt;
+    private bool IsPrepareCameraInUse => m_CameraUse == CameraUse.Prepare;
+
+    private bool m_ApplicationPaused;
+    private bool m_ApplicationFocused = true;
+    private const float m_PrepareTrackingMaxAgeSeconds = 0.5f;
+    private MatchTrackingFrameSnapshot m_LastPrepareTrackingFrame;
+    private float m_PrepareTrackingObservedAt = float.NegativeInfinity;
+    private bool m_PrepareCameraRecheckRequested;
+    private float m_BackgroundEnteredAt = -1f;
+    private float m_BackgroundElapsed;
+
+    public static float ForegroundRealtime
+    {
+        get
+        {
+            float now = Time.realtimeSinceStartup;
+            var adapter = Instance;
+            if (adapter == null)
+            {
+                return now;
+            }
+
+            float currentBackground = adapter.m_BackgroundEnteredAt >= 0f ? now - adapter.m_BackgroundEnteredAt : 0f;
+            return now - adapter.m_BackgroundElapsed - currentBackground;
+        }
+    }
+
+    public bool TryResumePrepareSession()
+    {
+        if (!IsPrepareCameraInUse || !IsApplicationForeground ||
+            !YoudooAPI.TryGetSessionSnapshot(out var session) || session.Phase != YoudooGame.MatchFlow.GameSessionPhase.Paused)
+        {
+            return false;
+        }
+
+        bool resumed = YoudooAPI.ResumeGameplay();
+        Debug.Log("[准备流程] 回前台恢复 SDK 会话。session=" + session.SessionToken +
+                  " resumed=" + resumed + " error=" + YoudooAPI.SessionLastError);
+        return resumed;
+    }
+
+    public bool IsApplicationForeground => !m_ApplicationPaused && m_ApplicationFocused;
+    public int ApplicationStateRevision { get; private set; }
 
     // ---- 帧内容门控：相机没出画面前，不要把黑块/白块直接给玩家看 ----
     //
@@ -85,18 +166,9 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
     //
     // 所以在外层用 CanvasGroup 兜一层：内容没验证通过就整块透明，
     // 露出下面已经设计好的底图；验证通过再淡入。全程不改 SDK 组件、不动材质。
-    private static bool s_FrameGateRunning;
-    // 默认 true：门控关掉时（GameSdkPerfOptions.EnableCameraFrameGate=false）
-    // 这个值不会再被任何逻辑改回 true，所以初值必须是“可用”，否则战斗头像会被永久判为不可用。
-    private static bool s_FrameContentVisible = true;
-    private static bool s_FrameContentProbing;
-    // 每次停流都自增。正在进行的探测拿着旧代号，回来时对不上就直接丢弃结果，
-    // 否则切档期间读完的那一批“黑帧”会在重开流之后把门控重新关掉。
-    private static int s_FrameGateGeneration;
+    private static bool s_FrameContentVisible = !GameSdkPerfOptions.EnableCameraFrameGate;
     private static float s_NextFrameProbeTime;
     private static float s_FrameGateGraceUntil;
-    // 连续判黑次数。门控确认“有纹理但内容全黑”累计到阈值，说明这一档在本机就是出不了画面，
-    // 必须交给看护流程换档。只隐身不换档的话，玩家看到的是四个空框，等于功能不可用。
     private static int s_FrameGateBlackStrikes;
     private const int FrameGateBlackStrikesBeforeRecover = 6;
 
@@ -107,32 +179,28 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
     {
         base.OnEnable();
         Instance = this;
-        Debug.Log("[新SDK整合] adapter enable bound=" + IsBound + " attached=" + IsAttached);
-        StartCameraWatchdog();
-        StartFrameContentGate();
+        if (Application.platform == RuntimePlatform.Android)
+        {
+            UpdateApplicationState(m_ApplicationPaused, Application.isFocused);
+        }
+        Debug.Log("[相机生命周期] adapter enabled attached=" + IsAttached);
+        if (GameSdkPerfOptions.EnableCameraFrameGate)
+        {
+            MarkCaptureSwitching("adapter-enable");
+        }
     }
 
     protected override void OnDisable()
     {
-        // 协程会随组件禁用自动停止，这里只复位标记，下次 OnEnable 才能重新启动。
-        s_CameraWatchdogRunning = false;
-        s_CameraWatchdogRecovering = false;
-        s_CameraWatchdogProbing = false;
-        // 恢复配额也跟着重新启用重置，否则反复进出界面几次后就不再自愈。
-        s_CameraWatchdogRecoverCount = 0;
-
-        // 门控协程同样随组件禁用停止；visible 不在这里复位，
-        // 以免门控关掉时把它留在 false、让战斗头像再也拿不到画面。
-        s_FrameGateRunning = false;
-        s_FrameContentProbing = false;
-        s_FrameGateGeneration++;
-
+        var completeHandoff = m_CameraHandoffCompleted;
+        ResetCameraOperation(CameraUse.Idle, "adapter-disable");
         if (Instance == this)
         {
             Instance = null;
         }
 
         base.OnDisable();
+        completeHandoff?.Invoke();
     }
 
     protected override void OnBound()
@@ -271,186 +339,607 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         return true;
     }
 
-    private void StartCameraWatchdog()
+    private void OnApplicationPause(bool paused)
     {
-        if (!GameSdkPerfOptions.EnableCameraHealthWatchdog)
-        {
-            return;
-        }
-
-        if (s_CameraWatchdogRunning)
-        {
-            return;
-        }
-
-        s_CameraWatchdogRunning = true;
-        StartCoroutine(CameraWatchdogLoop());
+        UpdateApplicationState(paused, m_ApplicationFocused);
     }
 
-    // 只盯准备界面：战斗 HUD 用自建视图，这里不介入。
-    //
-    // 判据不能只看视图 GameObject 的激活状态——见 s_PrepareCameraInUse 的说明。
-    // 两个条件取或：准备相机标志为真（逻辑层已声明在用相机），或视图自己还是激活的。
-    private static bool HasVisibleSplitView()
+    private void OnApplicationFocus(bool focused)
     {
-        if (s_PrepareCameraInUse)
+        UpdateApplicationState(m_ApplicationPaused, focused);
+    }
+
+    private void UpdateApplicationState(bool paused, bool focused)
+    {
+        if (Application.platform != RuntimePlatform.Android)
         {
-            return m_SplitCameraViews != null;
+            return;
         }
 
-        var views = m_SplitCameraViews;
-        if (views == null)
+        bool wasForeground = IsApplicationForeground;
+        m_ApplicationPaused = paused;
+        m_ApplicationFocused = focused;
+        if (wasForeground == IsApplicationForeground)
+        {
+            return;
+        }
+
+        ApplicationStateRevision++;
+        m_PrepareTrackingObservedAt = float.NegativeInfinity;
+        float now = Time.realtimeSinceStartup;
+        if (!IsApplicationForeground)
+        {
+            m_BackgroundEnteredAt = now;
+        }
+        else if (m_BackgroundEnteredAt >= 0f)
+        {
+            m_BackgroundElapsed += now - m_BackgroundEnteredAt;
+            m_BackgroundEnteredAt = -1f;
+        }
+
+        InvalidateCameraProbe();
+        m_PrepareSessionResumeFrame = -1;
+        if (IsApplicationForeground)
+        {
+            if (m_CameraUse == CameraUse.Prepare)
+            {
+                m_PrepareSessionResumeFrame = Time.frameCount + 1;
+                m_PrepareCameraRecheckRequested = true;
+                m_CameraWatchdogConfirmed = false;
+                m_CameraWatchdogRecoverCount = 0;
+                m_NextCameraHealthProbeAt = Time.unscaledTime + 3f;
+            }
+            if (m_CameraUse == CameraUse.Idle)
+            {
+                QueueCameraSuspension();
+            }
+            else if ((m_CameraUse == CameraUse.Prepare || m_CameraUse == CameraUse.Battle) &&
+                     (m_CameraPhase == CameraPhase.Active || m_CameraPhase == CameraPhase.Failed))
+            {
+                m_BattleCameraRecoverCount = 0;
+                QueueCameraStart(1);
+            }
+        }
+
+        UiSnapshotChanged?.Invoke();
+    }
+
+    public bool IsPrepareTrackingReady(MatchSessionSnapshot snapshot)
+    {
+        if (!IsAttached || !IsApplicationForeground || snapshot == null ||
+            snapshot.LifecycleState != MatchSessionLifecycleState.Running)
         {
             return false;
         }
 
-        for (int i = 0; i < views.Length; i++)
+        if (Application.isEditor)
         {
-            if (views[i] != null && views[i].gameObject.activeInHierarchy)
-            {
-                return true;
-            }
+            return true;
         }
 
-        return false;
+        var frame = snapshot.CurrentTrackingFrame;
+        return frame != null && m_LastPrepareTrackingFrame != null &&
+            frame.SessionToken == m_LastPrepareTrackingFrame.SessionToken &&
+            frame.RoundId == m_LastPrepareTrackingFrame.RoundId &&
+            frame.Sequence == m_LastPrepareTrackingFrame.Sequence &&
+            Time.realtimeSinceStartup - m_PrepareTrackingObservedAt < m_PrepareTrackingMaxAgeSeconds &&
+            (!m_PrepareCameraRecheckRequested || YoudooAPI.CameraImage.Status.State == CameraImageState.Running);
     }
 
-    private IEnumerator CameraWatchdogLoop()
+    private void ObservePrepareTrackingFrame(MatchSessionSnapshot snapshot)
     {
-        while (true)
+        var frame = snapshot?.CurrentTrackingFrame;
+        if (frame == null || frame.SessionToken != snapshot.SessionToken || frame.RoundId != snapshot.RoundSnapshot?.RoundId)
         {
-            yield return new WaitForSecondsRealtime(1f);
+            m_PrepareTrackingObservedAt = float.NegativeInfinity;
+            return;
+        }
 
-            if (s_CameraWatchdogConfirmed || s_CameraWatchdogRecovering || s_CameraWatchdogProbing)
-            {
-                continue;
-            }
+        var previous = m_LastPrepareTrackingFrame;
+        if (previous == null || previous.SessionToken != frame.SessionToken || previous.RoundId != frame.RoundId)
+        {
+            m_LastPrepareTrackingFrame = frame;
+            m_PrepareTrackingObservedAt = float.NegativeInfinity;
+            return;
+        }
 
-            if (!HasVisibleSplitView())
-            {
-                // 离开准备界面后重新计时，回大厅再进要重新走一轮启动宽限。
-                s_CameraWatchdogConfirmed = false;
-                s_SplitViewVisibleSince = -1f;
-                continue;
-            }
-
-            if (s_SplitViewVisibleSince < 0f)
-            {
-                s_SplitViewVisibleSince = Time.unscaledTime;
-                continue;
-            }
-
-            // 相机启动本身就是两三帧的异步流程，先给 3 秒宽限再判定异常。
-            if (Time.unscaledTime - s_SplitViewVisibleSince < 3f)
-            {
-                continue;
-            }
-
-            yield return ProbeSplitCameraHealth("prepare-watchdog");
+        float now = Time.realtimeSinceStartup;
+        if (frame.Sequence > previous.Sequence)
+        {
+            m_LastPrepareTrackingFrame = frame;
+            m_PrepareTrackingObservedAt = now;
+        }
+        else if (!float.IsNegativeInfinity(m_PrepareTrackingObservedAt) &&
+                 now - m_PrepareTrackingObservedAt >= m_PrepareTrackingMaxAgeSeconds)
+        {
+            m_PrepareTrackingObservedAt = float.NegativeInfinity;
+            Debug.LogWarning("[准备确认] SDK 骨骼帧停止更新。session=" + frame.SessionToken +
+                             " round=" + frame.RoundId + " sequence=" + frame.Sequence);
         }
     }
 
-    private static IEnumerator ProbeSplitCameraHealth(string reason)
+    private void Update()
     {
-        s_CameraWatchdogProbing = true;
-
-        var status = CameraImage.Status;
-        var frameResult = CameraImage.GetFrame();
-        string requested = GameSdkCameraCaptureFallback.CurrentResolutionText;
-        if (!frameResult.Success || frameResult.Value.Texture == null)
+        if (!IsApplicationForeground)
         {
-            Debug.LogWarning("[新SDK整合] camera watchdog reason=" + reason +
-                             " no frame, requested=" + requested +
-                             " state=" + status.State + " error=" + status.Error +
-                             " msg=" + status.Message + " views=" + BuildCameraViewSummary(m_SplitCameraViews));
-            s_CameraWatchdogProbing = false;
-            yield return RecoverSplitCamera(reason + "+no-frame");
-            yield break;
+            return;
         }
 
-        Texture texture = frameResult.Value.Texture;
-        var renderTexture = texture as RenderTexture;
-        int maxRgb = -1;
-        if (renderTexture != null && renderTexture.width > 0 && renderTexture.height > 0 &&
-            SystemInfo.supportsAsyncGPUReadback)
+        if (m_PrepareSessionResumeFrame >= 0 && Time.frameCount >= m_PrepareSessionResumeFrame)
         {
-            yield return new WaitForEndOfFrame();
-            RenderTexture probe = RenderTexture.GetTemporary(
-                16, 16, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-            RenderTexture previous = RenderTexture.active;
-            Graphics.Blit(renderTexture, probe);
-            RenderTexture.active = previous;
+            m_PrepareSessionResumeFrame = -1;
+            TryResumePrepareSession();
+        }
 
-            var request = AsyncGPUReadback.Request(probe, 0, TextureFormat.RGBA32);
-            while (!request.done)
-            {
-                yield return null;
-            }
-
-            if (!request.hasError)
-            {
-                var data = request.GetData<byte>();
-                maxRgb = 0;
-                for (int i = 0; i + 3 < data.Length; i += 4)
+        switch (m_CameraPhase)
+        {
+            case CameraPhase.Suspending:
+                if (IsCameraDelayComplete())
                 {
-                    int value = Mathf.Max(data[i], Mathf.Max(data[i + 1], data[i + 2]));
-                    if (value > maxRgb)
+                    TrySuspendIdleCamera();
+                }
+                break;
+            case CameraPhase.Starting:
+                if (IsCameraDelayComplete() && IsCameraReleaseComplete())
+                {
+                    TryStartCamera();
+                }
+                break;
+            case CameraPhase.WaitingForFirstFrame:
+                if (!TryActivateCameraFromFrame())
+                {
+                    if (ForegroundRealtime >= m_CameraFirstFrameDeadline)
                     {
-                        maxRgb = value;
+                        BeginCameraRecovery("first-frame-timeout");
+                    }
+                    else
+                    {
+                        UpdateCameraRebind();
                     }
                 }
-            }
+                break;
+            case CameraPhase.Quiescing:
+                if (IsCameraDelayComplete())
+                {
+                    TryFinishCameraStop();
+                }
+                break;
+            case CameraPhase.Releasing:
+                if (IsCameraReleaseComplete())
+                {
+                    if (m_CameraUse == CameraUse.LoginHandoff)
+                    {
+                        var completed = m_CameraHandoffCompleted;
+                        ResetCameraOperation(CameraUse.Idle, m_CameraReason);
+                        completed?.Invoke();
+                        break;
+                    }
 
-            RenderTexture.ReleaseTemporary(probe);
+                    if (IsPrepareCameraInUse && m_IsCameraRecovery)
+                    {
+                        ApplyCameraRecoveryCaptureStage();
+                    }
+                    QueueCameraStart(1);
+                }
+                break;
+            case CameraPhase.Active:
+                UpdateCameraPresentation();
+                break;
+            case CameraPhase.Failed:
+                TryActivateCameraFromFrame();
+                break;
+        }
+    }
+
+    private void TryStartCamera()
+    {
+        if (m_ApplyCameraCaptureStage)
+        {
+            ApplyCaptureStage(m_RequestedCameraCaptureStage, m_CameraReason);
+            m_ApplyCameraCaptureStage = false;
         }
 
-        int frameWidth = frameResult.Value.Width;
-        int frameHeight = frameResult.Value.Height;
-        bool black = maxRgb >= 0 && maxRgb <= 4;
-        // 准备界面一律用设备默认档：只要相机出的帧宽高比和默认不一致，
-        // 说明有东西把采集档位改了，那就会让人物被压扁，必须立即改回默认。
-        bool aspectAdjusted = IsAspectAdjusted(frameWidth, frameHeight);
-
-        Debug.Log("[新SDK整合] camera watchdog reason=" + reason +
-                  " state=" + status.State + "/" + status.GraphicsApi +
-                  " requested=" + requested +
-                  " frame=" + frameWidth + "x" + frameHeight +
-                  " aspect=" + (aspectAdjusted ? "1" : "0") +
-                  " maxRgb=" + maxRgb +
-                  " views=" + BuildCameraViewSummary(m_SplitCameraViews));
-
-        s_CameraWatchdogProbing = false;
-        if (black)
+        if (!ResumeCameraImage(m_CameraReason))
         {
-            // 整幅纯黑：原生相机没往纹理里写，按设备默认档重启一次。
-            yield return RecoverSplitCamera(reason + "+black");
-            yield break;
+            if (++m_CameraStartAttempts < m_MaxCameraCommandAttempts)
+            {
+                m_CameraEarliestTime = Time.unscaledTime + m_CameraCommandRetrySeconds;
+                return;
+            }
+
+            m_CameraStartAttempts = 0;
+            BeginCameraRecovery("start-command-failed");
+            return;
+        }
+
+        m_CameraStartAttempts = 0;
+        m_CameraPhase = CameraPhase.WaitingForFirstFrame;
+        if (IsPrepareCameraInUse)
+        {
+            EnableSplitCameraLayout();
+        }
+
+        if (TryActivateCameraFromFrame())
+        {
+            return;
+        }
+
+        m_CameraFirstFrameDeadline = ForegroundRealtime + (IsPrepareCameraInUse
+            ? m_PrepareCameraFirstFrameTimeoutSeconds
+            : m_BattleCameraFirstFrameTimeoutSeconds);
+        m_CameraRebindStep = 0;
+        m_NextCameraRebindAt = Time.unscaledTime + m_CameraRebindDelays[0];
+    }
+
+    private bool TryActivateCameraFromFrame()
+    {
+        if (!TryReadAdvancingCameraFrame())
+        {
+            return false;
+        }
+
+        float now = ForegroundRealtime;
+        m_LastCameraStreamAdvanceAt = now;
+        m_CameraStreamHealthySince = now;
+        m_NextCameraStreamCheckAt = now + m_CameraStreamCheckIntervalSeconds;
+        m_CameraPhase = CameraPhase.Active;
+        m_CameraRebindStep = -1;
+        m_IsCameraRecovery = false;
+        m_NextCameraHealthProbeAt = Time.unscaledTime + 3f;
+        Debug.Log("[相机生命周期] 首帧已就绪。use=" + m_CameraUse + " reason=" + m_CameraReason +
+                  " frame=" + m_LastCameraStreamFrame.Width + "x" + m_LastCameraStreamFrame.Height);
+        return true;
+    }
+
+    private bool TryReadAdvancingCameraFrame()
+    {
+        if (YoudooAPI.CameraImage.Status.State != CameraImageState.Running)
+        {
+            return false;
+        }
+
+        var result = YoudooAPI.CameraImage.GetFrame();
+        if (!result.Success || result.Value.Texture == null)
+        {
+            return false;
+        }
+
+        var frame = result.Value;
+        var previous = m_LastCameraStreamFrame;
+        if (previous.Texture == frame.Texture && previous.FrameId == frame.FrameId &&
+            previous.TimestampSec == frame.TimestampSec && previous.SourceId == frame.SourceId &&
+            previous.Provenance.SourceSessionToken == frame.Provenance.SourceSessionToken &&
+            previous.Provenance.SourceConnectionToken == frame.Provenance.SourceConnectionToken)
+        {
+            return false;
+        }
+
+        m_LastCameraStreamFrame = frame;
+        return true;
+    }
+
+    private void UpdateActiveCameraStream()
+    {
+        float now = ForegroundRealtime;
+        if (now < m_NextCameraStreamCheckAt)
+        {
+            return;
+        }
+        m_NextCameraStreamCheckAt = now + m_CameraStreamCheckIntervalSeconds;
+
+        if (TryReadAdvancingCameraFrame())
+        {
+            m_LastCameraStreamAdvanceAt = now;
+            if (m_CameraStreamHealthySince < 0f)
+            {
+                m_CameraStreamHealthySince = now;
+            }
+            else if (now - m_CameraStreamHealthySince >= m_CameraStreamStableSeconds)
+            {
+                m_BattleCameraRecoverCount = 0;
+                m_CameraWatchdogRecoverCount = 0;
+            }
+            return;
+        }
+
+        m_CameraStreamHealthySince = -1f;
+        if (now - m_LastCameraStreamAdvanceAt >= m_CameraStreamStallSeconds)
+        {
+            BeginCameraRecovery("active-stream-stalled", streamUnavailable: true);
+        }
+    }
+
+    private void QueueCameraSuspension()
+    {
+        m_CameraPhase = CameraPhase.Suspending;
+        m_CameraStopAttempts = 0;
+        m_CameraEarliestFrame = Time.frameCount;
+        m_CameraEarliestTime = Time.unscaledTime;
+    }
+
+    private void TrySuspendIdleCamera()
+    {
+        if (PauseCameraImage(m_CameraReason ?? "idle"))
+        {
+            m_CameraPhase = CameraPhase.Idle;
+            return;
+        }
+
+        if (++m_CameraStopAttempts < m_MaxCameraCommandAttempts)
+        {
+            m_CameraEarliestTime = Time.unscaledTime + m_CameraCommandRetrySeconds;
+            return;
+        }
+
+        m_CameraPhase = CameraPhase.Idle;
+        Debug.LogWarning("[相机生命周期] 停用相机失败。reason=" + m_CameraReason +
+                         " state=" + YoudooAPI.CameraImage.Status.State + " error=" + YoudooAPI.CameraImage.Status.Error);
+    }
+
+    private void ResetCameraOperation(CameraUse use, string reason)
+    {
+        InvalidateCameraProbe();
+        m_CameraUse = use;
+        m_CameraPhase = CameraPhase.Idle;
+        m_CameraReason = reason;
+        m_CameraHandoffCompleted = null;
+        m_PrepareSessionResumeFrame = -1;
+        m_CameraRebindStep = -1;
+        m_CameraStartAttempts = 0;
+        m_CameraStopAttempts = 0;
+        m_BattleCameraRecoverCount = 0;
+        m_CameraPauseAccepted = false;
+        m_LastCameraStreamFrame = default;
+        m_IsCameraRecovery = false;
+        m_ApplyCameraCaptureStage = false;
+        m_RequestedCameraCaptureStage = null;
+        Debug.Log("[相机生命周期] use=" + use + " reason=" + reason + " sdk=" + YoudooAPI.CameraImage.Status.State);
+    }
+
+    private void QueueCameraStart(int frames = 0)
+    {
+        m_CameraPhase = CameraPhase.Starting;
+        m_CameraEarliestFrame = Time.frameCount + frames;
+        m_CameraEarliestTime = Time.unscaledTime;
+    }
+
+    private void BeginCameraStop(float minimumSeconds)
+    {
+        InvalidateCameraProbe();
+        m_CameraRebindStep = -1;
+        m_CameraStopAttempts = 0;
+        if (YoudooAPI.CameraImage.Status.State == CameraImageState.Stopped)
+        {
+            m_CameraPhase = CameraPhase.Releasing;
+            return;
+        }
+
+        m_CameraPauseAccepted = PauseCameraImage(m_CameraReason + "+quiesce");
+        m_CameraEarliestFrame = Time.frameCount + 2;
+        m_CameraEarliestTime = Time.unscaledTime + minimumSeconds;
+        m_CameraPhase = CameraPhase.Quiescing;
+    }
+
+    private void TryFinishCameraStop()
+    {
+        var state = YoudooAPI.CameraImage.Status.State;
+        if (state == CameraImageState.Stopped ||
+            (m_CameraPauseAccepted && state == CameraImageState.Paused && StopCameraImage(m_CameraReason)))
+        {
+            m_CameraReleaseFrame = Time.frameCount + 3;
+            m_CameraReleaseTime = Time.unscaledTime + 0.05f;
+            m_CameraPhase = CameraPhase.Releasing;
+            return;
+        }
+
+        if (++m_CameraStopAttempts < m_MaxCameraCommandAttempts)
+        {
+            m_CameraPauseAccepted = PauseCameraImage(m_CameraReason + "+retry-stop");
+            m_CameraEarliestFrame = Time.frameCount + 2;
+            m_CameraEarliestTime = Time.unscaledTime + GameSdkPerfOptions.CameraStopQuiesceSeconds;
+            return;
+        }
+
+        Debug.LogWarning("[相机生命周期] 无法确认停流。reason=" + m_CameraReason + " state=" + state);
+        if (m_CameraUse == CameraUse.LoginHandoff)
+        {
+            var completed = m_CameraHandoffCompleted;
+            ResetCameraOperation(CameraUse.Idle, m_CameraReason);
+            QueueCameraSuspension();
+            completed?.Invoke();
+            return;
+        }
+
+        m_IsCameraRecovery = false;
+        m_ApplyCameraCaptureStage = false;
+        QueueCameraStart();
+    }
+
+    private bool IsCameraDelayComplete() =>
+        Time.frameCount >= m_CameraEarliestFrame && Time.unscaledTime >= m_CameraEarliestTime;
+
+    private bool IsCameraReleaseComplete() =>
+        Time.frameCount >= m_CameraReleaseFrame && Time.unscaledTime >= m_CameraReleaseTime;
+
+    private void InvalidateCameraProbe()
+    {
+        m_CameraProbeGeneration++;
+        m_CameraProbePending = false;
+    }
+
+    private void UpdateCameraRebind()
+    {
+        float now = Time.unscaledTime;
+        if (m_CameraRebindStep < 0 || now < m_NextCameraRebindAt)
+        {
+            return;
+        }
+
+        RebindCameraTextureToNative(m_CameraReason + "+rebind");
+        if (++m_CameraRebindStep >= m_CameraRebindDelays.Length)
+        {
+            m_CameraRebindStep = -1;
+        }
+        else
+        {
+            m_NextCameraRebindAt = now + m_CameraRebindDelays[m_CameraRebindStep];
+        }
+    }
+
+    private void UpdateCameraPresentation()
+    {
+        UpdateActiveCameraStream();
+        if (m_CameraPhase != CameraPhase.Active)
+        {
+            return;
+        }
+
+        float now = Time.unscaledTime;
+        if (GameSdkPerfOptions.EnableCameraHealthWatchdog && IsPrepareCameraInUse &&
+            m_SplitCameraViews != null && !m_CameraWatchdogConfirmed && !m_CameraProbePending &&
+            now >= m_NextCameraHealthProbeAt)
+        {
+            m_NextCameraHealthProbeAt = now + 1f;
+            ProbeCameraFrame(watchdog: true);
+        }
+
+        if (m_CameraPhase == CameraPhase.Active && GameSdkPerfOptions.EnableCameraFrameGate)
+        {
+            if (YoudooAPI.CameraImage.Status.State == CameraImageState.Stopped)
+            {
+                s_FrameContentVisible = false;
+            }
+            else if (!m_CameraProbePending && now >= s_FrameGateGraceUntil && now >= s_NextFrameProbeTime)
+            {
+                s_NextFrameProbeTime = now + (s_FrameContentVisible ? 1.5f : 0.4f);
+                ProbeCameraFrame(watchdog: false);
+            }
+
+            ApplySplitViewGate(s_FrameContentVisible ? 1f : 0f, false);
+        }
+    }
+
+    private void ProbeCameraFrame(bool watchdog)
+    {
+        var result = YoudooAPI.CameraImage.GetFrame();
+        if (!result.Success || result.Value.Texture == null)
+        {
+            if (watchdog)
+            {
+                Debug.LogWarning("[相机生命周期] 准备页无相机画面。state=" + YoudooAPI.CameraImage.Status.State +
+                                 " error=" + result.Error);
+                BeginCameraRecovery("prepare-no-frame");
+            }
+            else
+            {
+                SetFrameContentVisible(false, "no-frame", -1);
+            }
+            return;
+        }
+
+        var frame = result.Value;
+        var texture = frame.Texture as RenderTexture;
+        if (texture == null || texture.width <= 0 || texture.height <= 0 || !SystemInfo.supportsAsyncGPUReadback)
+        {
+            CompleteCameraProbe(watchdog, frame.Width, frame.Height, -1);
+            return;
+        }
+
+        int generation = m_CameraProbeGeneration;
+        int width = frame.Width;
+        int height = frame.Height;
+        var probe = RenderTexture.GetTemporary(16, 16, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
+        m_CameraProbePending = true;
+        try
+        {
+            var previous = RenderTexture.active;
+            try
+            {
+                Graphics.Blit(texture, probe);
+            }
+            finally
+            {
+                RenderTexture.active = previous;
+            }
+            AsyncGPUReadback.Request(probe, 0, TextureFormat.RGBA32, request =>
+            {
+                int maxRgb = -1;
+                try
+                {
+                    if (generation == m_CameraProbeGeneration && !request.hasError)
+                    {
+                        var data = request.GetData<byte>();
+                        maxRgb = 0;
+                        for (int index = 0; index + 3 < data.Length; index += 4)
+                        {
+                            maxRgb = Mathf.Max(maxRgb, Mathf.Max(data[index], Mathf.Max(data[index + 1], data[index + 2])));
+                        }
+                    }
+                }
+                catch (Exception exception)
+                {
+                    maxRgb = -1;
+                    Debug.LogWarning("[相机生命周期] 相机画面回读失败。error=" + exception.Message);
+                }
+                finally
+                {
+                    RenderTexture.ReleaseTemporary(probe);
+                }
+
+                if (generation == m_CameraProbeGeneration)
+                {
+                    m_CameraProbePending = false;
+                    CompleteCameraProbe(watchdog, width, height, maxRgb);
+                }
+            });
+        }
+        catch (Exception exception)
+        {
+            RenderTexture.ReleaseTemporary(probe);
+            m_CameraProbePending = false;
+            Debug.LogWarning("[相机生命周期] 相机画面探测失败。error=" + exception.Message);
+            CompleteCameraProbe(watchdog, width, height, -1);
+        }
+    }
+
+    private void CompleteCameraProbe(bool watchdog, int width, int height, int maxRgb)
+    {
+        if (m_CameraPhase != CameraPhase.Active || !IsApplicationForeground)
+        {
+            return;
+        }
+
+        if (!watchdog)
+        {
+            SetFrameContentVisible(maxRgb < 0 || maxRgb > 6, "readback", maxRgb);
+            return;
+        }
+
+        bool aspectAdjusted = IsAspectAdjusted(width, height);
+        Debug.Log("[相机生命周期] 准备页画面探测。frame=" + width + "x" + height +
+                  " aspectChanged=" + aspectAdjusted + " maxRgb=" + maxRgb);
+        if (maxRgb >= 0 && maxRgb <= 4)
+        {
+            BeginCameraRecovery("prepare-black-frame");
+            return;
         }
 
         if (aspectAdjusted)
         {
-            // 宽高比变了：要么采集档位被人改过，要么纹理尺寸与采集尺寸不一致（画面会错位）。
-            // 运行期不换档时不去动档位——那只会让它更错，只把这件事完整记下来。
-            Debug.LogWarning("[新SDK整合] camera frame aspect changed, restoring device default. " +
-                             "frame=" + frameWidth + "x" + frameHeight +
-                             " baseline=" + s_BaselineAspect.ToString("0.0000") +
-                             " current=" + ((float)frameWidth / frameHeight).ToString("0.0000"));
+            s_BaselineAspect = 0f;
             if (GameSdkPerfOptions.EnableRuntimeCaptureStageSwitch)
             {
-                // 下发过的档让原生把输出比例改了：后续选档跳过它，别在同一个坑里反复退。
-                GameSdkCameraCaptureFallback.MarkKnownBad(
-                    GameSdkCameraCaptureFallback.CurrentWidth, GameSdkCameraCaptureFallback.CurrentHeight);
                 MarkCurrentCaptureUnavailable();
-                GameSdkCameraCaptureFallback.TryRestoreDeviceDefault(reason + "+aspect");
+                m_ApplyCameraCaptureStage = true;
+                m_RequestedCameraCaptureStage = null;
+                m_CameraReason = "prepare-aspect-changed";
+                BeginCameraStop(GameSdkPerfOptions.CameraStopQuiesceSeconds);
+                return;
             }
-
-            s_BaselineAspect = 0f;
-            s_CameraWatchdogConfirmed = true;
-            yield break;
         }
 
-        s_CameraWatchdogConfirmed = true;
-        s_CameraWatchdogRecoverCount = 0;
+        m_CameraWatchdogConfirmed = true;
+        m_PrepareCameraRecheckRequested = false;
     }
 
     // 用首次拿到的帧宽高比作为基线；之后的帧只要比例不同就认为采集档位被改过。
@@ -479,100 +968,68 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         if (GameSdkCameraCaptureFallback.IsStage(GameSdkCameraCaptureFallback.StagePrepare))
         {
             s_PrepareCaptureUnavailable = true;
-            return;
-        }
-
-        if (GameSdkCameraCaptureFallback.IsStage(GameSdkCameraCaptureFallback.StageBattle))
-        {
-            s_BattleCaptureUnavailable = true;
         }
     }
 
-    // 恢复：先在同一个阶段里换到下一个候选档，仍然不行才回设备默认档。
-    //
-    // 不能一步跳回默认档：默认档可能是 4048x3040，准备界面会卡、战斗里直接把帧率打回去；
-    // 也不能停在黑屏上：那等于功能不可用。所以按“本阶段再选一档 -> 默认档”两级退让，
-    // 试到第几个档由 GameSdkPerfOptions.MaxCaptureStageAttempts 控制，不会把界面刷成重启循环。
-    private static IEnumerator RecoverSplitCamera(string reason)
+    private void BeginCameraRecovery(string reason, bool streamUnavailable = false)
     {
-        if (s_CameraWatchdogRecovering)
+        if (m_CameraUse != CameraUse.Prepare && m_CameraUse != CameraUse.Battle)
         {
-            yield break;
+            return;
         }
 
-        if (s_CameraWatchdogRecoverCount >= GameSdkPerfOptions.MaxCaptureStageAttempts + 1)
+        int limit = IsPrepareCameraInUse ? GameSdkPerfOptions.MaxCaptureStageAttempts + 1 : m_MaxBattleCameraRecoveries;
+        int attempts = IsPrepareCameraInUse ? m_CameraWatchdogRecoverCount : m_BattleCameraRecoverCount;
+        if (attempts >= limit)
         {
-            // 候选与默认档都试过仍无画面：停在日志上，不再继续重建相机。
-            s_CameraWatchdogConfirmed = true;
-            Debug.LogWarning("[新SDK整合] camera watchdog gives up reason=" + reason +
-                             " attempts=" + s_CameraWatchdogRecoverCount);
-            yield break;
+            m_CameraWatchdogConfirmed = true;
+            m_CameraRebindStep = -1;
+            if (streamUnavailable || m_CameraPhase != CameraPhase.Active)
+            {
+                m_CameraPhase = CameraPhase.Failed;
+            }
+            Debug.LogWarning("[相机生命周期] 相机恢复已达上限。use=" + m_CameraUse + " reason=" + reason +
+                             " attempts=" + attempts + " sdk=" + YoudooAPI.CameraImage.Status.State);
+            return;
         }
 
-        s_CameraWatchdogRecovering = true;
-        s_CameraWatchdogRecoverCount++;
+        if (IsPrepareCameraInUse)
+        {
+            m_CameraWatchdogConfirmed = false;
+            m_CameraWatchdogRecoverCount++;
+        }
+        else
+        {
+            m_BattleCameraRecoverCount++;
+        }
 
-        // 运行期不换档（见 GameSdkPerfOptions.EnableRuntimeCaptureStageSwitch）：
-        // 换档只会改原生采集尺寸，不会重建 Unity 侧 RenderTexture，画面必然错位。
-        // 所以这里只做“同一档重启”，把卡死的采集流拉回来。
+        m_CameraReason = reason;
+        m_IsCameraRecovery = true;
+        Debug.LogWarning("[相机生命周期] 恢复相机。use=" + m_CameraUse + " reason=" + reason + " attempt=" + (attempts + 1));
+        BeginCameraStop(GameSdkPerfOptions.CameraStopQuiesceSeconds);
+    }
+
+    private void ApplyCameraRecoveryCaptureStage()
+    {
+        if (!GameSdkPerfOptions.EnableRuntimeCaptureStageSwitch)
+        {
+            return;
+        }
+
         string stage = GameSdkCameraCaptureFallback.CurrentStage;
-        yield return QuiesceCaptureBeforeStop(reason);
-        StopCameraImage(reason);
-        yield return WaitNativeCaptureRelease(reason);
-
-        bool restored = true;
-        if (GameSdkPerfOptions.EnableRuntimeCaptureStageSwitch)
+        int oldWidth = GameSdkCameraCaptureFallback.CurrentWidth;
+        int oldHeight = GameSdkCameraCaptureFallback.CurrentHeight;
+        GameSdkCameraCaptureFallback.MarkKnownBad(oldWidth, oldHeight);
+        if (!string.IsNullOrEmpty(stage) &&
+            m_CameraWatchdogRecoverCount < GameSdkPerfOptions.MaxCaptureStageAttempts &&
+            GameSdkCameraCaptureFallback.TryApplyStage(stage, m_CameraReason + "+near") &&
+            (GameSdkCameraCaptureFallback.CurrentWidth != oldWidth || GameSdkCameraCaptureFallback.CurrentHeight != oldHeight))
         {
-            // 这个档位在本机跑不出来：记下来，后续选档直接跳过它。
-            // 这样第二次进准备界面直接就落在可用档上，不再重复黑一下再自愈。
-            GameSdkCameraCaptureFallback.MarkKnownBad(
-                GameSdkCameraCaptureFallback.CurrentWidth, GameSdkCameraCaptureFallback.CurrentHeight);
-
-            int beforeWidth = GameSdkCameraCaptureFallback.CurrentWidth;
-            int beforeHeight = GameSdkCameraCaptureFallback.CurrentHeight;
-
-            // 第一轮只在同一阶段内重新选档：刚被标黑的那个已在候选表里剔除，
-            // 重新算出来的首选就是“离它最近、且仍满足降载目标”的一档。
-            restored = false;
-            if (!string.IsNullOrEmpty(stage) &&
-                s_CameraWatchdogRecoverCount < GameSdkPerfOptions.MaxCaptureStageAttempts)
-            {
-                restored = GameSdkCameraCaptureFallback.TryApplyStage(stage, reason + "+near");
-                if (restored && GameSdkCameraCaptureFallback.CurrentWidth == beforeWidth &&
-                    GameSdkCameraCaptureFallback.CurrentHeight == beforeHeight)
-                {
-                    // 候选表没变（当前已是该阶段唯一可用档，例如本来就落在默认档上的降载），
-                    // 再重启同一个档没有意义，往下走默认档。
-                    restored = false;
-                }
-
-                if (!restored)
-                {
-                    // 该阶段候选全部被证伪：本次运行不再尝试这个阶段。
-                    MarkCurrentCaptureUnavailable();
-                }
-            }
-
-            if (!restored)
-            {
-                // 最后兑底：回到设备默认档。画面比例正确、体感输入可用，代价是性能。
-                restored = GameSdkCameraCaptureFallback.TryRestoreDeviceDefault(reason + "+default");
-            }
+            return;
         }
 
-        Debug.Log("[新SDK整合] camera watchdog recover reason=" + reason +
-                  " from=" + (stage ?? "default") +
-                  " to=" + (restored ? GameSdkCameraCaptureFallback.CurrentResolutionText : "none") +
-                  " attempt=" + s_CameraWatchdogRecoverCount);
-        // 重建相机要重新走一轮启动，给下一次探测重新计满宽限。
-        s_SplitViewVisibleSince = Time.unscaledTime;
-
-        yield return null;
-        ResumeCameraImage(reason + (restored ? "+fallback" : string.Empty));
-        EnableSplitCameraLayout();
-        StartCameraRebindRoutine(reason + "+recover");
-
-        s_CameraWatchdogRecovering = false;
+        MarkCurrentCaptureUnavailable();
+        GameSdkCameraCaptureFallback.TryRestoreDeviceDefault(m_CameraReason + "+default");
     }
 
     private static string BuildCameraViewSummary(CameraImageView[] views)
@@ -605,136 +1062,6 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         return builder.ToString();
     }
 
-    // ---- 帧内容门控实现 ----
-
-    private void StartFrameContentGate()
-    {
-        if (!GameSdkPerfOptions.EnableCameraFrameGate)
-        {
-            return;
-        }
-
-        if (s_FrameGateRunning)
-        {
-            return;
-        }
-
-        // 组件重新启用相当于一次冷启动：先当不可见处理，
-        // 让之后新建的视图在创建时就带上正确 alpha，避免先闪一帧全白。
-        s_FrameContentVisible = false;
-        ApplySplitViewGate(0f, true);
-        s_FrameGateRunning = true;
-        StartCoroutine(CameraFrameGateLoop());
-    }
-
-    // 持续维护一个“当前相机画面能不能给玩家看”的判断：
-    // 相机不在跑 -> 关门；刚停过/刚重建 -> 宽限期内不探；
-    // 探到有内容 -> 淡入；探到黑帧或无帧 -> 保持透明。
-    //
-    // 这里不看准备界面视图是否可见：战斗 HUD 的实时头像用的是自建视图，
-    // 它同样需要 CameraFrameContentVisible 来判断这张纹理能不能裁出来给玩家看。
-    private IEnumerator CameraFrameGateLoop()
-    {
-        while (true)
-        {
-            yield return null;
-
-            // 只有彻底停流才一定没有可用像素。
-            // Starting / Paused 不能直接判死：准备界面返回选人数时相机就是 Paused，
-            // 那时纹理里仍然是最后一帧有效画面；Starting 期间交给探测去试（探测失败会自己关门）。
-            // 之前这里写的是“不等于 Running 就关闭”，结果准备界面只要相机没进入 Running
-            // （档位起不来、或 resume 还在异步启动），四个座位框就永久透明，看起来就是全黑。
-            if (CameraImage.Status.State == CameraImageState.Stopped)
-            {
-                s_FrameContentVisible = false;
-                ApplySplitViewGate(0f, true);
-                continue;
-            }
-
-            if (Time.unscaledTime < s_FrameGateGraceUntil)
-            {
-                continue;
-            }
-
-            if (!s_FrameContentProbing && Time.unscaledTime >= s_NextFrameProbeTime)
-            {
-                yield return ProbeFrameContent();
-            }
-
-            ApplySplitViewGate(s_FrameContentVisible ? 1f : 0f, false);
-        }
-    }
-
-    // 抽样判内容：16x16 缩略图 + AsyncGPUReadback，开销和 watchdog 的一次探测同量级。
-    // 可见时 1.5s 一次，不可见时 0.4s 一次——正常播放几乎不占 GPU，异常时能快速恢复。
-    private static IEnumerator ProbeFrameContent()
-    {
-        s_FrameContentProbing = true;
-        int generation = s_FrameGateGeneration;
-        s_NextFrameProbeTime = Time.unscaledTime + (s_FrameContentVisible ? 1.5f : 0.4f);
-
-        var frameResult = CameraImage.GetFrame();
-        if (!frameResult.Success || frameResult.Value.Texture == null)
-        {
-            SetFrameContentVisible(false, "no-frame", -1);
-            s_FrameContentProbing = false;
-            yield break;
-        }
-
-        var renderTexture = frameResult.Value.Texture as RenderTexture;
-        if (renderTexture == null || renderTexture.width <= 0 || renderTexture.height <= 0 ||
-            !SystemInfo.supportsAsyncGPUReadback)
-        {
-            // 非 RenderTexture 或设备不支持回读：没有可靠的判据。
-            // 这里按“可用”处理，否则会卡住本来就正常的画面。
-            SetFrameContentVisible(true, "unverified", -1);
-            s_FrameContentProbing = false;
-            yield break;
-        }
-
-        yield return new WaitForEndOfFrame();
-        RenderTexture probe = RenderTexture.GetTemporary(
-            16, 16, 0, RenderTextureFormat.ARGB32, RenderTextureReadWrite.Linear);
-        RenderTexture previous = RenderTexture.active;
-        Graphics.Blit(renderTexture, probe);
-        RenderTexture.active = previous;
-
-        var request = AsyncGPUReadback.Request(probe, 0, TextureFormat.RGBA32);
-        while (!request.done)
-        {
-            yield return null;
-        }
-
-        int maxRgb = -1;
-        if (!request.hasError)
-        {
-            var data = request.GetData<byte>();
-            maxRgb = 0;
-            for (int i = 0; i + 3 < data.Length; i += 4)
-            {
-                int value = Mathf.Max(data[i], Mathf.Max(data[i + 1], data[i + 2]));
-                if (value > maxRgb)
-                {
-                    maxRgb = value;
-                }
-            }
-        }
-
-        RenderTexture.ReleaseTemporary(probe);
-
-        if (generation != s_FrameGateGeneration)
-        {
-            // 探测过程中相机又停了一次：这批读数属于上一轮流，直接丢掉。
-            s_FrameContentProbing = false;
-            yield break;
-        }
-
-        // 回读失败（maxRgb < 0）不判黑：宁可继续显示，
-        // 也不要因为一次回读异常把正常画面挡掉。
-        SetFrameContentVisible(maxRgb < 0 || maxRgb > 6, "readback", maxRgb);
-        s_FrameContentProbing = false;
-    }
-
     private static void SetFrameContentVisible(bool visible, string source, int maxRgb)
     {
         if (visible)
@@ -761,10 +1088,10 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         // 连续多轮都拿不到画面：这一档在本机就是起不来，交给看护流程换档。
         // 只隐身不自愈的话，玩家看到的是四个空框——比黑块好一点，但功能仍然不可用。
         if (!visible && s_FrameGateBlackStrikes >= FrameGateBlackStrikesBeforeRecover &&
-            s_PrepareCameraInUse && !s_CameraWatchdogRecovering && Instance != null)
+            Instance?.IsPrepareCameraInUse == true)
         {
             s_FrameGateBlackStrikes = 0;
-            Instance.StartCoroutine(RecoverSplitCamera("frame-gate-black"));
+            Instance.BeginCameraRecovery("frame-gate-black");
         }
     }
 
@@ -778,7 +1105,6 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
             return;
         }
 
-        s_FrameGateGeneration++;
         s_FrameContentVisible = false;
         s_FrameGateBlackStrikes = 0;
         s_NextFrameProbeTime = 0f;
@@ -872,24 +1198,10 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         Debug.Log("[新SDK整合] camera views restored to framework root, restored=" + restored);
     }
 
-    public bool StartGameplay()
+    // SDK 暂停保留 RenderTexture，并清理其原生绑定。仅在需要停用相机时调用。
+    private static bool PauseCameraImage(string reason)
     {
-        bool started = YoudooAPI.StartGameplay();
-        Debug.Log("[新SDK整合] adapter StartGameplay bound=" + IsBound + " result=" + started);
-        return started;
-    }
-
-    // 暂停时保留 CameraImage 的 RenderTexture 和原生绑定；准备界面与战斗 HUD 共用该纹理生产者。
-    // 场景交接过程中不销毁 RT 或派发原生 cleanup，避免原生仍持有纹理指针时释放资源。
-    public static bool PauseCameraImage(string reason)
-    {
-        var status = CameraImage.Status;
-        if (status.State == CameraImageState.Paused)
-        {
-            Debug.Log("[新SDK整合] camera pause skipped reason=" + reason + ": already paused.");
-            return true;
-        }
-
+        var status = YoudooAPI.CameraImage.Status;
         if (status.State == CameraImageState.Stopped)
         {
             // 已经是停止状态：再 Pause 会把状态改成 Paused，但内部桥已经没了，
@@ -898,16 +1210,18 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
             return true;
         }
 
-        bool paused = CameraImage.Pause().Success;
+        // SDK 的 Paused 也可能来自系统失焦。Pause 幂等，必须由项目明确锁定停用。
+        var result = YoudooAPI.CameraImage.Pause();
+        bool paused = result.Success && result.Value;
         Debug.Log("[新SDK整合] camera pause reason=" + reason +
                   " paused=" + (paused ? "1" : "0") +
                   " state=" + status.State + "/" + status.GraphicsApi);
         return paused;
     }
 
-    public static bool ResumeCameraImage(string reason)
+    private static bool ResumeCameraImage(string reason)
     {
-        var previousStatus = CameraImage.Status;
+        var previousStatus = YoudooAPI.CameraImage.Status;
         if (previousStatus.State == CameraImageState.Running)
         {
             return true;
@@ -923,12 +1237,12 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         // 真正要重新开流了：从这一刻到原生写出第一帧之间，纹理内容完全不可信。
         MarkCaptureSwitching(reason);
 
-        // 返回选人数只暂停相机，必须用 Resume 保留 Android provider 的原生纹理绑定；
-        // 只有已彻底停止（例如切场景交接）才用 Start 重建 provider。
-        bool resumed = previousStatus.State == CameraImageState.Paused
-            ? CameraImage.Resume().Success
-            : CameraImage.Start().Success;
-        var currentStatus = CameraImage.Status;
+        // SDK 通过 Resume 恢复暂停的相机，通过 Start 启动已停止的相机。
+        var result = previousStatus.State == CameraImageState.Paused
+            ? YoudooAPI.CameraImage.Resume()
+            : YoudooAPI.CameraImage.Start();
+        bool resumed = result.Success && result.Value;
+        var currentStatus = YoudooAPI.CameraImage.Status;
         Debug.Log("[新SDK整合] camera resume reason=" + reason +
                   " resumed=" + (resumed ? "1" : "0") +
                   " state=" + previousStatus.State + "->" + currentStatus.State + "/" + currentStatus.GraphicsApi +
@@ -936,9 +1250,9 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         return resumed;
     }
 
-    public static bool StopCameraImage(string reason)
+    private static bool StopCameraImage(string reason)
     {
-        var status = CameraImage.Status;
+        var status = YoudooAPI.CameraImage.Status;
         if (status.State == CameraImageState.Stopped)
         {
             Debug.Log("[新SDK整合] camera stop skipped reason=" + reason + ": already stopped.");
@@ -950,56 +1264,23 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         // 停流后视图像素就是上一次的残留：先在表现层关掉，
         // 不让玩家盯着最后一帧，也不让重建后的首帧黑块露出来。
         MarkCaptureSwitching(reason);
-        bool stopped = CameraImage.Stop().Success;
+        var result = YoudooAPI.CameraImage.Stop();
+        bool stopped = result.Success && result.Value;
         Debug.Log("[新SDK整合] camera stop end reason=" + reason +
                   " stopped=" + (stopped ? "1" : "0") +
                   " previous=" + status.State + "/" + status.GraphicsApi);
         return stopped;
     }
 
-    // 停流前先让原生采集安静下来。
-    //
-    // 真机日志已证实：准备界面一打开就直接 Stop（当时相机正在 4048x3040/30fps 全速出帧），
-    // Vulkan 立刻打 QueueSignalReleaseImageANDROID failed: -4 和 freeAllBuffers while being dequeued，
-    // 设备 DEVICE_LOST 后渲染再也回不来——玩家看到的就是“直接卡死”。
-    //
-    // Pause 是公开接口，只停派发、不拆桥不解绑纹理；派发停后原生在途 buffer 会自己归还，
-    // 等完再 Stop 就不会和 dequeue 抢同一个 buffer。这是纯粹把时序拉开，不碰底层。
-    private static IEnumerator QuiesceCaptureBeforeStop(string reason)
-    {
-        PauseCameraImage(reason + "+quiesce");
-        // 一帧让最后一次 IssuePluginEvent 走完，第二帧让它的渲染线程任务落地，
-        // 再补一个实时时间下限盖住低帧率设备。
-        yield return null;
-        yield return null;
-        yield return new WaitForSecondsRealtime(GameSdkPerfOptions.CameraStopQuiesceSeconds);
-    }
-
-    // 等原生采集输出彻底排空，再下发新配置。
-    //
-    // SDK 的 Stop 是非阻塞的：桥接组件被 Destroy 后要到帧末才真正销毁，
-    // 它触发的 GL.IssuePluginEvent(func, 2)（解绑纹理 + 回收 VkImage）又在下一帧
-    // 的渲染线程才被执行。渲染线程手上那一帧要等 GPU 队列走完才 release，
-    // 只等一帧就改档位等于在它完成前把 ImageReader/Surface 整个换掉，Vulkan 上就会打：
-    //   QueueSignalReleaseImageANDROID failed: -4  (VK_ERROR_DEVICE_LOST)
-    //   Surface freeAllBuffers: 1 buffers were freed while being dequeued!
-    // 真机实测这段噪音会持续 60~80ms，所以除了两帧再补一个实时时间下限。
-    private static IEnumerator WaitNativeCaptureRelease(string reason)
-    {
-        yield return new WaitForEndOfFrame();
-        yield return null;
-        yield return null;
-        yield return new WaitForSecondsRealtime(0.05f);
-        Debug.Log("[新SDK整合] native capture released reason=" + reason +
-                  " from=" + GameSdkCameraCaptureFallback.CurrentResolutionText);
-    }
-
     public static void EnterBattleCamera(string reason)
     {
-        if (Instance != null)
+        var adapter = Instance;
+        if (adapter != null &&
+            (adapter.m_CameraUse != CameraUse.Battle || adapter.m_CameraPhase == CameraPhase.Failed))
         {
-            ResumeCameraImage(reason);
-            StartCameraRebindRoutine(reason);
+            adapter.ResetCameraOperation(CameraUse.Battle, reason);
+            ApplyCameraTargetFps(GameSdkPerfOptions.BattleCameraTargetFps, reason);
+            adapter.QueueCameraStart();
         }
     }
 
@@ -1007,7 +1288,8 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
     {
         if (Instance != null)
         {
-            PauseCameraImage(reason);
+            Debug.Log("[新SDK整合] 战斗 HUD 解绑相机画面 reason=" + reason +
+                      " state=" + YoudooAPI.CameraImage.Status.State);
         }
     }
 
@@ -1034,52 +1316,39 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
     // 准备界面逻辑打开：恢复相机并安排一次性的原生纹理绑定补偿。
     public static void EnterPrepareCamera(string reason)
     {
-        // 从这一刻起准备界面在消费实时画面：看护协程按这个标志工作，
-        // 不再依赖视图 GameObject 的激活状态（那个状态可能因为上一次切场景被关掉）。
-        s_PrepareCameraInUse = true;
+        var adapter = Instance;
+        if (adapter == null)
+        {
+            return;
+        }
 
-        // 每一轮进准备界面都必须重新确认画面。
-        // confirmed 是“本轮流已确认可用”的一次性标记：上一轮置过 true 后如果没有被复位，
-        // 看护协程会一直 skip 探测——真机上就出现过四个座位框全黑、而 watchdog 60 秒一条日志都没有。
-        s_CameraWatchdogConfirmed = false;
-        s_SplitViewVisibleSince = -1f;
-        s_CameraWatchdogRecoverCount = 0;
-
-        // 准备界面要真人画面，采集派发帧率不降。
+        adapter.ResetCameraOperation(CameraUse.Prepare, reason);
+        adapter.ResetPrepareTracking();
+        adapter.m_CameraWatchdogConfirmed = false;
+        adapter.m_CameraWatchdogRecoverCount = 0;
         ApplyCameraTargetFps(GameSdkPerfOptions.CameraTargetFps, reason);
+        EnsureFrameworkCameraViews();
 
-        if (!EnsureFrameworkCameraViews())
+        bool stopped = YoudooAPI.CameraImage.Status.State == CameraImageState.Stopped;
+        if (GameSdkPerfOptions.EnableRuntimeCaptureStageSwitch)
         {
-            return;
+            adapter.m_ApplyCameraCaptureStage = stopped
+                ? GameSdkCameraCaptureFallback.NeedsSwitch(GameSdkCameraCaptureFallback.StagePrepare)
+                : s_PrepareCaptureUnavailable
+                    ? GameSdkCameraCaptureFallback.NeedsSwitch(null)
+                    : NeedsPrepareCaptureSwitch();
+            adapter.m_RequestedCameraCaptureStage = s_PrepareCaptureUnavailable
+                ? null : GameSdkCameraCaptureFallback.StagePrepare;
         }
 
-        if (CameraImage.Status.State == CameraImageState.Stopped)
+        if (adapter.m_ApplyCameraCaptureStage && !stopped)
         {
-            // 相机是停止状态：先等上一次销毁的桥组件真正消失（Destroy 在帧末生效），
-            // 先启动 provider，再激活 CameraImageView，避免 OnEnable 抢先调用 Start。
-            StartCameraRestartRoutine(reason, GameSdkCameraCaptureFallback.StagePrepare);
-            return;
+            adapter.BeginCameraStop(GameSdkPerfOptions.CameraStopQuiesceSeconds);
         }
-
-        if (s_PrepareCaptureUnavailable && GameSdkCameraCaptureFallback.NeedsSwitch(null))
+        else
         {
-            // 准备档在这台机器上不可用：至少要从战斗档退回设备默认档，
-            // 不能拿战斗档的小画面（可能还被压扁）来显示准备界面。
-            StartCameraRestartRoutine(reason + "+restore-default", null);
-            return;
+            adapter.QueueCameraStart(stopped ? 2 : 0);
         }
-
-        if (NeedsPrepareCaptureSwitch())
-        {
-            // 还停在战斗档或设备默认档：重启相机流切到准备档。
-            StartCameraRestartRoutine(reason + "+prepare-capture", GameSdkCameraCaptureFallback.StagePrepare);
-            return;
-        }
-
-        // 框架视图关闭 StartOnEnable，由此处独占相机生命周期；先恢复 provider 再恢复布局。
-        ResumeCameraImage(reason);
-        EnableSplitCameraLayout();
-        StartCameraRebindRoutine(reason);
     }
 
     // 准备界面要不要为换档重建相机流。
@@ -1132,8 +1401,11 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         }
 
         // SetTargetFps 只改派发间隔，不会重启相机；provider 未就绪时 service 会先记住，attach 时补发。
-        var result = CameraImage.SetTargetFps(fps);
-        s_AppliedCameraTargetFps = fps;
+        var result = YoudooAPI.CameraImage.SetTargetFps(fps);
+        if (result.Success && result.Value)
+        {
+            s_AppliedCameraTargetFps = fps;
+        }
         Debug.Log("[新SDK整合] camera target fps=" + fps + " reason=" + reason +
                   " ok=" + (result.Success ? "1" : "0"));
     }
@@ -1144,63 +1416,6 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         {
             m_SplitCameraLayout.enabled = true;
         }
-    }
-
-    private static Coroutine s_CameraRestartCoroutine;
-
-    private static void StartCameraRestartRoutine(string reason, string stage)
-    {
-        StopCameraRebindRoutine();
-        var host = Instance;
-        if (host == null || !host.isActiveAndEnabled)
-        {
-            ApplyCaptureStage(stage, reason);
-            ResumeCameraImage(reason);
-            EnableSplitCameraLayout();
-            StartCameraRebindRoutine(reason);
-            return;
-        }
-
-        if (s_CameraRestartCoroutine != null)
-        {
-            host.StopCoroutine(s_CameraRestartCoroutine);
-            s_CameraRestartCoroutine = null;
-        }
-
-        s_CameraRestartCoroutine = host.StartCoroutine(CameraRestartRoutine(reason, stage));
-    }
-
-    private static IEnumerator CameraRestartRoutine(string reason, string stage)
-    {
-        yield return null;
-        yield return null;
-
-        if (GameSdkPerfOptions.EnableRuntimeCaptureStageSwitch)
-        {
-            // 换档必须重建原生相机流：先确保已停止，再下发新档位，最后重新启动。
-            // 从战斗回准备界面也走这条路径（战斗档 -> 准备档）。
-            if (GameSdkCameraCaptureFallback.NeedsSwitch(stage))
-            {
-                // 停流前先静默：相机正在全速出帧时直接 Stop 会把 Vulkan 打成 DEVICE_LOST。
-                yield return QuiesceCaptureBeforeStop(reason);
-                StopCameraImage(reason);
-                yield return WaitNativeCaptureRelease(reason);
-                ApplyCaptureStage(stage, reason);
-                yield return null;
-            }
-        }
-        else if (CameraImage.Status.State == CameraImageState.Stopped)
-        {
-            // 运行期不换档：这条路径只用来把已经停掉的采集流拉起来，
-            // 不做任何停流/排空/下发配置的动作（那只会让画面在错误的档位上重建）。
-            Debug.Log("[新SDK整合] camera restart without stage switch reason=" + reason +
-                      " state=" + CameraImage.Status.State);
-        }
-
-        s_CameraRestartCoroutine = null;
-        ResumeCameraImage(reason);
-        EnableSplitCameraLayout();
-        StartCameraRebindRoutine(reason);
     }
 
     // stage 为空表示恢复设备默认档；否则按 GameSdkPerfOptions 的面积比例挑一档。
@@ -1236,16 +1451,12 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
         {
             s_PrepareCaptureUnavailable = true;
         }
-        else
-        {
-            s_BattleCaptureUnavailable = true;
-        }
     }
 
     // 准备界面关闭 / 切场景时立刻隐藏框架相机视图：
     // 相机暂停后帧会被清空，直接留着会看到一块空白（白板）；
     // 而且 RawImage 没有纹理时默认渲染成白色块，隐藏时必须把颜色清成透明。
-    public static void HideFrameworkCameraViews()
+    private static void HideFrameworkCameraViews()
     {
         var views = m_SplitCameraViews;
         if (views != null)
@@ -1268,291 +1479,62 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
             }
         }
 
-        // 视图关掉了就不再是“准备界面在用相机”，看护协程随即停止探测。
-        s_PrepareCameraInUse = false;
+        Instance?.ResetPrepareTracking();
     }
 
-    // 关闭准备窗回选人数：暂停框架相机、收回视图，再关闭窗口；保留 provider 供再次进入时 Resume，
-    // 避免销毁底层纹理绑定后，Android 再次进入准备界面时丢失图像。
-    public static void ClosePrepareCameraWindow(
-        string reason,
-        GameObject windowRoot,
-        Action closeWindowAction)
+    private void ResetPrepareTracking()
     {
-        StopCameraRebindRoutine();
-        HideFrameworkCameraViews();
+        m_PrepareCameraRecheckRequested = false;
+        m_LastPrepareTrackingFrame = null;
+        m_PrepareTrackingObservedAt = float.NegativeInfinity;
+    }
 
-        var host = Instance;
-        if (host == null || !host.isActiveAndEnabled)
+    public static void SuspendCamera(string reason)
+    {
+        var adapter = Instance;
+        adapter?.ResetCameraOperation(CameraUse.Idle, reason);
+        HideFrameworkCameraViews();
+        RestoreCameraViewsToLayout();
+        if (adapter == null)
         {
             PauseCameraImage(reason);
-            RestoreCameraViewsToLayout();
-            Debug.Log("[新SDK整合] prepare camera returned paused reason=" + reason +
-                      " state=" + CameraImage.Status.State +
-                      " window=" + (windowRoot != null ? windowRoot.name : "null"));
-            closeWindowAction?.Invoke();
             return;
         }
 
-        host.StartCoroutine(ClosePrepareWindowRoutine(reason, windowRoot, closeWindowAction));
+        adapter.QueueCameraSuspension();
+        adapter.TrySuspendIdleCamera();
     }
 
-    private static IEnumerator ClosePrepareWindowRoutine(
-        string reason,
-        GameObject windowRoot,
-        Action closeWindowAction)
+    public static void ClosePrepareCameraWindow(string reason, GameObject windowRoot, Action closeWindowAction)
     {
-        PauseCameraImage(reason);
-        yield return new WaitForSecondsRealtime(0.3f);
-
-        RestoreCameraViewsToLayout();
-        Debug.Log("[新SDK整合] prepare camera returned paused reason=" + reason +
-                  " state=" + CameraImage.Status.State +
-                  " window=" + (windowRoot != null ? windowRoot.name : "null"));
+        SuspendCamera(reason);
+        Debug.Log("[相机生命周期] 准备页相机已交还。window=" + (windowRoot != null ? windowRoot.name : "null"));
         closeWindowAction?.Invoke();
     }
 
-    // 切场景前先暂停并收回视图；只有退出会话时才停止 CameraImage，进战斗保留纹理生产者供 HUD 复用。
     public static void HandoffCameraBeforeScene(string reason, Action onCompleted, bool stopCameraAfterPause = true)
     {
-        // 进战斗降采集派发帧率；退出会话保持默认。
-        ApplyCameraTargetFps(
-            stopCameraAfterPause ? GameSdkPerfOptions.CameraTargetFps : GameSdkPerfOptions.BattleCameraTargetFps,
-            reason);
-
-        StopCameraRebindRoutine();
         HideFrameworkCameraViews();
-
-        var host = Instance;
-        if (host == null || !host.isActiveAndEnabled)
+        RestoreCameraViewsToLayout();
+        var adapter = Instance;
+        if (!stopCameraAfterPause)
         {
-            PauseCameraImage(reason);
-            if (stopCameraAfterPause)
-            {
-                StopCameraImage(reason);
-            }
-            RestoreCameraViewsToLayout();
+            EnterBattleCamera(reason);
             onCompleted?.Invoke();
             return;
         }
 
-        host.StartCoroutine(HandoffCameraBeforeSceneRoutine(reason, onCompleted, stopCameraAfterPause));
-    }
-
-    private static IEnumerator HandoffCameraBeforeSceneRoutine(string reason, Action onCompleted, bool stopCameraAfterPause)
-    {
-        PauseCameraImage(reason);
-        yield return new WaitForSecondsRealtime(0.3f);
-
-        if (stopCameraAfterPause)
+        ApplyCameraTargetFps(GameSdkPerfOptions.CameraTargetFps, reason);
+        if (adapter == null || !adapter.isActiveAndEnabled)
         {
-            StopCameraImage(reason);
-            yield return new WaitForEndOfFrame();
-        }
-        else if (GameSdkPerfOptions.EnableRuntimeCaptureStageSwitch &&
-                 GameSdkPerfOptions.EnableBattleCaptureDowngrade && !s_BattleCaptureUnavailable)
-        {
-            // 进战斗：HUD 只显示一个很小的真人头像，比准备界面再降一档。
-            // 先只算不切：若这台设备上战斗档与准备档本来就是同一档（低端机常见），
-            // 就不重建相机流——停一次会黑 0.3 秒，还会打驱动侧的 buffer 归还日志。
-            bool resolved = GameSdkCameraCaptureFallback.ResolveStageResolution(
-                GameSdkCameraCaptureFallback.StageBattle,
-                out int battleWidth,
-                out int battleHeight);
-            bool needRebuild = resolved &&
-                               (battleWidth != GameSdkCameraCaptureFallback.CurrentWidth ||
-                                battleHeight != GameSdkCameraCaptureFallback.CurrentHeight);
-
-            if (!resolved)
-            {
-                // 这台机器没有更低档的同比例档位：保持准备档，本次运行不再重试。
-                s_BattleCaptureUnavailable = true;
-                yield return new WaitForEndOfFrame();
-            }
-            else if (!needRebuild)
-            {
-                // 战斗档与准备档是同一档：只改阶段标记，相机流不动。
-                GameSdkCameraCaptureFallback.AdoptStage(GameSdkCameraCaptureFallback.StageBattle);
-                yield return new WaitForEndOfFrame();
-            }
-            else
-            {
-                // 换档必须重建原生相机流，借这 0.3s 暂停窗口先停、再按新档位启动。
-                StopCameraImage(reason + "+battle-capture");
-                yield return WaitNativeCaptureRelease(reason + "+battle-capture");
-                bool downgraded = GameSdkCameraCaptureFallback.TryApplyStage(
-                    GameSdkCameraCaptureFallback.StageBattle,
-                    reason);
-                if (!downgraded)
-                {
-                    s_BattleCaptureUnavailable = true;
-                }
-
-                yield return null;
-                ResumeCameraImage(reason + (downgraded ? "+battle-capture" : string.Empty));
-                yield return null;
-                yield return null;
-
-                if (downgraded)
-                {
-                    StartBattleCameraWatchdog(reason);
-                }
-            }
-        }
-        else
-        {
-            yield return new WaitForEndOfFrame();
-        }
-
-        RestoreCameraViewsToLayout();
-        onCompleted?.Invoke();
-    }
-
-    // 战斗内降档后如果 2 秒内拿不到新的骨骼帧，或者实际输出的帧宽高与降档不一致，
-    // 说明这个档位在原生侧没跑起来 / 改了画面比例，恢复设备默认档位再重启一次，
-    // 避免整场战斗失去体感输入或人物被压扁。
-    private static void StartBattleCameraWatchdog(string reason)
-    {
-        var host = Instance;
-        if (host == null || !host.isActiveAndEnabled)
-        {
+            PauseCameraImage(reason);
+            onCompleted?.Invoke();
             return;
         }
 
-        host.StartCoroutine(BattleCameraWatchdog(reason));
-    }
-
-    private static IEnumerator BattleCameraWatchdog(string reason)
-    {
-        var provider = PlatformServices.Get<IPlayerTrackingProvider>();
-        long baseline = GetLatestFrameId(provider);
-
-        yield return new WaitForSecondsRealtime(2f);
-
-        // 这 2 秒内可能已经切回准备档或设备默认档，以实际阶段为准。
-        if (!GameSdkCameraCaptureFallback.IsStage(GameSdkCameraCaptureFallback.StageBattle))
-        {
-            yield break;
-        }
-
-        // 降档后实际下发的档位就是这里的基准：原生侧如果没接受或换了输出比例，就会对不上。
-        int expectedWidth = GameSdkCameraCaptureFallback.CurrentWidth;
-        int expectedHeight = GameSdkCameraCaptureFallback.CurrentHeight;
-        float expectedAspect = expectedWidth > 0 && expectedHeight > 0
-            ? (float)expectedWidth / expectedHeight
-            : 0f;
-
-        long current = GetLatestFrameId(provider);
-        float actualAspect = 0f;
-        var frameResult = CameraImage.GetFrame();
-        if (frameResult.Success && frameResult.Value.Width > 0 && frameResult.Value.Height > 0)
-        {
-            actualAspect = (float)frameResult.Value.Width / frameResult.Value.Height;
-        }
-
-        bool framesAlive = current > baseline;
-        // 拿不到 CameraImage 帧或拿不到下发档尺寸时不做比例判定，只靠骨骼帧是否推进来定。
-        bool aspectOk = actualAspect <= 0f || expectedAspect <= 0f ||
-                        Mathf.Abs(actualAspect - expectedAspect) <= expectedAspect * 0.02f;
-        if (framesAlive && aspectOk)
-        {
-            yield break;
-        }
-
-        Debug.LogWarning("[新SDK整合] battle capture rollback reason=" + reason +
-                         " frames=" + baseline + "->" + current +
-                         " aspect=" + actualAspect.ToString("0.0000") +
-                         " expected=" + expectedAspect.ToString("0.0000") +
-                         " res=" + GameSdkCameraCaptureFallback.CurrentResolutionText);
-        // 这个战斗档在本机跑不起来（2 秒内没有新骨骼帧 / 输出比例对不上）：记下来，
-        // 后续选档直接跳过，避免每次进战斗都在同一个档上白停一次相机。
-        int beforeWidth = GameSdkCameraCaptureFallback.CurrentWidth;
-        int beforeHeight = GameSdkCameraCaptureFallback.CurrentHeight;
-        GameSdkCameraCaptureFallback.MarkKnownBad(beforeWidth, beforeHeight);
-        yield return QuiesceCaptureBeforeStop(reason + "+battle-rollback");
-        StopCameraImage(reason + "+battle-rollback");
-        yield return WaitNativeCaptureRelease(reason + "+battle-rollback");
-
-        // 退让顺序：同阶段重新选档 -> 准备档（本机已跑出过画面）-> 设备默认档。
-        // 不能一步跳默认档：默认档可能是 4048x3040，会把刚降下来的帧率又打回去；
-        // 也不能停在坏档上：拿不到骨骼帧等于体感冒险不可用。
-        bool restored = GameSdkCameraCaptureFallback.TryApplyStage(
-            GameSdkCameraCaptureFallback.StageBattle, reason + "+battle-near");
-        if (restored && GameSdkCameraCaptureFallback.CurrentWidth == beforeWidth &&
-            GameSdkCameraCaptureFallback.CurrentHeight == beforeHeight)
-        {
-            // 候选表没变：这个阶段只剩这一档，换档救不回来，直接往下走准备档。
-            restored = false;
-        }
-
-        if (!restored && !s_PrepareCaptureUnavailable)
-        {
-            restored = GameSdkCameraCaptureFallback.TryApplyStage(
-                GameSdkCameraCaptureFallback.StagePrepare, reason + "+battle-rollback");
-        }
-
-        if (!restored)
-        {
-            restored = GameSdkCameraCaptureFallback.TryRestoreDeviceDefault(reason + "+battle-rollback");
-        }
-
-        // 只有退让链全部失败才算“战斗档不可用”；否则只是换了一档继续打。
-        if (!restored)
-        {
-            s_BattleCaptureUnavailable = true;
-        }
-
-        // 档位已变：准备界面的比例基线重新采样，避免拿降档帧当基线。
-        s_BaselineAspect = 0f;
-        yield return null;
-        ResumeCameraImage(reason + "+battle-restore");
-    }
-
-    private static long GetLatestFrameId(IPlayerTrackingProvider provider)
-    {
-        if (provider == null)
-        {
-            return 0;
-        }
-
-        var frame = provider.GetLatestPlayerFrame();
-        return frame.Success ? frame.Value.FrameId : 0;
-    }
-
-    private static Coroutine s_CameraRebindCoroutine;
-
-    private static void StartCameraRebindRoutine(string reason)
-    {
-        StopCameraRebindRoutine();
-        var host = Instance;
-        if (host == null || !host.isActiveAndEnabled)
-        {
-            return;
-        }
-
-        s_CameraRebindCoroutine = host.StartCoroutine(CameraRebindRoutine(reason));
-    }
-
-    private static void StopCameraRebindRoutine()
-    {
-        if (s_CameraRebindCoroutine != null && Instance != null)
-        {
-            Instance.StopCoroutine(s_CameraRebindCoroutine);
-        }
-
-        s_CameraRebindCoroutine = null;
-    }
-
-    private static IEnumerator CameraRebindRoutine(string reason)
-    {
-        float[] delays = { 0.2f, 0.8f, 1.8f, 3.2f };
-        for (int i = 0; i < delays.Length; i++)
-        {
-            yield return new WaitForSecondsRealtime(delays[i]);
-            RebindCameraTextureToNative(reason + "+" + delays[i].ToString("F1"));
-        }
-
-        s_CameraRebindCoroutine = null;
+        adapter.ResetCameraOperation(CameraUse.LoginHandoff, reason);
+        adapter.m_CameraHandoffCompleted = onCompleted;
+        adapter.BeginCameraStop(0.3f);
     }
 
     // SDK 的 Vulkan texture pointer 是全局写入目标；相机状态恢复后重新绑定当前 CameraImage 纹理。
@@ -1801,34 +1783,16 @@ public sealed class GameProductUiAdapter : FrameworkProductUiAdapterBase
     public override void Render(MatchSessionUiSnapshot snapshot)
     {
         UiSnapshot = snapshot;
-        // 每帧快照日志量太大，联调结束先关闭；需要时再打开。
-        //if (snapshot != null)
-        //{
-        //    int readyCount = 0;
-        //    for (int i = 0; i < snapshot.Slots.Count; i++)
-        //    {
-        //        if (snapshot.Slots[i].IsReady)
-        //        {
-        //            readyCount++;
-        //        }
-        //    }
-        //
-        //    GameSdkLog.Info("[新SDK整合] adapter snapshot phase=" + snapshot.SessionPhase +
-        //              " slots=" + snapshot.Slots.Count + " ready=" + readyCount);
-        //}
-
-        UiSnapshotChanged?.Invoke();
     }
 
     public override void RenderSession(MatchSessionSnapshot snapshot)
     {
         SessionSnapshot = snapshot;
-        // 每帧会话日志量太大，联调结束先关闭；需要时再打开。
-        //GameSdkLog.Info("[新SDK整合] adapter session snapshot lifecycle=" +
-        //          (snapshot != null ? snapshot.LifecycleState.ToString() : "null") +
-        //          " sessionPhase=" + (snapshot != null && snapshot.UiSnapshot != null
-        //              ? snapshot.UiSnapshot.SessionPhase.ToString()
-        //              : "none"));
+        UiSnapshot = snapshot?.UiSnapshot;
+        if (IsPrepareCameraInUse && !Application.isEditor && IsApplicationForeground)
+        {
+            ObservePrepareTrackingFrame(snapshot);
+        }
         UiSnapshotChanged?.Invoke();
     }
 }

@@ -106,12 +106,14 @@ SpriteAtlas:
     - 3df11d1db4c59cd4c9b4d2e99c509252: 21300000
     - fecc914d49f4bbc41aaa114fede7fecd: 21300000
     - f614a54ddcb8e8744a152e9ffb8acbb2: 21300000
+    - 9370847d4d463ab459bf0dd12436dd61: 21300000
     - 147d7bfd88db27643a2b70d3f9c024a5: 21300000
     - 43ad9a1e3966f2148b13b963f006d849: 21300000
     - 054633ae062b10b42815f9769b159fe4: 21300000
     - cc2d90ee103dde04aa4d4fec0622deee: 21300000
     - ece178eedcca19944915a008a720fd19: 21300000
     - 4eb1434fcf2432048967a95158c132bc: 21300000
+    - 78435a4fa3264f64fb0dff5ec599a887: 21300000
     - 93138e4f158577c4db7cf3a2955392da: 21300000
     - d2974c6f7a5b850468ed533fd8cf462f: 21300000
     - 5d58ae9fb89d0a24183949b0276dafc7: 21300000
@@ -157,12 +159,14 @@ SpriteAtlas:
   - {fileID: 21300000, guid: 3df11d1db4c59cd4c9b4d2e99c509252, type: 3}
   - {fileID: 21300000, guid: fecc914d49f4bbc41aaa114fede7fecd, type: 3}
   - {fileID: 21300000, guid: f614a54ddcb8e8744a152e9ffb8acbb2, type: 3}
+  - {fileID: 21300000, guid: 9370847d4d463ab459bf0dd12436dd61, type: 3}
   - {fileID: 21300000, guid: 147d7bfd88db27643a2b70d3f9c024a5, type: 3}
   - {fileID: 21300000, guid: 43ad9a1e3966f2148b13b963f006d849, type: 3}
   - {fileID: 21300000, guid: 054633ae062b10b42815f9769b159fe4, type: 3}
   - {fileID: 21300000, guid: cc2d90ee103dde04aa4d4fec0622deee, type: 3}
   - {fileID: 21300000, guid: ece178eedcca19944915a008a720fd19, type: 3}
   - {fileID: 21300000, guid: 4eb1434fcf2432048967a95158c132bc, type: 3}
+  - {fileID: 21300000, guid: 78435a4fa3264f64fb0dff5ec599a887, type: 3}
   - {fileID: 21300000, guid: 93138e4f158577c4db7cf3a2955392da, type: 3}
   - {fileID: 21300000, guid: d2974c6f7a5b850468ed533fd8cf462f, type: 3}
   - {fileID: 21300000, guid: 5d58ae9fb89d0a24183949b0276dafc7, type: 3}
@@ -207,12 +211,14 @@ SpriteAtlas:
   - play_3
   - dps_play_1003
   - bosslaixitubiao
+  - play_38
   - play_30
   - playlevel_1003
   - dps_play_1000
   - playrankbg_1003
   - playlevel_1002
   - playlevel_1001
+  - play_37
   - play_36
   - bangbangtangtubiao
   - diyibode

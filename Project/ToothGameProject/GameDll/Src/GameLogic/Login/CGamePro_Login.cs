@@ -19,11 +19,14 @@ namespace GameHot
         //加载登陆场景
         public const int EnterLoginScene = 1;
         public const int EnteringLoginScene = 2;
+        public const int LoginSceneLoadFailed = 3;
         public const int GoLobby = 13;
     };
     public class CGamePro_Login:CGameProcedure
     {
         private const float m_StartGameLoadingMinVisibleSeconds = 2.5f;
+        private bool m_IsLoadingLoginScene;
+        private int m_LoginSceneLoadId;
         private string m_AssetBundleName = "";
         private bool m_SceneLoaded = false;
 
@@ -56,6 +59,7 @@ namespace GameHot
         protected override void UnInit()
         {
             m_AssetBundleName = "";
+            m_IsLoadingLoginScene = false;
             m_StartGameRequested = false;
             login_Wnd = null;
 
@@ -63,6 +67,26 @@ namespace GameHot
         }
         protected override void Tick()
         {
+            var saveService = GameSaveService.Instance;
+            if (saveService?.RequiresProfileReload == true)
+            {
+                saveService.BeginProfileReload();
+                if (LobbyPlayer.IsInitInstance())
+                {
+                    LobbyPlayer.GetInstance().ReloadForAccountChange();
+                }
+                if (m_StartGameRequested)
+                {
+                    m_StartGameRequested = false;
+                    loading_wnd.CloseLoading();
+                    login_Wnd?.CancelStartForProfileReload();
+                }
+                else
+                {
+                    login_Wnd?.OnSaveProfileReloading();
+                }
+            }
+            login_Wnd?.UpdateAccountSaveRecovery(saveService);
  	        switch(m_Status)
  	        {
                 case (int)LoginStatus.EnterLoginScene:
@@ -76,13 +100,12 @@ namespace GameHot
                             var hr = InitDataManager();
                         }
 
-                        var ab = "scene/login.jpg";
-                        var assetName = "login";
-                        UIRes.LoadLevel(ab, assetName, 0, () =>
-                        {
-                            login_Wnd = UIManager.OpenWindowEX<login_wnd>(null);
-                        });
                         m_Status = (int)LoginStatus.EnteringLoginScene;
+                        m_IsLoadingLoginScene = true;
+                        int loadId = ++m_LoginSceneLoadId;
+                        UIRes.LoadLevel("scene/login.jpg", "login", 0, OnLoginSceneLoaded,
+                            () => m_IsLoadingLoginScene && loadId == m_LoginSceneLoadId &&
+                                  m_Status == LoginStatus.EnteringLoginScene);
                         break;
                     }
                 case (int)LoginStatus.EnteringLoginScene:
@@ -97,6 +120,39 @@ namespace GameHot
                         break;
                     }
  	        }
+        }
+
+        private void OnLoginSceneLoaded(bool loaded)
+        {
+            if (!m_IsLoadingLoginScene || m_Status != LoginStatus.EnteringLoginScene)
+            {
+                return;
+            }
+
+            m_IsLoadingLoginScene = false;
+            if (loaded)
+            {
+                login_Wnd = UIManager.OpenWindowEX<login_wnd>(null);
+                return;
+            }
+
+            HandleLoginSceneLoadFailure("资源加载失败");
+        }
+
+        private void HandleLoginSceneLoadFailure(string reason)
+        {
+            m_IsLoadingLoginScene = false;
+            m_Status = LoginStatus.LoginSceneLoadFailed;
+            Debug.LogError("[登录加载] 场景加载失败，等待重试。reason=" + reason +
+                           " loadId=" + m_LoginSceneLoadId + " path=scene/login.jpg");
+            loading_wnd.ShowSceneLoadRetry(RenderAPI.GetTextByLanId("td_loading_login_failed"), () =>
+            {
+                if (m_Status == LoginStatus.LoginSceneLoadFailed)
+                {
+                    m_Status = LoginStatus.EnterLoginScene;
+                    loading_wnd.OpenLoading();
+                }
+            });
         }
 
         System.Collections.IEnumerator delayGoLobby()
@@ -121,6 +177,14 @@ namespace GameHot
         {
             if (!m_StartGameRequested)
             {
+                return;
+            }
+
+            if (GameSaveService.Instance?.IsReady == false)
+            {
+                m_StartGameRequested = false;
+                loading_wnd.CloseLoading();
+                login_Wnd?.CancelStartForProfileReload();
                 return;
             }
 

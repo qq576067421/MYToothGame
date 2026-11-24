@@ -6,6 +6,7 @@ using System.Collections.Generic;
 using System.Text;
 using UnityEngine;
 using YoudooGame.Framework;
+using YoudooGame.MatchFlow.Runtime;
 
 namespace GameDll
 {
@@ -99,6 +100,10 @@ namespace GameDll
         public int[] m_SdkSlotIndicesBySeat = new int[] { -1, -1, -1, -1 };
         public int[] m_PersonIdsBySeat = new int[] { -1, -1, -1, -1 };
         public int m_PreparePlayerCount = TowerDefendSeatLayout.DefaultPlayerCount;
+        public long m_FrameworkSessionToken = -1;
+        public string m_FrameworkRoundId;
+        public readonly long[] m_SdkMatchPlayerIdsBySeat = new long[m_MaxSupportedBattleSeatCount];
+        public bool m_RestartFrameworkRound;
         public long[] m_SelectedRoleCfgIdsBySeat = new long[] { 0, 0, 0, 0 };
 
         public int GetPlayerCount()
@@ -287,6 +292,10 @@ namespace GameDll
             clone.m_BaseMaxHealth = m_BaseMaxHealth;
             clone.m_BaseHealth = m_BaseHealth;
             clone.m_PreparePlayerCount = ReadPreparePlayerCount();
+            clone.m_FrameworkSessionToken = m_FrameworkSessionToken;
+            clone.m_FrameworkRoundId = m_FrameworkRoundId;
+            Array.Copy(m_SdkMatchPlayerIdsBySeat, clone.m_SdkMatchPlayerIdsBySeat, m_SdkMatchPlayerIdsBySeat.Length);
+            clone.m_RestartFrameworkRound = m_RestartFrameworkRound;
             clone.ClearSdkSlotBindings();
             EnsureSdkSlotBindingStorage();
             for (int i = 0; i < Mathf.Min(m_SdkSlotIndicesBySeat.Length, clone.m_SdkSlotIndicesBySeat.Length); i++)
@@ -628,6 +637,7 @@ namespace GameDll
         private const string m_BasePointName = "td_base";
         private const string m_SpawnEndPointName = "td_spawn_end";
         private const string m_BoneInputRootName = "tower_defend_bone_input";
+        private const float m_ResumeTrackingTimeoutSeconds = 8f;
         private const string m_EnvironmentRootName = "----environment----";
         private const string m_EnvironmentRotationParamName = "IsRotation";
         private const string m_UpgradeChallengeCameraRotationStateName = "camera_rot";
@@ -643,6 +653,11 @@ namespace GameDll
         private bool m_HasPendingResult;
         private TowerDefendScenePointData m_ScenePointData;
         private object m_PauseWindow;
+        private bool m_FrameworkPauseWindowPending;
+        private bool m_IsFrameworkPauseApplied;
+        private TowerDefendResumeStatus m_ResumeStatus;
+        private float m_ResumeTrackingStartedAt;
+        private long m_LastBattleTrackingSequence = -1;
 
         public enum ScenePhase
         {
@@ -659,6 +674,7 @@ namespace GameDll
         private bool m_HasReportedUpgradeChallengeCameraReady = false;
         private Animator m_EnvironmentAnimator;
         private Animator m_UpgradeChallengeCameraAnimator;
+        private readonly Dictionary<Animator, float> m_PausedChallengeAnimatorSpeeds = new Dictionary<Animator, float>(2);
         private bool m_HasAppliedEnvironmentRotationState = false;
         private bool m_IsEnvironmentRotationEnabled = false;
         private bool m_HasAppliedUpgradeChallengeCameraRotationState = false;
@@ -727,8 +743,8 @@ namespace GameDll
                     }
                 case ESceneState.LoadScene:
                     {
-                        LoadScene();
                         m_SceneState = ESceneState.LoadingScene;
+                        LoadScene();
                         break;
                     }
                 case ESceneState.LoadingScene:
@@ -881,6 +897,11 @@ namespace GameDll
             }
         }
 
+        public bool HasLoadFailed()
+        {
+            return m_SceneState == ESceneState.Error;
+        }
+
         public override bool IsLoaded()
         {
             return m_SceneState == ESceneState.PrepareGame;
@@ -899,19 +920,25 @@ namespace GameDll
         }
         protected virtual void OnGameUpdate(float dt)
         {
+            SyncFrameworkPause();
             BattleManager.Update(dt);
             UpdateBoneInput();
             BattleManager.UpdateRender(dt);
 
             var battle = BattleManager.GetBattle() as TowerDefendBattle;
-            SyncUpgradeChallengeTargetVisualParent(battle);
-            UpdateScenePhase(battle, dt);
-            UpdateUpgradeChallengeCamera(dt);
+            if (battle != null && !battle.IsBattlePause())
+            {
+                SyncUpgradeChallengeTargetVisualParent(battle);
+                UpdateScenePhase(battle, dt);
+                UpdateUpgradeChallengeCamera();
+            }
             UpdateAimAssistLines();
         }
 
         public override void LateUpdate()
         {
+            UEntity.UpdateHitStickTargets();
+
             // 动画在本帧更新完成后，应用英雄的上半身附加旋转（spine 表现）。
             // 渲染对象的常规更新在 Update 阶段（动画写入骨骼之前），直接设置会被动画覆盖。
             var battle = BattleManager.GetBattle() as TowerDefendBattle;
@@ -1033,25 +1060,52 @@ namespace GameDll
 
         private bool TrySetBattlePause(bool pause, bool openPauseWindow)
         {
-            var battle = BattleManager.GetBattle();
-            if (battle == null)
+            var battle = BattleManager.GetBattle() as TowerDefendBattle;
+            if (battle == null || battle.ReadIsFinished())
             {
+                return false;
+            }
+
+            long expectedToken = m_LevelInputData?.m_StartRequest?.m_FrameworkSessionToken ?? -1;
+            bool useFramework = expectedToken >= 0;
+            MatchSessionSnapshot session = null;
+            if (useFramework && (!YoudooAPI.TryGetSessionSnapshot(out session) || !IsCurrentFrameworkRound(session)))
+            {
+                Debug.LogWarning("[塔防暂停] 当前 SDK 回合不可用于暂停或恢复。expected=" + expectedToken +
+                                 " actual=" + session?.SessionToken + " phase=" + session?.Phase);
                 return false;
             }
 
             if (!pause)
             {
-                bool frameworkPaused = battle.IsBattlePause() &&
-                    GameProductUiAdapter.HasLiveSession &&
-                    YoudooAPI.TryGetSessionSnapshot(out var currentSnapshot) &&
-                    currentSnapshot.Phase == YoudooGame.MatchFlow.GameSessionPhase.Paused;
-                if (frameworkPaused && !YoudooAPI.ResumeGameplay())
+                if (useFramework && (session.TrackingHoldReason & (MatchSessionTrackingHoldReason.ApplicationPaused |
+                    MatchSessionTrackingHoldReason.NoFocus)) != 0)
                 {
-                    Debug.LogWarning("[塔防骨骼输入] Framework ResumeGameplay failed while closing pause.");
+                    Debug.LogWarning("[塔防暂停] 应用尚未恢复前台。hold=" + session.TrackingHoldReason);
+                    return false;
                 }
 
-                ApplyBattlePauseState(battle, false);
-                ClosePauseWindowOnly();
+                if (m_ResumeStatus == TowerDefendResumeStatus.WaitingForTracking)
+                {
+                    return true;
+                }
+
+                if (useFramework && session.Phase != YoudooGame.MatchFlow.GameSessionPhase.Playing &&
+                    (session.Phase != YoudooGame.MatchFlow.GameSessionPhase.Paused || !YoudooAPI.ResumeGameplay()))
+                {
+                    Debug.LogWarning("[塔防暂停] SDK 恢复失败，保留暂停状态。session=" + session.SessionToken +
+                                     " phase=" + session.Phase + " error=" + YoudooAPI.SessionLastError);
+                    return false;
+                }
+
+                if (useFramework && !Application.isEditor && battle.IsBattlePause())
+                {
+                    BeginResumeTrackingWait();
+                }
+                else
+                {
+                    FinishBattleResume(battle);
+                }
                 return true;
             }
 
@@ -1060,42 +1114,235 @@ namespace GameDll
                 return false;
             }
 
-            bool frameworkAlreadyPaused = GameProductUiAdapter.HasLiveSession &&
-                YoudooAPI.TryGetSessionSnapshot(out var pauseSnapshot) &&
-                pauseSnapshot.Phase == YoudooGame.MatchFlow.GameSessionPhase.Paused;
-            if (GameProductUiAdapter.HasLiveSession && !frameworkAlreadyPaused && !YoudooAPI.PauseGameplay())
+            RememberBattleTrackingSequence(session?.CurrentTrackingFrame);
+            bool frameworkAlreadyPaused = session?.Phase == YoudooGame.MatchFlow.GameSessionPhase.Paused;
+            if (useFramework && !frameworkAlreadyPaused && !YoudooAPI.PauseGameplay())
             {
                 Debug.LogWarning("[塔防骨骼输入] Framework PauseGameplay failed; local pause was not applied.");
                 return false;
             }
 
+            bool wasPaused = battle.IsBattlePause();
+            m_IsFrameworkPauseApplied |= useFramework;
+            SetResumeStatus(TowerDefendResumeStatus.Ready);
             ApplyBattlePauseState(battle, true);
             if (!openPauseWindow)
             {
                 return true;
             }
 
-            if (m_PauseWindow != null)
+            if (TryOpenPauseWindow())
             {
                 return true;
             }
 
-            m_PauseWindow = RenderEvent.Event.OnTowerDefendPauseOpenRequest(
-                ClosePauseWindow,
-                RestartCurrentBattle,
-                ReturnToLobby);
-            if (m_PauseWindow != null)
+            Debug.LogWarning("[塔防暂停] 暂停窗创建失败。localWasPaused=" + wasPaused +
+                             " sdkWasPaused=" + frameworkAlreadyPaused);
+            if (!wasPaused && !frameworkAlreadyPaused)
             {
-                return true;
+                TrySetBattlePause(false, false);
             }
-
-            ApplyBattlePauseState(battle, false);
             return false;
         }
 
-        private static void ApplyBattlePauseState(IBattle battle, bool pause)
+        private bool TryOpenPauseWindow()
         {
-            // 正式战斗暂停需要同时冻结战斗逻辑和声音；GM 调试冻结不经过此处。
+            if (m_PauseWindow == null)
+            {
+                m_PauseWindow = RenderEvent.Event.OnTowerDefendPauseOpenRequest(
+                    ClosePauseWindow,
+                    RestartCurrentBattle,
+                    ReturnToLobby);
+                if (m_PauseWindow != null)
+                {
+                    RenderEvent.Event.OnTowerDefendPauseResumeStatusChanged(m_PauseWindow, m_ResumeStatus);
+                }
+            }
+
+            return m_PauseWindow != null;
+        }
+
+        private void SyncFrameworkPause()
+        {
+            var battle = BattleManager.GetBattle() as TowerDefendBattle;
+            if (battle == null)
+            {
+                return;
+            }
+
+            if (battle.ReadIsFinished())
+            {
+                if (battle.IsBattlePause())
+                {
+                    FinishBattleResume(battle);
+                }
+                return;
+            }
+
+            if ((m_LevelInputData?.m_StartRequest?.m_FrameworkSessionToken ?? -1) < 0)
+            {
+                return;
+            }
+
+            var adapter = GameProductUiAdapter.Instance;
+            var snapshot = adapter?.SessionSnapshot;
+            bool isCurrentRound = IsCurrentFrameworkRound(snapshot);
+            bool sdkPlaying = adapter?.IsApplicationForeground == true && isCurrentRound &&
+                snapshot.Phase == YoudooGame.MatchFlow.GameSessionPhase.Playing;
+            if (sdkPlaying)
+            {
+                if (!m_IsFrameworkPauseApplied)
+                {
+                    RememberBattleTrackingSequence(snapshot.CurrentTrackingFrame);
+                    return;
+                }
+
+                if (!RenderEvent.Event.OnRenderShouldIgnoreInputDuringLoading() && TryFinishTrackingResume(battle, snapshot))
+                {
+                    return;
+                }
+            }
+            else
+            {
+                if (m_ResumeStatus == TowerDefendResumeStatus.WaitingForTracking &&
+                    (adapter?.IsApplicationForeground != true || !isCurrentRound ||
+                     snapshot.Phase == YoudooGame.MatchFlow.GameSessionPhase.Paused))
+                {
+                    SetResumeStatus(TowerDefendResumeStatus.Ready);
+                }
+
+                if (!battle.IsBattlePause())
+                {
+                    m_IsFrameworkPauseApplied = true;
+                    ApplyBattlePauseState(battle, true);
+                    m_FrameworkPauseWindowPending = true;
+                    Debug.Log("[塔防暂停] SDK 回合未处于可玩状态，已暂停本地战斗。session=" + snapshot?.SessionToken +
+                              " phase=" + snapshot?.Phase + " hold=" + snapshot?.TrackingHoldReason);
+                }
+            }
+
+            if (m_FrameworkPauseWindowPending && (adapter?.IsApplicationForeground ?? Application.isFocused) &&
+                !RenderEvent.Event.OnRenderShouldIgnoreInputDuringLoading())
+            {
+                m_FrameworkPauseWindowPending = false;
+                if (!TryOpenPauseWindow())
+                {
+                    Debug.LogWarning("[塔防暂停] SDK 暂停后打开暂停窗失败，战斗保持暂停。session=" + snapshot?.SessionToken);
+                }
+            }
+        }
+
+        private void BeginResumeTrackingWait()
+        {
+            m_IsFrameworkPauseApplied = true;
+            m_FrameworkPauseWindowPending = m_PauseWindow == null;
+            m_ResumeTrackingStartedAt = GameProductUiAdapter.ForegroundRealtime;
+            SetResumeStatus(TowerDefendResumeStatus.WaitingForTracking);
+            Debug.Log("[塔防暂停] 等待恢复后的骨骼帧。previousSequence=" + m_LastBattleTrackingSequence);
+        }
+
+        private bool TryFinishTrackingResume(IBattle battle, MatchSessionSnapshot snapshot)
+        {
+            if (Application.isEditor)
+            {
+                FinishBattleResume(battle);
+                return true;
+            }
+
+            if (m_ResumeStatus == TowerDefendResumeStatus.TimedOut)
+            {
+                return false;
+            }
+            if (m_ResumeStatus != TowerDefendResumeStatus.WaitingForTracking)
+            {
+                BeginResumeTrackingWait();
+            }
+
+            var frame = snapshot.CurrentTrackingFrame;
+            if (IsCurrentBattleTrackingFrame(frame) && frame.Sequence > m_LastBattleTrackingSequence &&
+                HasOperableResumeSeat(snapshot, frame))
+            {
+                RememberBattleTrackingSequence(frame);
+                FinishBattleResume(battle);
+                Debug.Log("[塔防暂停] 骨骼帧已恢复，继续战斗。sequence=" + frame.Sequence);
+                return true;
+            }
+
+            if (GameProductUiAdapter.ForegroundRealtime - m_ResumeTrackingStartedAt >= m_ResumeTrackingTimeoutSeconds)
+            {
+                bool sdkPaused = YoudooAPI.PauseGameplay();
+                SetResumeStatus(TowerDefendResumeStatus.TimedOut);
+                Debug.LogWarning("[塔防暂停] 等待恢复骨骼超时，保留暂停。session=" + snapshot.SessionToken +
+                                 " frame=" + snapshot.FrameState + " sequence=" + frame?.Sequence +
+                                 " sdkPaused=" + sdkPaused + " error=" + YoudooAPI.SessionLastError);
+            }
+            return false;
+        }
+
+        private bool HasOperableResumeSeat(MatchSessionSnapshot snapshot, MatchTrackingFrameSnapshot frame)
+        {
+            var request = m_LevelInputData.m_StartRequest;
+            foreach (var player in request.m_Players)
+            {
+                if (request.TryGetSdkSlotIndexForSeat(player.m_SeatId, out int slotIndex) &&
+                    snapshot.CanOperate(slotIndex) && frame.TryGetPlayer(slotIndex, out var sample) &&
+                    sample.CanOperate && sample.HasSkeleton)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private bool IsCurrentBattleTrackingFrame(MatchTrackingFrameSnapshot frame)
+        {
+            var request = m_LevelInputData?.m_StartRequest;
+            return frame != null && request != null && frame.SessionToken == request.m_FrameworkSessionToken &&
+                frame.RoundId == request.m_FrameworkRoundId && frame.Phase == YoudooGame.MatchFlow.GameSessionPhase.Playing;
+        }
+
+        private void RememberBattleTrackingSequence(MatchTrackingFrameSnapshot frame)
+        {
+            if (IsCurrentBattleTrackingFrame(frame))
+            {
+                m_LastBattleTrackingSequence = Math.Max(m_LastBattleTrackingSequence, frame.Sequence);
+            }
+        }
+
+        private void FinishBattleResume(IBattle battle)
+        {
+            m_IsFrameworkPauseApplied = false;
+            m_FrameworkPauseWindowPending = false;
+            SetResumeStatus(TowerDefendResumeStatus.Ready);
+            ApplyBattlePauseState(battle, false);
+            ClosePauseWindowOnly();
+        }
+
+        private void SetResumeStatus(TowerDefendResumeStatus status)
+        {
+            if (m_ResumeStatus == status)
+            {
+                return;
+            }
+            m_ResumeStatus = status;
+            if (m_PauseWindow != null)
+            {
+                RenderEvent.Event.OnTowerDefendPauseResumeStatusChanged(m_PauseWindow, status);
+            }
+        }
+
+        private bool IsCurrentFrameworkRound(MatchSessionSnapshot snapshot)
+        {
+            var request = m_LevelInputData?.m_StartRequest;
+            return request != null && request.m_FrameworkSessionToken >= 0 && snapshot != null &&
+                snapshot.LifecycleState == MatchSessionLifecycleState.Running &&
+                snapshot.SessionToken == request.m_FrameworkSessionToken &&
+                snapshot.RoundSnapshot?.RoundId == request.m_FrameworkRoundId;
+        }
+
+        private void ApplyBattlePauseState(IBattle battle, bool pause)
+        {
+            // 正式战斗暂停需要同时冻结战斗逻辑和声音；GM 调试暂停不经过此处。
             if (battle != null)
             {
                 battle.SetBattlePause(pause);
@@ -1103,12 +1350,36 @@ namespace GameDll
 
             if (pause)
             {
+                PauseChallengeAnimator(m_EnvironmentAnimator);
+                PauseChallengeAnimator(m_UpgradeChallengeCameraAnimator);
                 AudioManager.GetInstance().PauseGameAudio();
             }
             else
             {
+                RestoreChallengeAnimatorSpeeds();
                 AudioManager.GetInstance().ResumeGameAudio();
             }
+        }
+
+        private void PauseChallengeAnimator(Animator animator)
+        {
+            if (animator != null && !m_PausedChallengeAnimatorSpeeds.ContainsKey(animator))
+            {
+                m_PausedChallengeAnimatorSpeeds.Add(animator, animator.speed);
+                animator.speed = 0f;
+            }
+        }
+
+        private void RestoreChallengeAnimatorSpeeds()
+        {
+            foreach (var entry in m_PausedChallengeAnimatorSpeeds)
+            {
+                if (entry.Key != null)
+                {
+                    entry.Key.speed = entry.Value;
+                }
+            }
+            m_PausedChallengeAnimatorSpeeds.Clear();
         }
 
         private void OnBattleResult(BattleResultData result)
@@ -1119,7 +1390,12 @@ namespace GameDll
             }
 
             RenderEvent.Event.OnTowerDefendBattleHudCloseRequest();
-            ClosePauseWindow();
+            ClosePauseWindowOnly();
+            RestoreChallengeAnimatorSpeeds();
+            if (IsBattlePaused())
+            {
+                AudioManager.GetInstance().ResumeGameAudio();
+            }
             m_PendingResult = result;
             m_HasPendingResult = true;
             m_SceneState = ESceneState.Result;
@@ -1144,7 +1420,12 @@ namespace GameDll
         {
             AudioManager.GetInstance().SetAudioListenerTarget(null);
             RenderEvent.Event.OnTowerDefendBattleHudCloseRequest();
-            ClosePauseWindow();
+            ClosePauseWindowOnly();
+            if (IsBattlePaused())
+            {
+                AudioManager.GetInstance().ResumeGameAudio();
+            }
+            RestoreChallengeAnimatorSpeeds();
             ApplyEnvironmentRotationState(false);
             ApplyUpgradeChallengeCameraRotationState(false);
             RestoreUpgradeChallengeCameraAnimatorEnabledState();
@@ -1158,6 +1439,7 @@ namespace GameDll
             m_DefaultUpgradeChallengeCameraAnimatorEnabled = false;
             BoneRemoteDebugEditorConfig.SetBattleSkeletonDisplaySuppressed(false);
             ClearBoneInputRuntime();
+            UEntity.ReleaseHitStickSurfaceMesh();
 
             RenderEvent.Event.OnGameResult -= OnGameResult;
             RenderEvent.Event.OnGameFightAgain -= OnGameFightAgain;
@@ -1462,7 +1744,8 @@ namespace GameDll
 
             m_BattleBoneParseData.ConfigureBattleSlotLayout(
                 playerCount,
-                BuildInitialBattlePersonIds(playerCount, startRequest));
+                BuildInitialBattlePersonIds(playerCount, startRequest),
+                startRequest);
         }
 
         private static int[] BuildInitialBattlePersonIds(int playerCount, BattleStartupRequest startRequest)
@@ -1800,27 +2083,33 @@ namespace GameDll
             if(cfg == null)
             {
                 Debug.LogError($"找不到塔防关卡配置，关卡ID：{m_Stage}。请先检查关卡表配置是否完整。");
+                m_SceneState = ESceneState.Error;
                 return;
             }
             var res = cfg.ScenePath;
             Debug.Log("[塔防入战] 开始加载关卡场景 path=" + res);
-            var empty_scene = new UScene();
-            empty_scene.LoadEmpty((hr) =>
+            m_Scene.LoadEmpty(hr =>
             {
                 Debug.Log("[塔防入战] 空场景加载完成 result=" + hr + " path=" + res);
+                if (!hr)
+                {
+                    m_SceneState = ESceneState.Error;
+                    return;
+                }
+
                 m_Scene.Init(res, 0, (result) =>
                 {
                     Debug.Log("[塔防入战] 关卡场景加载完成 result=" + result + " path=" + res);
-                    m_LevelRoot = GameObject.Find(Tool.GetAssetName(res));
-                    if (result)
+                    m_LevelRoot = result ? GameObject.Find(Tool.GetAssetName(res)) : null;
+                    if (m_LevelRoot == null)
                     {
-                        LoadCache();
-                        m_SceneState = ESceneState.LoadedScene;
-                    }
-                    else
-                    {
+                        Debug.LogError("[塔防入战] 找不到关卡根对象 path=" + res + " loaded=" + result);
                         m_SceneState = ESceneState.Error;
+                        return;
                     }
+
+                    LoadCache();
+                    m_SceneState = ESceneState.LoadedScene;
 
                 });
 
@@ -1946,7 +2235,7 @@ namespace GameDll
             AudioManager.GetInstance().SetAudioListenerTarget(m_Camera.transform);
         }
 
-        private void UpdateUpgradeChallengeCamera(float dt)
+        private void UpdateUpgradeChallengeCamera()
         {
             var battle = BattleManager.GetBattle() as TowerDefendBattle;
             if (battle == null)

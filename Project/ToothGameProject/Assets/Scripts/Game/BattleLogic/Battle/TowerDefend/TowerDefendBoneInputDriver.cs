@@ -31,13 +31,21 @@ namespace GameDll
         private readonly IBoneParserRuntime m_BoneParserRuntime;
         private readonly BoneParserFrameAdapter m_FrameAdapter = new BoneParserFrameAdapter();
         private readonly List<BoneParserSeatDefinition> m_SeatDefinitions = new List<BoneParserSeatDefinition>();
+        private readonly Stack<BoneActionBinding> m_RecycledActionBindings = new Stack<BoneActionBinding>();
         private readonly int[] m_LastDebugLogFrames = new int[TowerDefendSeatLayout.MaxSupportedPlayerCount];
         private readonly bool[] m_IsTurningBySeat = new bool[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly int[] m_LastOperablePersonIds = new int[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly bool[] m_WasOperableBySeat = new bool[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly bool[] m_HasLoggedAcceptedActionBySeat = new bool[TowerDefendSeatLayout.MaxSupportedPlayerCount];
 
         private TowerDefendBattleScene m_Scene;
         private IBoneFrameSource m_FrameSource;
+        private bool m_WasUsingAuthoritativeSlots;
         private bool m_HasSeatDefinitions;
         private bool m_HasLoggedRuntime;
+        private BoneParserFrameResult m_CachedFrameResult;
+        private int? m_LastFrameworkFrameSerial;
+        private bool m_HadFrameworkFrame;
 
         public TowerDefendBoneInputDriver()
         {
@@ -50,9 +58,9 @@ namespace GameDll
             m_FrameSource = frameSource;
             m_HasSeatDefinitions = false;
             m_SeatDefinitions.Clear();
-            ResetDebugLogFrames();
+            ResetSeatTrackingState();
             ResetTurningStates();
-            m_BoneParserRuntime.Reset();
+            ResetParser();
             LogRuntimeOnce();
         }
 
@@ -69,17 +77,44 @@ namespace GameDll
                 return;
             }
 
+            if (battle.IsBattlePause())
+            {
+                if (m_CachedFrameResult != null || m_HadFrameworkFrame)
+                {
+                    ResetTurningStates();
+                    ResetParser();
+                }
+                return;
+            }
+
             if (!EnsureSeatDefinitions(battle))
             {
                 return;
             }
 
-            RefreshSeatSdkSlotBindings(battle);
-            RefreshSeatActionBindings(battle);
-            ApplyRuntimeConfig();
+            RefreshSeatSdkSlotBindings();
             m_FrameSource.Tick();
-            var parserFrame = m_FrameAdapter.Convert(m_FrameSource.ReadLatestFrameData());
-            var frameResult = m_BoneParserRuntime.Update(parserFrame, m_SeatDefinitions);
+            var sourceFrame = m_FrameSource.ReadLatestFrameData();
+            bool frameworkFrame = sourceFrame != null && sourceFrame.m_HasAuthoritativeSlotBindings;
+            bool isNewFrame = !frameworkFrame || m_LastFrameworkFrameSerial != sourceFrame.m_FrameSerial;
+            BoneTrackedFrame parserFrame = null;
+            if (isNewFrame)
+            {
+                if (frameworkFrame && m_HadFrameworkFrame && !sourceFrame.m_HasFrameData)
+                {
+                    ResetParser();
+                }
+
+                SynchronizeParserSeats(sourceFrame);
+                ApplyRuntimeConfig();
+                RefreshSeatActionBindings(battle);
+                parserFrame = m_FrameAdapter.Convert(sourceFrame);
+                m_CachedFrameResult = m_BoneParserRuntime.Update(parserFrame, m_SeatDefinitions);
+                m_LastFrameworkFrameSerial = frameworkFrame ? (int?)sourceFrame.m_FrameSerial : null;
+                m_HadFrameworkFrame = frameworkFrame && sourceFrame.m_HasFrameData;
+            }
+
+            var frameResult = m_CachedFrameResult;
             if (frameResult == null)
             {
                 ResetTurningStates();
@@ -104,17 +139,19 @@ namespace GameDll
                     continue;
                 }
 
-                RefreshHudBoneDebugInfo(seatId, seatDefinition.m_SlotIndex, playerResult);
-
-                if (playerResult == null)
+                if (isNewFrame)
                 {
-                    LogMissingTrackedFrame(parserFrame, null, seatId, seatDefinition.m_SlotIndex);
-                    continue;
+                    RefreshHudBoneDebugInfo(seatId, seatDefinition.m_SlotIndex, playerResult);
+                    LogParserOperability(seatId, seatDefinition.m_SlotIndex, playerResult);
                 }
 
-                if (!playerResult.m_IsAimAvailable)
+                if (playerResult == null || !playerResult.m_IsAimAvailable)
                 {
-                    LogMissingTrackedFrame(parserFrame, playerResult, seatId, seatDefinition.m_SlotIndex);
+                    if (isNewFrame)
+                    {
+                        LogMissingTrackedFrame(parserFrame, playerResult, seatId, seatDefinition.m_SlotIndex);
+                    }
+
                     continue;
                 }
 
@@ -123,12 +160,19 @@ namespace GameDll
                 Vector3 faceForward = battle.UpdateBoneAimForwardBySeat(seatId, worldFaceForward);
                 if (!playerResult.m_IsTracked)
                 {
-                    LogMissingTrackedFrame(parserFrame, playerResult, seatId, seatDefinition.m_SlotIndex);
+                    if (isNewFrame)
+                    {
+                        LogMissingTrackedFrame(parserFrame, playerResult, seatId, seatDefinition.m_SlotIndex);
+                    }
+
                     continue;
                 }
 
                 m_IsTurningBySeat[seatId] = Mathf.Abs(playerResult.m_TurnStrength) > m_NormalAttackSuppressedTurnStrength;
-                DispatchActionEvents(playerResult, seatId, faceForward, moveDirection);
+                if (isNewFrame)
+                {
+                    DispatchActionEvents(playerResult, seatId, faceForward, moveDirection);
+                }
             }
         }
 
@@ -139,8 +183,9 @@ namespace GameDll
             m_FrameSource = null;
             m_HasSeatDefinitions = false;
             m_SeatDefinitions.Clear();
-            ResetDebugLogFrames();
+            ResetSeatTrackingState();
             ResetTurningStates();
+            m_CachedFrameResult = null;
             m_BoneParserRuntime.Shutdown();
             RenderEvent.Event.OnTowerDefendBoneDebugInfosCleared();
         }
@@ -154,6 +199,14 @@ namespace GameDll
 
             m_HasLoggedRuntime = true;
             Debug.Log("[塔防骨骼输入] 骨骼解析运行时：" + m_BoneParserRuntime.RuntimeName);
+        }
+
+        private void ResetParser()
+        {
+            m_BoneParserRuntime.Reset();
+            m_CachedFrameResult = null;
+            m_LastFrameworkFrameSerial = null;
+            m_HadFrameworkFrame = false;
         }
 
         private void ApplyRuntimeConfig()
@@ -170,7 +223,7 @@ namespace GameDll
                 m_HasSeatDefinitions = false;
                 m_SeatDefinitions.Clear();
                 ResetTurningStates();
-                m_BoneParserRuntime.Reset();
+                ResetParser();
                 return false;
             }
 
@@ -183,7 +236,7 @@ namespace GameDll
             return m_SeatDefinitions.Count > 0;
         }
 
-        private void RefreshSeatSdkSlotBindings(TowerDefendBattle battle)
+        private void RefreshSeatSdkSlotBindings()
         {
             bool hasChanged = false;
             for (int i = 0; i < m_SeatDefinitions.Count; i++)
@@ -219,16 +272,96 @@ namespace GameDll
                 return;
             }
 
-            ResetDebugLogFrames();
+            ResetSeatTrackingState();
             ResetTurningStates();
-            m_BoneParserRuntime.Reset();
+            ResetParser();
         }
 
-        private void ResetDebugLogFrames()
+        private void SynchronizeParserSeats(BoneFrameData frame)
+        {
+            if (frame == null)
+            {
+                return;
+            }
+
+            if (frame.m_HasAuthoritativeSlotBindings != m_WasUsingAuthoritativeSlots)
+            {
+                m_WasUsingAuthoritativeSlots = frame.m_HasAuthoritativeSlotBindings;
+                ResetSeatTrackingState();
+                ResetTurningStates();
+                m_BoneParserRuntime.Reset();
+            }
+
+            if (!frame.m_HasAuthoritativeSlotBindings)
+            {
+                return;
+            }
+
+            for (int index = 0; index < m_SeatDefinitions.Count; index++)
+            {
+                var definition = m_SeatDefinitions[index];
+                int slot = definition.m_SlotIndex;
+                if (slot < 0 || slot >= frame.m_Persons.Count)
+                {
+                    continue;
+                }
+
+                int personId = frame.m_Persons[slot].m_PersonId;
+                if (personId < 0)
+                {
+                    continue;
+                }
+
+                int seat = definition.m_BindingId;
+                int previousPersonId = m_LastOperablePersonIds[seat];
+                if (personId == previousPersonId)
+                {
+                    continue;
+                }
+
+                m_LastOperablePersonIds[seat] = personId;
+                if (previousPersonId >= 0)
+                {
+                    m_BoneParserRuntime.ResetSeat(index);
+                    m_IsTurningBySeat[seat] = false;
+                    m_WasOperableBySeat[seat] = false;
+                    m_HasLoggedAcceptedActionBySeat[seat] = false;
+                    Debug.Log("[塔防骨骼输入] 正式换绑 seat=" + seat + " sdkSlot=" + slot +
+                              " oldPerson=" + previousPersonId + " newPerson=" + personId +
+                              " frame=" + frame.m_FrameSerial + " time=" + Time.unscaledTime.ToString("F1"));
+                }
+            }
+        }
+
+        private void LogParserOperability(int seatId, int sdkSlot, BoneParserPlayerResult result)
+        {
+            bool operable = result != null && result.m_IsTracked && result.m_IsAimAvailable;
+            if (m_WasOperableBySeat[seatId] == operable)
+            {
+                return;
+            }
+
+            m_WasOperableBySeat[seatId] = operable;
+            if (operable)
+            {
+                Debug.Log("[塔防骨骼输入] 解析已可用 seat=" + seatId + " sdkSlot=" + sdkSlot +
+                          " person=" + result.m_PersonId + " time=" + Time.unscaledTime.ToString("F1"));
+            }
+            else
+            {
+                m_HasLoggedAcceptedActionBySeat[seatId] = false;
+                m_LastDebugLogFrames[seatId] = Time.frameCount - m_BoneInputDebugIntervalFrames;
+            }
+        }
+
+        private void ResetSeatTrackingState()
         {
             for (int seatId = 0; seatId < TowerDefendSeatLayout.MaxSupportedPlayerCount; seatId++)
             {
                 m_LastDebugLogFrames[seatId] = -m_BoneInputDebugIntervalFrames;
+                m_LastOperablePersonIds[seatId] = BoneTrackedLayout.m_InvalidPersonId;
+                m_WasOperableBySeat[seatId] = false;
+                m_HasLoggedAcceptedActionBySeat[seatId] = false;
             }
         }
 
@@ -274,6 +407,8 @@ namespace GameDll
                 " aimConfidence=" + (playerResult != null ? playerResult.m_AimConfidence.ToString("0.00") : "0.00") +
                 " missingFrames=" + (playerResult != null ? playerResult.m_MissingFrameCount : 0) +
                 " resultTracked=" + (playerResult != null && playerResult.m_IsTracked) +
+                " frame=" + (parserFrame != null ? parserFrame.m_FrameSerial : 0) +
+                " time=" + Time.unscaledTime.ToString("F1") +
                 " " + BuildTrackedPersonDebugText(parserFrame, sdkSlotIndex, m_Config.m_KeypointConfidenceThreshold));
         }
 
@@ -350,6 +485,16 @@ namespace GameDll
             }
 
             int eventCount = playerResult.m_ActionEvents.Count;
+            if (eventCount > 0)
+            {
+                // 解冻转向收敛期间一旦出现开火手势，立即对齐模型朝向，避免背身出弹。
+                var actionBattle = BattleManager.GetBattle() as TowerDefendBattle;
+                if (actionBattle != null)
+                {
+                    actionBattle.SnapAimTurnRecoverBySeat(seatId);
+                }
+            }
+
             bool hasActiveSkillEvent = false;
             for (int i = 0; i < eventCount; i++)
             {
@@ -385,6 +530,14 @@ namespace GameDll
                     var consumeResultType = blockNormalAttack
                         ? BoneActionConsumeResultType.拒绝阻断
                         : TryConsumeActionEvent(actionEvent, seatId, faceForward, moveDirection);
+                    if (consumeResultType == BoneActionConsumeResultType.接受 && !m_HasLoggedAcceptedActionBySeat[seatId])
+                    {
+                        m_HasLoggedAcceptedActionBySeat[seatId] = true;
+                        Debug.Log("[塔防骨骼输入] 动作已消费 seat=" + seatId + " person=" + playerResult.m_PersonId +
+                                  " skillSlot=" + actionEvent.m_ConsumerValue +
+                                  " time=" + Time.unscaledTime.ToString("F1"));
+                    }
+
                     if (actionEvent.m_RequiresConsumeResult)
                     {
                         m_BoneParserRuntime.ApplyActionConsumeResult(new BoneActionConsumeResult
@@ -445,7 +598,7 @@ namespace GameDll
         private void RebuildSeatDefinitions()
         {
             m_BoneParserRuntime.Reset();
-            ResetDebugLogFrames();
+            ResetSeatTrackingState();
             m_SeatDefinitions.Clear();
             for (int seatId = 0; seatId < TowerDefendSeatLayout.MaxSupportedPlayerCount; seatId++)
             {
@@ -492,7 +645,7 @@ namespace GameDll
             return m_IsTurningBySeat[seatId];
         }
 
-        private static void RefreshSeatActionBindings(
+        private void RefreshSeatActionBindings(
             BoneParserSeatDefinition definition,
             TowerDefendBattle battle,
             PropertyEntity hero,
@@ -501,6 +654,11 @@ namespace GameDll
             if (definition == null)
             {
                 return;
+            }
+
+            foreach (var binding in definition.m_ActionBindings)
+            {
+                m_RecycledActionBindings.Push(binding);
             }
 
             definition.m_ActionBindings.Clear();
@@ -531,7 +689,7 @@ namespace GameDll
             definition.m_IsProcessGestureEnabled = HasProcessGestureBinding(definition);
         }
 
-        private static bool TryBuildSkillActionBinding(
+        private bool TryBuildSkillActionBinding(
             BoneParserSeatDefinition definition,
             TowerDefendBattle battle,
             PropertyEntity hero,
@@ -606,7 +764,7 @@ namespace GameDll
                 spawer.CanConsumeGuardHeroBoneAction(hero, skill, boneNormalAttack);
         }
 
-        private static void UpsertActionBinding(
+        private void UpsertActionBinding(
             BoneParserSeatDefinition definition,
             BoneGestureType gestureType,
             BoneGesturePhaseMask phaseMask,
@@ -649,24 +807,26 @@ namespace GameDll
                 }
             }
 
-            var actionBinding = new BoneActionBinding
-            {
-                m_ActionId = slot,
-                m_GestureType = gestureType,
-                m_PhaseMask = phaseMask,
-                m_ConsumerType = BoneActionConsumerType.动作槽位,
-                m_ConsumerValue = slot,
-                m_RuntimeFlags = runtimeFlags,
-                m_RequiresConsumeResult = requiresConsumeResult,
-            };
-
+            BoneActionBinding actionBinding;
             if (existingIndex >= 0)
             {
-                definition.m_ActionBindings[existingIndex] = actionBinding;
-                return;
+                actionBinding = definition.m_ActionBindings[existingIndex];
+            }
+            else
+            {
+                actionBinding = m_RecycledActionBindings.Count > 0
+                    ? m_RecycledActionBindings.Pop()
+                    : new BoneActionBinding();
+                definition.m_ActionBindings.Add(actionBinding);
             }
 
-            definition.m_ActionBindings.Add(actionBinding);
+            actionBinding.m_ActionId = slot;
+            actionBinding.m_GestureType = gestureType;
+            actionBinding.m_PhaseMask = phaseMask;
+            actionBinding.m_ConsumerType = BoneActionConsumerType.动作槽位;
+            actionBinding.m_ConsumerValue = slot;
+            actionBinding.m_RuntimeFlags = runtimeFlags;
+            actionBinding.m_RequiresConsumeResult = requiresConsumeResult;
         }
 
         private static bool HasProcessGestureBinding(BoneParserSeatDefinition definition)

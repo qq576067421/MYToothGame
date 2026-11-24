@@ -106,6 +106,32 @@ namespace GameDll
         {
             m_IsAutoDel = del;
         }
+
+        // 特效表 t_sound：配了音效 id 的特效在开始播放时播一次。
+        // RenderEff 链路（t_atk_eff / 命中特效等）在 ShowEff 里自带同一列音效，
+        // 这里补的是池化特效对象（EffectObj / LaserObj），两者共用 t_effectBean.t_sound。
+        // 子弹/炮弹自己有 t_attackSound / t_hit_sound，不覆写 ReadConfiguredSoundId，不会重复播。
+        private bool m_ConfiguredSoundPlayed;
+
+        protected virtual int ReadConfiguredSoundId()
+        {
+            return 0;
+        }
+
+        private void PlayConfiguredSoundOnce()
+        {
+            m_ConfiguredSoundPlayed = true;
+            int soundId = ReadConfiguredSoundId();
+            if (soundId == 0)
+            {
+                return;
+            }
+
+            var render = GetRender();
+            var position = render != null ? render.GetPosition() : Vector3.zero;
+            AudioManager.GetInstance().Play3D(soundId, position);
+        }
+
         public virtual void SetPlay(bool play)
         {
             m_PlayUsedTime = 0;
@@ -113,6 +139,8 @@ namespace GameDll
             if(play)
             {
                 m_IsFinish = false;
+                // 池化复用后每次重新播放都要重新触发一次音效
+                m_ConfiguredSoundPlayed = false;
             }
         }
         public bool IsPlay()
@@ -139,6 +167,13 @@ namespace GameDll
             {
                 FinishImp();
             }
+        }
+
+        // 表现还有多久需要继续显示（秒，如子弹命中/枪口特效）。
+        // 对象回池时据此顺延可复用时间，避免复用时重新播放把上一发的表现立刻清掉。
+        public virtual float ReadVisualRemainTime()
+        {
+            return 0f;
         }
         public virtual void SetBean(object bean)
         {
@@ -174,6 +209,11 @@ namespace GameDll
             if(!m_IsPlay)
             {
                 return;
+            }
+            if(!m_ConfiguredSoundPlayed)
+            {
+                // 首帧播放：此时位置已经由 SetPosition 写好，声源与特效同位
+                PlayConfiguredSoundOnce();
             }
             if(m_IsFinish)
             {

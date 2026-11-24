@@ -211,6 +211,21 @@ namespace GameDll
             return total;
         }
 
+        public float ReadTotalInitShieldValue()
+        {
+            float total = 0;
+            int count = m_Buffs.Count;
+            for (int i = 0; i < count; ++i)
+            {
+                var shield = m_Buffs[i] as ShieldBuff;
+                if (shield != null)
+                {
+                    total += shield.ReadInitShieldValue();
+                }
+            }
+            return total;
+        }
+
         public float AbsorbDamage(float value)
         {
             if (value <= 0)
@@ -502,6 +517,7 @@ namespace GameDll
             var curHp = entity.ReadHP();
             var maxHp = entity.GetMaxHP();
             var damage = value;
+            var rawDamage = Mathf.Max(0, value);
             if (damage > 0)
             {
                 var buffMgr = entity.GetBuffManager();
@@ -521,9 +537,10 @@ namespace GameDll
             }
             entity.SetHpRuntime(curHp);
             entity.OnHpChanged();
-            if (showNumber && damage > 0)
+            // 伤害数字按护盾吸收前的伤害显示：被护盾完全吸收时扣血量可能为 0，仍需数值反馈。
+            if (showNumber && rawDamage > 0)
             {
-                DamageCal.ShowBuffDamageNumber(source, entity, damage);
+                DamageCal.ShowBuffDamageNumber(source, entity, rawDamage);
             }
         }
 

@@ -161,7 +161,7 @@ namespace GameDll
                 //当前没有技能
                 TryWillNextUseSkill();
             }
-            
+
             int count = m_Skills.Count;
             m_UpdateSkills.Clear();
             for (int i = 0; i < count; ++i)
@@ -174,8 +174,72 @@ namespace GameDll
                 var skill = m_UpdateSkills[i];
                 skill.Update(dt);
             }
+
+            // 被动施放放在冷却刷新之后判断，拿到的冷却剩余是本帧最新值
+            TryAutoCastPassiveSkills();
         }
         private List<Skill> m_UpdateSkills = new List<Skill>();
+
+        // 被动施放（t_skill_cast_style = 2）：不占用当前施法通道，冷却好了就自己发动，
+        // 因此不会打断施法者正在释放的其他技能（它们仍然占着 m_CurrentSkill）。
+        private void TryAutoCastPassiveSkills()
+        {
+            int count = m_Skills.Count;
+            for (int i = 0; i < count; ++i)
+            {
+                var skill = m_Skills[i];
+                if (skill == null || !skill.ReadIsPassiveCastStyle())
+                {
+                    continue;
+                }
+                if (!skill.ReadIsCooldown() || skill.ReadIsCasting())
+                {
+                    continue;
+                }
+                TryEnterPassiveSkill(skill);
+            }
+        }
+
+        private void TryEnterPassiveSkill(Skill skill)
+        {
+            var attacker = skill.ReadAttacker();
+            if (attacker == null || !BattleManager.ReadIsEntityValide(attacker))
+            {
+                return;
+            }
+            if (attacker.ReadIsBeingControlled() || attacker.ReadIsSuspended() || attacker.ReadIsFrozen())
+            {
+                return;
+            }
+
+            // 与英雄自动选技同一口径：升级挑战倒计时/挑战中不自动发动
+            var towerDefendBattle = BattleManager.GetBattle() as TowerDefendBattle;
+            if (towerDefendBattle != null && towerDefendBattle.ReadPhase() != BattlePhase.NormalGame)
+            {
+                return;
+            }
+            if (attacker.CanAttack(skill) != AttackFailedReason.Success)
+            {
+                return;
+            }
+
+            // 有合法目标就朝目标，否则沿用施法者当前面向；两种情况都不改写施法者自身朝向。
+            var defender = attacker.ReadDefender();
+            if (!BattleManager.ReadIsEntityValide(defender))
+            {
+                defender = null;
+            }
+            var dir = defender != null ? defender.GetPosition() - attacker.GetPosition() : attacker.ReadForward();
+            if (dir.sqrMagnitude <= 0.0001f)
+            {
+                dir = Vector3.forward;
+            }
+
+            // 与手动/自动施放同一套输入准备：伤害快照、发射方向、施法点位置、冷却全部重建
+            attacker.RefreshDirSkillInput(skill, dir, Vector3.zero);
+            skill.SetDefender(defender);
+            skill.EnterPassive();
+        }
 
         public void BreakSkill()
         {
@@ -285,6 +349,8 @@ namespace GameDll
                 return;
             }
 
+            // 当前技能通道只跑手动/自动施放；被动实例就算被塞进来也要回到普通口径
+            skill.SetPassiveCast(false);
             m_CurrentSkill = skill;
 
             m_CurrentSkill.OnEnter();
@@ -316,7 +382,7 @@ namespace GameDll
         }
         public void RemoveSkill(long skillCfgId)
         {
-            
+
             Skill skill = null;
             int count = m_Skills.Count;
             for(int i = 0; i < count; ++i)

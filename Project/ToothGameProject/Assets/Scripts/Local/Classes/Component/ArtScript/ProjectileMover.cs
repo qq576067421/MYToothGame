@@ -337,6 +337,13 @@ public class ProjectileMover : MonoBehaviour
         m_EmitCoroutine = null;
     }
 
+    public void HideProjectileForHitStick()
+    {
+        StopEmitCoroutine();
+        StopAndClearParticle(m_MainParticleSystem);
+        SetTrailState(true, false, false);
+    }
+
     public void DelayHide()
     {
         DelayHide(false);
@@ -362,6 +369,13 @@ public class ProjectileMover : MonoBehaviour
     public bool ReadCanReuseFromPool()
     {
         return m_Pooled && m_DelayHideProjectileLeftTime <= 0f && m_HitShow <= 0f && m_FlashShow <= 0f && m_EmitCoroutine == null;
+    }
+
+    // 命中/枪口特效还要显示多久（秒）：子弹回池时用它把可复用时间往后顺延，
+    // 否则下一次发弹的 PrepareForEmit 会立刻把它们清掉，表现为特效还没到配置时长就消失。
+    public float ReadVisualRemainTime()
+    {
+        return Mathf.Max(m_HitShow, m_FlashShow);
     }
 
     public void ForceStopForReuse()
@@ -402,6 +416,11 @@ public class ProjectileMover : MonoBehaviour
             m_MainParticleSystem.SetParticles(m_MainParticles, p_count);
         }
         m_Pooled = true;
+        PlayImpact(hitPos, normal);
+    }
+
+    public void PlayImpact(Vector3 hitPos, Vector3 normal)
+    {
         Vector3 pos = hitPos + normal * m_HitOffset;
 
         if (m_HitEff != null)

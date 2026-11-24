@@ -13,6 +13,11 @@
   <assembly fullname="Assembly-CSharp" preserve="all"/>
   <assembly fullname="BehaviorDesigner" preserve="all"/>
   <assembly fullname="FixedMath" preserve="all"/>
+  <assembly fullname="YoudooGame.MatchFlow">
+    <type fullname="YoudooGame.MatchFlow.Runtime.MatchSessionCoordinator">
+      <field name="_gameSession" />
+    </type>
+  </assembly>
   <assembly fullname="System.Core">
     <type fullname="System.Linq.Expressions.Interpreter.LightLambda" preserve="all" />
   </assembly>

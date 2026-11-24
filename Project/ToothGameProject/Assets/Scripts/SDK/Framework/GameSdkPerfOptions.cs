@@ -68,10 +68,6 @@ public static class GameSdkPerfOptions
     public const int MinBattleCaptureWidth = 320;
     public const int MinBattleCaptureHeight = 240;
 
-    // 是否在进战斗时再次降采集档位。切换档位必须重建原生相机流，因此在进战斗前的暂停窗口内完成；
-    // 进战斗后若拿不到骨骼帧或实际帧比例对不上，会自动恢复设备默认档位重试一次。
-    public static readonly bool EnableBattleCaptureDowngrade = true;
-
     // 准备界面相机看护：视图可见但取不到画面（无帧或整幅纯黑）或帧比例被改动时，
     // 先在同一个阶段里退到“离当前档最近”的候选档，候选都试过才回设备默认档。
     // 没有异常时不会触发任何恢复动作。

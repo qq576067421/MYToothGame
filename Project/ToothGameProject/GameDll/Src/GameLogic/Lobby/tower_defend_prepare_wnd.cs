@@ -13,6 +13,7 @@ using GameDll;
 using YoudooGame.CameraImage;
 using YoudooGame.Core;
 using YoudooGame.Framework;
+using YoudooGame.MatchFlow;
 using YoudooGame.MatchFlow.Runtime;
 using YoudooGame.PlayerAvatar;
 
@@ -22,6 +23,8 @@ namespace GameHot
     {
         private const int m_MaxPlayerCount = 4;
         private const int m_InvalidPersonId = -1;
+        private const float m_AvatarInitialRetrySeconds = 2f;
+        private const float m_AvatarMaxRetrySeconds = 30f;
         private const string m_LanFaceEnterArea = "td_prepare_face_enter_area";
         private const string m_LanFaceRecognizing = "td_prepare_face_recognizing";
         private const string m_LanFaceWaitAvatarSelect = "td_prepare_face_wait_avatar_select";
@@ -39,7 +42,13 @@ namespace GameHot
             public int m_PersonId = m_InvalidPersonId;
             public long m_UserId;
             public string m_PendingImagePath;
-            public string m_LastLogKey;
+            public float m_AvatarRetryAt;
+            public float m_AvatarRetryDelay;
+            public MatchSessionUiSlotSnapshot? m_LastLoggedSlot;
+            public string m_LastLoggedAvatarPath;
+            public LUIRawImage m_DisplayedTemplate;
+            public string m_HeadInfoLanId;
+            public int m_HeadInfoLanguage = -1;
         }
 
         private readonly SeatViewState[] m_SeatStates = new SeatViewState[m_MaxPlayerCount];
@@ -205,18 +214,19 @@ namespace GameHot
             Refresh(m_PlayerCount);
         }
 
-        public void HandleFrameworkCancel()
+        public bool HandleFrameworkCancel()
         {
             var selection = m_FrameworkAdapter != null ? m_FrameworkAdapter.AvatarSelectionSnapshot : null;
             if (selection == null || selection.ManualState != PlayerAvatarManualState.SelectingSlot)
             {
-                return;
+                return false;
             }
 
             LogFrameworkAvatarSelectionResult(
                 "cancel",
                 m_FrameworkAdapter.HandleAvatarSelectionCommand(MatchAvatarSelectionCommand.Back));
             Refresh(m_PlayerCount);
+            return true;
         }
 
         // 框架会话模式：选角期间方向键交给 MatchFlow（左右切槽位、下取消、上进入），
@@ -427,11 +437,13 @@ namespace GameHot
             // 未同步或游客时先显示系统占位并提示等待选头像。
             string imagePath = ResolveFrameworkSeatImagePath(slot.Value);
             var seat = m_SeatStates[seatId];
-            string logKey = slot.Value.State + "|" + slot.Value.AvatarSyncState + "|" +
-                            slot.Value.IsReady + "|" + imagePath;
-            if (seat.m_LastLogKey != logKey)
+            var lastLoggedSlot = seat.m_LastLoggedSlot;
+            if (GameSdkLog.Enabled && (!lastLoggedSlot.HasValue || lastLoggedSlot.Value.State != slot.Value.State ||
+                lastLoggedSlot.Value.AvatarSyncState != slot.Value.AvatarSyncState ||
+                lastLoggedSlot.Value.IsReady != slot.Value.IsReady || seat.m_LastLoggedAvatarPath != imagePath))
             {
-                seat.m_LastLogKey = logKey;
+                seat.m_LastLoggedSlot = slot;
+                seat.m_LastLoggedAvatarPath = imagePath;
                 GameSdkLog.Info("[新SDK整合] prepare seat=" + seatId +
                           " state=" + slot.Value.State +
                           " ready=" + slot.Value.IsReady +
@@ -481,18 +493,26 @@ namespace GameHot
         private void StartFrameworkAvatarLoad(int seatId, int personId, string imagePath)
         {
             var seat = m_SeatStates[seatId];
-            if (seat.m_PersonId == personId && seat.m_PendingImagePath == imagePath &&
-                (seat.m_RuntimeTexture != null || seat.m_LoadCoroutine != null))
+            bool sameAvatar = seat.m_PersonId == personId && seat.m_PendingImagePath == imagePath;
+            if (sameAvatar && (seat.m_RuntimeTexture != null || seat.m_LoadCoroutine != null ||
+                               Time.unscaledTime < seat.m_AvatarRetryAt))
             {
-                SetHeadInfo(seatId, seat.m_RuntimeTexture != null ? null : m_LanFaceRecognizing);
+                string prompt = seat.m_AvatarRetryDelay > 0f ? m_LanFaceWaitAvatarSelect : m_LanFaceRecognizing;
+                SetHeadInfo(seatId, seat.m_RuntimeTexture != null ? null : prompt);
                 return;
             }
 
-            CancelLoad(seat);
+            if (!sameAvatar)
+            {
+                ShowTemplate(seatId, m_SystemPlayerTemplate);
+                seat.m_AvatarRetryAt = 0f;
+                seat.m_AvatarRetryDelay = 0f;
+                SetHeadInfo(seatId, m_LanFaceRecognizing);
+            }
+
             seat.m_PersonId = personId;
             seat.m_UserId = 0;
             seat.m_PendingImagePath = imagePath;
-            SetHeadInfo(seatId, m_LanFaceRecognizing);
             int loadVersion = seat.m_LoadVersion;
             seat.m_LoadCoroutine = RenderAPI.StartCoroutine(
                 LoadFrameworkAvatar(seatId, personId, imagePath, loadVersion));
@@ -521,11 +541,22 @@ namespace GameHot
             seat.m_LoadCoroutine = null;
             if (loadedTexture == null)
             {
+                if (seat.m_AvatarRetryDelay <= 0f)
+                {
+                    Debug.LogWarning("[准备头像] 头像读取失败，稍后重试。seat=" + seatId + " person=" + personId);
+                }
+
+                seat.m_AvatarRetryDelay = seat.m_AvatarRetryDelay <= 0f
+                    ? m_AvatarInitialRetrySeconds
+                    : Mathf.Min(seat.m_AvatarRetryDelay * 2f, m_AvatarMaxRetrySeconds);
+                seat.m_AvatarRetryAt = Time.unscaledTime + seat.m_AvatarRetryDelay;
                 ShowTemplate(seatId, m_SystemPlayerTemplate);
                 SetHeadInfo(seatId, m_LanFaceWaitAvatarSelect);
                 yield break;
             }
 
+            seat.m_AvatarRetryAt = 0f;
+            seat.m_AvatarRetryDelay = 0f;
             SetRuntimeTexture(seat, loadedTexture);
             SetHeadInfo(seatId, null);
         }
@@ -586,7 +617,7 @@ namespace GameHot
                 yield break;
             }
 
-            SetPendingTexture(seat, loadVersion, LoadTextureFromBytes(imageBytes));
+            SetPendingTexture(seat, loadVersion, LCL.TextureManager.LoadTextureFromBytes(imageBytes));
         }
 
         private void SetPendingTexture(SeatViewState seat, int loadVersion, Texture texture)
@@ -630,40 +661,6 @@ namespace GameHot
             }
         }
 
-        private Texture LoadTextureFromBytes(byte[] imageBytes)
-        {
-            if (imageBytes == null || imageBytes.Length == 0)
-            {
-                return null;
-            }
-
-            string tempPath = Path.Combine(
-                Application.temporaryCachePath,
-                "prepare_face_" + Guid.NewGuid().ToString("N") + ".tmp");
-            try
-            {
-                File.WriteAllBytes(tempPath, imageBytes);
-                return LCL.TextureManager.LoadTexture(tempPath);
-            }
-            catch
-            {
-                return null;
-            }
-            finally
-            {
-                try
-                {
-                    if (File.Exists(tempPath))
-                    {
-                        File.Delete(tempPath);
-                    }
-                }
-                catch
-                {
-                }
-            }
-        }
-
         private void ResetSeatView(int seatId, bool showPrompt)
         {
             if (seatId < 0 || seatId >= m_SeatStates.Length)
@@ -680,16 +677,28 @@ namespace GameHot
             ShowTemplate(seatId, isWaitingForPlayer ? m_NotEqualPlayerTemplate : m_NoPlayerTemplate);
             var seat = m_SeatStates[seatId];
             seat.m_PersonId = m_InvalidPersonId;
+            seat.m_PendingImagePath = null;
+            seat.m_AvatarRetryAt = 0f;
+            seat.m_AvatarRetryDelay = 0f;
             seat.m_UserId = 0;
-            seat.m_LastLogKey = null;
+            seat.m_LastLoggedSlot = null;
+            seat.m_LastLoggedAvatarPath = null;
             SetHeadInfo(seatId, isWaitingForPlayer ? m_LanFaceEnterArea : null);
         }
 
         private void ShowTemplate(int seatId, LUIRawImage template)
         {
             var seat = m_SeatStates[seatId];
+            if (seat.m_DisplayedTemplate == template && seat.m_RuntimeTexture == null &&
+                seat.m_LoadCoroutine == null && seat.m_PendingTexture == null && seat.m_LoadRequest == null &&
+                (seat.m_HeadImage == null || seat.m_HeadImage.texture == (template != null ? template.texture : null)))
+            {
+                return;
+            }
+
             CancelLoad(seat);
             ReleaseRuntimeTexture(seat);
+            seat.m_DisplayedTemplate = template;
             if (seat.m_HeadImage == null)
             {
                 return;
@@ -708,6 +717,7 @@ namespace GameHot
         {
             ReleaseRuntimeTexture(seat);
             seat.m_RuntimeTexture = texture;
+            seat.m_DisplayedTemplate = null;
             if (seat.m_HeadImage != null)
             {
                 seat.m_HeadImage.texture = texture;
@@ -758,7 +768,8 @@ namespace GameHot
 
         private void SetHeadInfo(int seatId, string lanId)
         {
-            var headInfo = m_SeatStates[seatId].m_HeadInfo;
+            var seat = m_SeatStates[seatId];
+            var headInfo = seat.m_HeadInfo;
             if (headInfo == null)
             {
                 return;
@@ -769,6 +780,14 @@ namespace GameHot
                 lanId = m_LanFaceSelectAvatar;
             }
 
+            int language = RenderAPI.VerLan();
+            if (seat.m_HeadInfoLanId == lanId && seat.m_HeadInfoLanguage == language)
+            {
+                return;
+            }
+
+            seat.m_HeadInfoLanId = lanId;
+            seat.m_HeadInfoLanguage = language;
             bool visible = !string.IsNullOrEmpty(lanId);
             RenderAPI.SetActive(headInfo, visible);
             if (visible)
@@ -810,7 +829,6 @@ namespace GameHot
         private const string m_LanTdPrepareRole = "td_prepare_role";
         private const string m_LanTdPrepareStateReady = "td_prepare_state_ready";
         private const string m_LanTdPrepareStateNoReady = "td_prepare_state_no_ready";
-        private const string m_LanTdPrepareRoleFallback = "td_prepare_role_fallback";
         private const string m_LanTdErrorBattleRequestEmpty = "td_error_battle_request_empty";
         private const string m_LanTdPrepareErrorSdkDataMissing = "td_prepare_error_sdk_data_missing";
         private const string m_LanTdPrepareErrorAllReady = "td_prepare_error_all_ready";
@@ -824,14 +842,23 @@ namespace GameHot
         //可参与防守的角色
         private readonly List<long> m_RoleCandidates = new List<long>();
         private readonly long[] m_SelectedRoleCfgIdBySeat = new long[m_MaxPreparePlayerCount];
-        private readonly string[] m_LastRoleVisualKeysBySeat = new string[m_MaxPreparePlayerCount];
+        private readonly long[] m_DisplayedRoleCfgIds = new long[m_MaxPreparePlayerCount];
+        private readonly bool?[] m_DisplayedSeatReady = new bool?[m_MaxPreparePlayerCount];
+        private readonly Transform[] m_SeatNotReadyMarkers = new Transform[m_MaxPreparePlayerCount];
+        private int m_SeatLanguage = -1;
         private int m_RoleCandidateStageId = -1;
         private int m_LastRemoteMenuPlayerCount = -1;
         private tower_defend_prepare_face_controller m_FaceController;
         private bool m_UseFrameworkSession;
         private bool m_HasSubscribedFrameworkUi;
+        private int m_DisplayedSdkCountdown = -1;
+        private long m_ObservedCountdownSessionToken = -1;
+        private const float m_AutoStartRetryInterval = 2f;
+        private long m_AutoStartRetrySessionToken = -1;
+        private float m_NextAutoStartAt;
         private int m_LastBoundFrameworkPlayerCount = -1;
-        private string m_LastFrameworkSnapshotLogKey = string.Empty;
+        private MatchSessionUiSnapshot m_LastLoggedFrameworkSnapshot;
+        private bool m_HasLoggedFrameworkSnapshot;
         private PrepareRoleWaveDetector m_WaveDetector;
 
         public override void OnClassConstructed()
@@ -851,6 +878,7 @@ namespace GameHot
             var model = GetModel<tower_defend_prepare_model>();
             model.m_Request = request;
             m_IsWaitingBattleLoading = false;
+            ResetSdkCountdown();
             m_RoleCandidateStageId = -1;
             m_LastRemoteMenuPlayerCount = -1;
             m_LastBoundFrameworkPlayerCount = -1;
@@ -910,7 +938,10 @@ namespace GameHot
 
             m_LastRemoteMenuPlayerCount = -1;
             m_LastBoundFrameworkPlayerCount = -1;
-            m_LastFrameworkSnapshotLogKey = string.Empty;
+            m_HasLoggedFrameworkSnapshot = false;
+            m_LastLoggedFrameworkSnapshot = null;
+            m_SeatLanguage = -1;
+            ResetSdkCountdown();
             RefreshView();
             var openSnapshot = GameProductUiAdapter.Instance != null
                 ? GameProductUiAdapter.Instance.UiSnapshot
@@ -936,9 +967,27 @@ namespace GameHot
 
         // 准备界面自己完成确认链：先写回当前 UI 绑定，再同步真机已就位结果，
         // 点击确认时要求本次选择的人数都完成准备，最后走大厅正式开战入口。
+        public void HandleConfirmInput()
+        {
+            if (m_IsWaitingBattleLoading || loading_wnd.IsBlockingFlowInput())
+            {
+                return;
+            }
+
+            if (m_FaceController != null && m_FaceController.IsFrameworkManualSelecting)
+            {
+                Debug.Log("[准备确认] 确认交给头像选择。");
+                m_FaceController.HandleFrameworkSubmit();
+                return;
+            }
+
+            Debug.Log("[准备确认] 收到开战确认。");
+            OnClickConfirm();
+        }
+
         public void OnClickConfirm()
         {
-            if (m_IsWaitingBattleLoading)
+            if (m_IsWaitingBattleLoading || loading_wnd.IsBlockingFlowInput())
             {
                 return;
             }
@@ -963,70 +1012,93 @@ namespace GameHot
                 return;
             }
 
-            OnClickConfirmFramework(request);
+            OnClickConfirmFramework(request, showFailureTip: true);
         }
 
         // 框架会话模式确认链：全部视觉座位 Bound 后，按快照回写正式请求，
-        // 再走大厅开战入口，并通知新 SDK 进入 Gameplay 阶段。
-        private void OnClickConfirmFramework(BattleStartupRequest request)
+        // 再由大厅统一确认 SDK 开战和切场。
+        private void OnClickConfirmFramework(BattleStartupRequest request, bool showFailureTip)
         {
+            var adapter = GameProductUiAdapter.Instance;
+            YoudooAPI.TryGetSessionSnapshot(out var session);
+            if (adapter == null || !adapter.IsPrepareTrackingReady(session))
+            {
+                adapter?.TryResumePrepareSession();
+                Debug.LogWarning("[准备确认] SDK 跟踪未就绪，保留准备界面。camera=" + YoudooAPI.CameraImage.Status.State +
+                                 " session=" + session?.SessionToken + " phase=" + session?.Phase +
+                                 " lifecycle=" + session?.LifecycleState + " frame=" + session?.FrameState +
+                                 " hold=" + session?.TrackingHoldReason + " tick=" + session?.LastTickSequence);
+                if (showFailureTip)
+                {
+                    tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
+                }
+                return;
+            }
+
+            var snapshot = Application.isEditor ? adapter.UiSnapshot : session.UiSnapshot;
             string error;
             int requiredPlayerCount = request.ReadPreparePlayerCount();
             var readiness = new StringBuilder(requiredPlayerCount);
             bool allReady = true;
             for (int seatId = 0; seatId < requiredPlayerCount; seatId++)
             {
-                bool ready = IsSdkSeatReady(seatId);
+                bool ready = IsSdkSeatReady(snapshot, seatId);
                 readiness.Append(ready ? '1' : '0');
                 allReady &= ready;
             }
 
-            GameSdkLog.Info("[新SDK整合] prepare confirm required=" + requiredPlayerCount +
+            Debug.Log("[准备确认] required=" + requiredPlayerCount +
                       " seatReady=" + readiness + " allReady=" + allReady);
             if (!allReady)
             {
-                LogFrameworkSnapshot("confirm-blocked");
-                tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
+                LogFrameworkSnapshot("confirm-blocked", true);
+                if (showFailureTip)
+                {
+                    tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
+                }
                 return;
             }
 
-            RefreshSdkSeatBindings(request);
-            if (!CGameProcedure.s_ProcLobby.TrySyncPrepareRequestFromFramework(request, out error))
+            var battleRequest = request.CloneRequest();
+            RefreshSdkSeatBindings(battleRequest);
+            if (!CGameProcedure.s_ProcLobby.TrySyncPrepareRequestFromFramework(battleRequest, out error))
             {
                 Debug.LogWarning("[新SDK整合] prepare confirm sync failed: " + error);
-                tip_wnd.GetInstance().OnShowTip(error);
+                if (showFailureTip)
+                {
+                    tip_wnd.GetInstance().OnShowTip(error);
+                }
                 return;
             }
 
-            if (request.GetPlayerCount() != requiredPlayerCount)
+            if (battleRequest.GetPlayerCount() != requiredPlayerCount)
             {
                 Debug.LogWarning("[新SDK整合] prepare confirm playerCount mismatch, request=" +
-                                 request.GetPlayerCount() + " required=" + requiredPlayerCount);
-                tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
+                                 battleRequest.GetPlayerCount() + " required=" + requiredPlayerCount);
+                if (showFailureTip)
+                {
+                    tip_wnd.GetInstance().OnShowTipLanId(m_LanTdPrepareErrorAllReady);
+                }
                 return;
             }
 
             // 与旧链一致：不能在点击确认后立刻关闭准备界面，
-            // 等 loading 完全覆盖后由大厅统一关闭。
-            if (!CGameProcedure.s_ProcLobby.StartBattleFromRequest(request, out error))
+            // SDK 开战会同步发布快照，先阻止倒计时确认重复进入。
+            m_IsWaitingBattleLoading = true;
+            if (!CGameProcedure.s_ProcLobby.StartBattleFromFrameworkRequest(battleRequest, out error))
             {
-                Debug.LogWarning("[新SDK整合] prepare confirm StartBattleFromRequest failed: " + error);
-                tip_wnd.GetInstance().OnShowTip(error);
+                m_IsWaitingBattleLoading = false;
+                Debug.LogWarning("[新SDK整合] prepare confirm StartBattleFromFrameworkRequest failed: " + error);
+                if (showFailureTip)
+                {
+                    RenderAPI.SetText(m_View.m_txtInfo, error);
+                }
                 return;
             }
 
-            // 注意：这里不能暂停框架相机。CameraImage.Pause 会清空当前帧，
-            // 准备界面的实时画面会立刻变透明；等 loading 完全覆盖后再在
-            // CGamePro_Lobby.BeginGoSceneAfterLoading 里暂停/停止。
-            GameSdkLog.Info("[新SDK整合] prepare confirm passed, notify framework gameplay. players=" +
-                      request.GetPlayerCount());
-            if (!GameProductUiAdapter.Instance.StartGameplay())
-            {
-                Debug.LogError("[新SDK整合] Framework StartGameplay failed.");
-            }
-
-            m_IsWaitingBattleLoading = true;
+            SetDisplayedSdkCountdown(-1);
         }
+
         private void OnInitLanguage()
         {
             RenderAPI.SetTextLan(m_View.m_txtInfo, "td_lobby_prepare_title");
@@ -1066,17 +1138,19 @@ namespace GameHot
         // 准备界面的统一刷新入口。
         // 这里只在打开窗口、手动点击和 SDK 事件时触发，不走 Update 轮询。
         // 真机准备阶段只刷新界面显示，不在这里反复重建正式战斗请求。
-        private void RefreshView()
+        private void RefreshView(bool sdkUpdate = false)
         {
             if (!IsInitializedView())
             {
                 return;
             }
 
+            bool previouslyAttached = m_UseFrameworkSession;
             m_UseFrameworkSession = GameProductUiAdapter.HasLiveSession;
             var request = GetModel<tower_defend_prepare_model>().m_Request;
             if (request == null)
             {
+                SetDisplayedSdkCountdown(-1);
                 m_FaceController?.Refresh(0);
                 RefreshRemoteMenuButtons(null);
                 return;
@@ -1084,17 +1158,112 @@ namespace GameHot
 
             if (!m_UseFrameworkSession)
             {
-                Debug.LogError("[新SDK整合] prepare refresh blocked because the Framework session is unavailable.");
+                SetDisplayedSdkCountdown(-1);
+                if (!sdkUpdate || previouslyAttached)
+                {
+                    Debug.LogError("[新SDK整合] prepare refresh blocked because the Framework session is unavailable.");
+                }
                 return;
             }
 
-            EnsureRoleSelections(request);
+            if (!sdkUpdate || !previouslyAttached)
+            {
+                EnsureRoleSelections(request);
+            }
             BindFrameworkCameraViews(request);
 
             m_FaceController?.Refresh(request.ReadPreparePlayerCount());
-            RefreshSdkSeatBindings(request);
             RefreshPlayerSlots(request);
             RefreshRemoteMenuButtons(request);
+            RefreshSdkCountdown(request);
+        }
+
+        private void RefreshSdkCountdown(BattleStartupRequest request)
+        {
+            var adapter = GameProductUiAdapter.Instance;
+            var session = adapter?.SessionSnapshot;
+            if (session == null || session.Phase == GameSessionPhase.Matching)
+            {
+                m_ObservedCountdownSessionToken = -1;
+            }
+
+            if (session == null || m_IsWaitingBattleLoading || loading_wnd.IsBlockingFlowInput() ||
+                (Application.isEditor && !Application.isFocused) ||
+                UIManager.GetCurrentActiveWindow() != this ||
+                adapter.AvatarSelectionSnapshot?.IsActive == true ||
+                !adapter.IsPrepareTrackingReady(session) ||
+                (session.Phase != GameSessionPhase.Countdown && session.Phase != GameSessionPhase.Playing))
+            {
+                SetDisplayedSdkCountdown(-1);
+                return;
+            }
+
+            int playerCount = request.ReadPreparePlayerCount();
+            if (Application.isEditor && request.GetPlayerCount() != playerCount)
+            {
+                SetDisplayedSdkCountdown(-1);
+                return;
+            }
+
+            for (int seatId = 0; seatId < playerCount; seatId++)
+            {
+                if (!IsSdkSeatReady(session.UiSnapshot, seatId))
+                {
+                    SetDisplayedSdkCountdown(-1);
+                    return;
+                }
+            }
+
+            if (session.Phase == GameSessionPhase.Countdown)
+            {
+                m_ObservedCountdownSessionToken = session.SessionToken;
+                SetDisplayedSdkCountdown(Mathf.Max(1, Mathf.CeilToInt(session.RemainingSeconds)));
+                return;
+            }
+
+            SetDisplayedSdkCountdown(-1);
+            // 编辑器的模拟骨骼可能在手动选完座位之前就已进入 Playing。
+            if (Application.isEditor && m_ObservedCountdownSessionToken != session.SessionToken)
+            {
+                return;
+            }
+
+            float now = Time.unscaledTime;
+            if (m_AutoStartRetrySessionToken == session.SessionToken && now < m_NextAutoStartAt)
+            {
+                return;
+            }
+
+            m_AutoStartRetrySessionToken = session.SessionToken;
+            m_NextAutoStartAt = now + m_AutoStartRetryInterval;
+            Debug.Log("[准备确认] SDK 倒计时结束，尝试自动开战。session=" + session.SessionToken);
+            OnClickConfirmFramework(request, showFailureTip: false);
+        }
+
+        private void ResetSdkCountdown()
+        {
+            m_ObservedCountdownSessionToken = -1;
+            m_AutoStartRetrySessionToken = -1;
+            m_NextAutoStartAt = 0f;
+            SetDisplayedSdkCountdown(-1);
+        }
+
+        private void SetDisplayedSdkCountdown(int seconds)
+        {
+            if (m_DisplayedSdkCountdown == seconds || m_View == null)
+            {
+                return;
+            }
+
+            m_DisplayedSdkCountdown = seconds;
+            if (seconds > 0)
+            {
+                RenderAPI.SetTextLan(m_View.m_txtInfo, "td_prepare_start_countdown", seconds);
+            }
+            else
+            {
+                RenderAPI.SetTextLan(m_View.m_txtInfo, "td_lobby_prepare_title");
+            }
         }
 
         private void RefreshRemoteMenuButtons(BattleStartupRequest request)
@@ -1127,63 +1296,72 @@ namespace GameHot
             m_LastRemoteMenuPlayerCount = playerCount;
         }
 
-        // 当前界面只按本局选择的人数显示座位；角色开放限制已经废弃。
-        // 真机下座位是否有人由 SDK 准备结果决定，编辑器下保留手点座位调试。
         private void RefreshPlayerSlots(BattleStartupRequest request)
         {
+            int playerCount = request.ReadPreparePlayerCount();
             bool useSdkPrepareSelection = ShouldUseSdkManagedSeats();
-            for (int i = 0; i < m_MaxPreparePlayerCount; i++)
+            var adapter = GameProductUiAdapter.Instance;
+            var snapshot = adapter?.UiSnapshot;
+            bool trackingReady = adapter?.IsPrepareTrackingReady(adapter.SessionSnapshot) == true;
+            int language = RenderAPI.VerLan();
+            bool languageChanged = m_SeatLanguage != language;
+            m_SeatLanguage = language;
+
+            for (int seat = 0; seat < m_MaxPreparePlayerCount; seat++)
             {
-                var slotView = GetSlotView(i);
-                if (slotView == null || slotView.m_Bridge == null)
+                var view = GetSlotView(seat);
+                if (view == null || view.m_Bridge == null)
                 {
                     continue;
                 }
 
-                bool isVisible = ShouldShowSeat(request, i, useSdkPrepareSelection);
-                RenderAPI.SetActive(slotView.m_Bridge, isVisible);
-
-                var slotButton = GetSlotToggleButton(i);
-                if (slotButton != null)
+                bool visible = seat < playerCount;
+                if (view.m_Bridge.gameObject.activeSelf != visible)
                 {
-                    slotButton.interactable = !useSdkPrepareSelection;
+                    RenderAPI.SetActive(view.m_Bridge, visible);
                 }
-
-                if (!isVisible)
+                if (!visible)
                 {
+                    m_DisplayedSeatReady[seat] = null;
                     continue;
                 }
 
-                RefreshPlayerSlot(request, i, FindPlayerBySeat(request, i));
+                var toggle = GetSlotToggleButton(seat);
+                if (toggle != null && toggle.interactable == useSdkPrepareSelection)
+                {
+                    toggle.interactable = !useSdkPrepareSelection;
+                }
+
+                bool selected = !useSdkPrepareSelection && FindPlayerBySeat(request, seat) != null;
+                if (view.m_choose != null && view.m_choose.gameObject.activeSelf != selected)
+                {
+                    RenderAPI.SetActive(view.m_choose, selected);
+                }
+
+                bool ready = false;
+                float progress = 0f;
+                if (trackingReady && (useSdkPrepareSelection || selected) && snapshot != null &&
+                    snapshot.TryGetSlotForVisualIndex(seat, out var slot))
+                {
+                    ready = slot.IsReady;
+                    progress = ready ? 1f : slot.ReadyFramesRequired > 0
+                        ? Mathf.Clamp01((float)slot.ReadyFrameCount / slot.ReadyFramesRequired)
+                        : 0f;
+                }
+
+                RefreshPlayerRoleIcon(view, seat);
+                if (view.m_Fill != null && view.m_Fill.fillAmount != progress)
+                {
+                    view.m_Fill.fillAmount = progress;
+                }
+                if (languageChanged || m_DisplayedSeatReady[seat] != ready)
+                {
+                    m_DisplayedSeatReady[seat] = ready;
+                    RenderAPI.SetActive(view.m_prepare, true);
+                    RenderAPI.SetActive(m_SeatNotReadyMarkers[seat], !ready);
+                    RenderAPI.SetTextLan(view.m_txt_prepare, ready ? m_LanTdPrepareStateReady : m_LanTdPrepareStateNoReady);
+                }
             }
-        }
-
-        // 刷新单个座位的名称、选中态和准备文案。
-        private void RefreshPlayerSlot(BattleStartupRequest request, int seatId, BattleStartupPlayerData player)
-        {
-            var slotView = GetSlotView(seatId);
-            if (slotView == null)
-            {
-                return;
-            }
-
-            bool isSelected = player != null;
-            bool useSdkPrepareSelection = ShouldUseSdkManagedSeats();
-            bool isReady = useSdkPrepareSelection ? IsSdkSeatReady(seatId) : isSelected;
-            float prepareProgress = useSdkPrepareSelection
-                ? GetFrameworkSeatPrepareProgress(seatId)
-                : (isReady ? 1f : 0f);
-
-            RenderAPI.SetActive(slotView.m_choose, !useSdkPrepareSelection && isSelected);
-
-            long roleCfgId = EnsureSelectedRoleForSeat(request, seatId);
-            var heroCfg = roleCfgId > 0 ? t_heroBean.GetConfig(roleCfgId, false) : null;
-            var roleName = heroCfg != null && !string.IsNullOrEmpty(heroCfg.t_name)
-                ? heroCfg.t_name
-                : RenderAPI.GetTextByLanId(m_LanTdPrepareRoleFallback, seatId + 1);
-            //RenderAPI.SetText(slotView.m_txt, roleName);
-            RefreshPlayerRoleIcon(slotView, seatId);
-            RefreshPlayerStateText(slotView.m_txt_prepare, slotView.m_prepare, slotView.m_Fill, isReady, prepareProgress);
         }
 
         private void RefreshPlayerRoleIcon(v_tower_defend_prepare_wnd.v_PlayerSlot slotView, int seatId)
@@ -1193,7 +1371,12 @@ namespace GameHot
                 return;
             }
 
-            var cfgId = m_SelectedRoleCfgIdBySeat[seatId];
+            long cfgId = m_SelectedRoleCfgIdBySeat[seatId];
+            if (m_DisplayedRoleCfgIds[seatId] == cfgId)
+            {
+                return;
+            }
+
             var cfg = t_heroBean.GetConfig(cfgId, false);
             if (cfg == null)
             {
@@ -1204,40 +1387,13 @@ namespace GameHot
             string iconName = cfg.t_head;
             string fillName = cfg.t_prepare_fill;
             string prepareName = cfg.t_prepare;
-            string visualKey = string.Concat(iconName, "|", fillName, "|", prepareName);
-            if (m_LastRoleVisualKeysBySeat[seatId] == visualKey &&
-                slotView.m_Character.sprite != null &&
-                (slotView.m_Fill == null || slotView.m_Fill.sprite != null) &&
-                (slotView.m_prepare == null || slotView.m_prepare.sprite != null))
-            {
-                return;
-            }
-
-            m_LastRoleVisualKeysBySeat[seatId] = visualKey;
+            m_DisplayedRoleCfgIds[seatId] = cfgId;
             __SetImage(slotView.m_Character, m_PrepareRoleIconAtlas, iconName, false, () =>
             {
                 slotView.m_Character.SetNativeSize();
             });
             __SetImage(slotView.m_Fill, m_PrepareRoleIconAtlas, fillName.Substring(0, fillName.Length - 1) + seatId, false);
             __SetImage(slotView.m_prepare, m_PrepareRoleIconAtlas, prepareName.Substring(0, prepareName.Length - 1) + seatId, false);
-        }
-
-        private void RefreshPlayerStateText(LUITextMesh state, LUIImage prepare, LUIImage fill, bool isReady, float prepareProgress)
-        {
-            if (state == null || prepare == null)
-            {
-                return;
-            }
-
-            if (fill != null)
-            {
-                fill.fillAmount = isReady ? 1f : Mathf.Clamp01(prepareProgress);
-            }
-
-            var notPrepare = prepare.transform.Find("noPrepare");
-            RenderAPI.SetActive(prepare, true);
-            RenderAPI.SetActive(notPrepare, !isReady);
-            RenderAPI.SetTextLan(state, isReady ? m_LanTdPrepareStateReady : m_LanTdPrepareStateNoReady);
         }
 
         // 准备界面自己掌握了节点绑定关系，这里把“战斗座位 -> SDK 槽位”写回请求。
@@ -1265,12 +1421,6 @@ namespace GameHot
                 }
 
             }
-        }
-
-        // 人数选择后，准备界面只显示本局真实参与匹配的槽位。
-        private bool ShouldShowSeat(BattleStartupRequest request, int seatId, bool useSdkPrepareSelection)
-        {
-            return request != null && seatId >= 0 && seatId < request.ReadPreparePlayerCount();
         }
 
         private void EnsureRoleSelections(BattleStartupRequest request)
@@ -1318,17 +1468,6 @@ namespace GameHot
             }
         }
 
-        private long EnsureSelectedRoleForSeat(BattleStartupRequest request, int seatId)
-        {
-            EnsureRoleSelections(request);
-            if (request == null)
-            {
-                return 0;
-            }
-
-            long selectedRoleCfgId;
-            return request.TryGetSelectedRoleCfgIdForSeat(seatId, out selectedRoleCfgId) ? selectedRoleCfgId : 0;
-        }
         private void ChangeSelectedRole(int seatId, int delta)
         {
             var request = GetModel<tower_defend_prepare_model>().m_Request;
@@ -1401,36 +1540,13 @@ namespace GameHot
             return m_UseFrameworkSession && !Application.isEditor;
         }
 
-        private bool IsSdkSeatReady(int seatId)
+        private static bool IsSdkSeatReady(MatchSessionUiSnapshot snapshot, int seatId)
         {
-            var snapshot = GameProductUiAdapter.Instance != null
-                ? GameProductUiAdapter.Instance.UiSnapshot
-                : null;
             MatchSessionUiSlotSnapshot slot;
             return snapshot != null
                 && snapshot.TryGetSlotForVisualIndex(seatId, out slot)
                 && slot.IsReady;
         }
-
-        private float GetFrameworkSeatPrepareProgress(int seatId)
-        {
-            var snapshot = GameProductUiAdapter.Instance != null
-                ? GameProductUiAdapter.Instance.UiSnapshot
-                : null;
-            MatchSessionUiSlotSnapshot slot;
-            if (snapshot == null || !snapshot.TryGetSlotForVisualIndex(seatId, out slot))
-            {
-                return 0f;
-            }
-
-            if (slot.ReadyFramesRequired > 0)
-            {
-                return Mathf.Clamp01((float)slot.ReadyFrameCount / slot.ReadyFramesRequired);
-            }
-
-            return 0f;
-        }
-
 
         private BattleStartupPlayerData FindPlayerBySeat(BattleStartupRequest request, int seatId)
         {
@@ -1497,6 +1613,9 @@ namespace GameHot
                 var slotView = new v_tower_defend_prepare_wnd.v_PlayerSlot();
                 slotView.InitComponent(slotBridge.gameObject);
                 m_SlotViews[i] = slotView;
+                m_SeatNotReadyMarkers[i] = slotView.m_prepare != null
+                    ? slotView.m_prepare.transform.Find("noPrepare")
+                    : null;
             }
 
         }
@@ -1681,9 +1800,8 @@ namespace GameHot
             adapter.AvatarSelectionChanged += OnFrameworkAvatarSelectionChanged;
             if (GameControllerInputBridge.Instance != null)
             {
-                GameControllerInputBridge.Instance.NavigateReceived += OnFrameworkNavigate;
-                GameControllerInputBridge.Instance.SubmitReceived += OnFrameworkSubmit;
-                GameControllerInputBridge.Instance.CancelReceived += OnFrameworkCancel;
+                GameControllerInputBridge.Instance.NavigateRequested += OnFrameworkNavigate;
+                GameControllerInputBridge.Instance.CancelRequested += OnFrameworkCancel;
             }
             else
             {
@@ -1699,22 +1817,16 @@ namespace GameHot
                       " waveDetector=" + (m_WaveDetector != null));
         }
 
-        private void OnFrameworkNavigate(Vector2 direction)
+        private bool OnFrameworkNavigate(Vector2 direction)
         {
-            if (m_FaceController != null)
-            {
-                m_FaceController.HandleFrameworkNavigate(direction);
-            }
+            return UIManager.GetCurrentActiveWindow() == this &&
+                m_FaceController?.HandleFrameworkNavigate(direction) == true;
         }
 
-        private void OnFrameworkSubmit()
+        private bool OnFrameworkCancel()
         {
-            m_FaceController?.HandleFrameworkSubmit();
-        }
-
-        private void OnFrameworkCancel()
-        {
-            m_FaceController?.HandleFrameworkCancel();
+            return UIManager.GetCurrentActiveWindow() == this &&
+                m_FaceController?.HandleFrameworkCancel() == true;
         }
 
         // 选角状态机一旦变化就重绘座位提示，界面不缓存自己的选角标记。
@@ -1761,9 +1873,8 @@ namespace GameHot
 
             if (GameControllerInputBridge.Instance != null)
             {
-                GameControllerInputBridge.Instance.NavigateReceived -= OnFrameworkNavigate;
-                GameControllerInputBridge.Instance.SubmitReceived -= OnFrameworkSubmit;
-                GameControllerInputBridge.Instance.CancelReceived -= OnFrameworkCancel;
+                GameControllerInputBridge.Instance.NavigateRequested -= OnFrameworkNavigate;
+                GameControllerInputBridge.Instance.CancelRequested -= OnFrameworkCancel;
             }
 
             if (m_WaveDetector != null)
@@ -1777,37 +1888,42 @@ namespace GameHot
         private void OnFrameworkUiSnapshotChanged()
         {
             LogFrameworkSnapshot("change");
-            RefreshView();
+            RefreshView(sdkUpdate: true);
         }
 
-        private void LogFrameworkSnapshot(string stage)
+        private void LogFrameworkSnapshot(string stage, bool force = false)
         {
-            var snapshot = GameProductUiAdapter.Instance != null
-                ? GameProductUiAdapter.Instance.UiSnapshot
-                : null;
-            if (snapshot == null)
+            if (!force && !GameSdkLog.Enabled)
             {
-                if (m_LastFrameworkSnapshotLogKey != "none")
-                {
-                    m_LastFrameworkSnapshotLogKey = "none";
-                    GameSdkLog.Info("[新SDK整合] prepare " + stage + " snapshot=none");
-                }
-
                 return;
             }
 
-            var key = new StringBuilder(96);
-            var detail = new StringBuilder(320);
-            key.Append(snapshot.SessionPhase);
-            for (int i = 0; i < snapshot.Slots.Count; i++)
+            var snapshot = GameProductUiAdapter.Instance != null
+                ? GameProductUiAdapter.Instance.UiSnapshot
+                : null;
+            if (!force && m_HasLoggedFrameworkSnapshot && HasSameLoggedSlots(m_LastLoggedFrameworkSnapshot, snapshot))
             {
-                var slot = snapshot.Slots[i];
-                key.Append('[').Append(slot.VisualSlotIndex)
-                    .Append(':').Append(slot.State)
-                    .Append(':').Append(slot.IsReady ? '1' : '0')
-                    .Append(':').Append(slot.HasObservation ? '1' : '0')
-                    .Append(':').Append(slot.AvatarSyncState)
-                    .Append(']');
+                return;
+            }
+
+            m_HasLoggedFrameworkSnapshot = true;
+            m_LastLoggedFrameworkSnapshot = snapshot;
+            if (snapshot == null)
+            {
+                if (force)
+                {
+                    Debug.LogWarning("[准备确认] snapshot=none");
+                }
+                else
+                {
+                    GameSdkLog.Info("[新SDK整合] prepare " + stage + " snapshot=none");
+                }
+                return;
+            }
+
+            var detail = new StringBuilder(320);
+            foreach (var slot in snapshot.Slots)
+            {
                 detail.Append("[v").Append(slot.VisualSlotIndex)
                     .Append(" s").Append(slot.SlotIndex)
                     .Append(" p").Append(slot.PersonId)
@@ -1821,15 +1937,43 @@ namespace GameHot
                     .Append("] ");
             }
 
-            string keyText = key.ToString();
-            if (keyText == m_LastFrameworkSnapshotLogKey)
+            string message = "[新SDK整合] prepare " + stage + " phase=" + snapshot.SessionPhase +
+                             " slots=" + detail;
+            if (force)
             {
-                return;
+                Debug.LogWarning(message);
+            }
+            else
+            {
+                GameSdkLog.Info(message);
+            }
+        }
+
+        private static bool HasSameLoggedSlots(MatchSessionUiSnapshot previous, MatchSessionUiSnapshot current)
+        {
+            if (previous == current)
+            {
+                return true;
             }
 
-            m_LastFrameworkSnapshotLogKey = keyText;
-            GameSdkLog.Info("[新SDK整合] prepare " + stage + " phase=" + snapshot.SessionPhase +
-                      " slots=" + detail);
+            if (previous == null || current == null || previous.SessionPhase != current.SessionPhase ||
+                previous.Slots.Count != current.Slots.Count)
+            {
+                return false;
+            }
+
+            for (int i = 0; i < current.Slots.Count; i++)
+            {
+                var before = previous.Slots[i];
+                var after = current.Slots[i];
+                if (before.VisualSlotIndex != after.VisualSlotIndex || before.State != after.State ||
+                    before.IsReady != after.IsReady || before.HasObservation != after.HasObservation ||
+                    before.AvatarSyncState != after.AvatarSyncState)
+                {
+                    return false;
+                }
+            }
+            return true;
         }
 
         private LUIButton GetSlotToggleButton(int index)

@@ -31,6 +31,12 @@ namespace GameDll
             m_EffectBean = (t_effectBean)bean;
         }
 
+        // 特效表 t_sound：池化特效在开始播放时由 PlayableEffectObj 统一播一次
+        protected override int ReadConfiguredSoundId()
+        {
+            return m_EffectBean != null ? m_EffectBean.t_sound : 0;
+        }
+
         public t_effectBean GetEffBean()
         {
             return m_EffectBean;

@@ -302,7 +302,7 @@
       "url": "https://packages.tuanjie.cn"
     },
     "com.youdoogame.framework": {
-      "version": "https://gitlab.youdoogo.com/shared/youdoogame-unity-sdk.git#v1.0.7",
+      "version": "https://gitlab.youdoogo.com/shared/youdoogame-unity-sdk.git#v1.0.13",
       "depth": 0,
       "source": "git",
       "dependencies": {
@@ -315,7 +315,7 @@
         "com.unity.modules.unitywebrequesttexture": "1.0.0",
         "com.unity.modules.video": "1.0.0"
       },
-      "hash": "ec5b0e35572bedcdd4d83f0ee5945001bccf7d28"
+      "hash": "987c67a9dd2df782d9acdacc7bf3649d8f74c991"
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",

@@ -282,6 +282,7 @@ BONE_PARSER_CLIB_API int32_t BONE_PARSER_CLIB_CALL BoneParserCLib_GetAbiVersion(
 BONE_PARSER_CLIB_API BoneParserCLibHandle BONE_PARSER_CLIB_CALL BoneParserCLib_Create(void);
 
 BONE_PARSER_CLIB_API void BONE_PARSER_CLIB_CALL BoneParserCLib_Reset(BoneParserCLibHandle parser);
+BONE_PARSER_CLIB_API void BONE_PARSER_CLIB_CALL BoneParserCLib_ResetSeat(BoneParserCLibHandle parser, int32_t seatIndex);
 
 BONE_PARSER_CLIB_API void BONE_PARSER_CLIB_CALL BoneParserCLib_Destroy(BoneParserCLibHandle parser);
 

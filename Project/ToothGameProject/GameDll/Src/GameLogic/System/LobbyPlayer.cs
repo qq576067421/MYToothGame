@@ -404,61 +404,55 @@ namespace GameHot
             }
 
             m_IsWaitingRemoteSave = true;
-            RenderAPI.StartCoroutine(WaitRemoteSaveCoroutine());
+            GameSaveService.SaveDataReady += ApplyRemoteSave;
         }
 
-        private IEnumerator WaitRemoteSaveCoroutine()
+        private void ApplyRemoteSave()
         {
-            var saveService = GameSaveService.Instance;
-            while (saveService != null && !saveService.IsReady)
-            {
-                yield return null;
-            }
-
+            GameSaveService.SaveDataReady -= ApplyRemoteSave;
             m_IsWaitingRemoteSave = false;
-            if (saveService == null)
+            var saveService = GameSaveService.Instance;
+            if (saveService == null || !saveService.IsReady)
             {
-                yield break;
+                return;
             }
 
-            var remoteData = ParseRemoteSaveData(saveService.Root.m_LobbyJson);
-            if (remoteData != null)
+            var remoteData = ParseRemoteSaveData(saveService.Root.m_LobbyJson) ?? CreateDefaultSaveData();
+            var previousLanguage = m_SaveData != null ? m_SaveData.m_languageType : LanguageType.China;
+            if (m_PendingLanguageChanged)
             {
-                // 记录应用前的生效语言：存档语言不同时需要在应用后重切语言表。
-                var previousLanguage = m_SaveData != null ? m_SaveData.m_languageType : 0;
-                if (m_PendingLanguageChanged && m_SaveData != null)
-                {
-                    remoteData.m_languageType = m_SaveData.m_languageType;
-                }
-
-                if (m_PendingFirstStartConsumed)
-                {
-                    remoteData.m_FirstStart = 1;
-                }
-
-                m_SaveData = remoteData;
-                // 进度载体 PlayerInfo 必须按新档重建，否则旧数据会在下次保存时反覆盖真档。
-                m_PlayerInfo = null;
-                EnsureLocalPlayerInfo();
-                // 存档语言与此前生效语言不同（且用户未在等待期改过语言）时，
-                // 按存档重切语言表并刷新当前全部 UI 文本；否则界面会停留在默认语言。
-                if (!m_PendingLanguageChanged && remoteData.m_languageType != previousLanguage)
-                {
-                    // 云端语言（如换账号/清本地重装）覆盖本地副本并重刷界面。
-                    PlayerPrefs.SetInt(m_LocalLanguageKey, (int)remoteData.m_languageType);
-                    PlayerPrefs.Save();
-                    tower_defend_setting_wnd.InitLanguage();
-                    Debug.Log("SDK玩家存档语言与当前界面不同，已重新应用语言：" + remoteData.m_languageType);
-                }
-                bool pendingFirstStart = m_PendingFirstStartConsumed;
-                m_PendingLanguageChanged = false;
-                m_PendingFirstStartConsumed = false;
-                Debug.Log("SDK玩家存档已送达并应用。");
-                if (pendingFirstStart)
-                {
-                    SaveSaveData();
-                }
+                remoteData.m_languageType = previousLanguage;
             }
+            if (m_PendingFirstStartConsumed)
+            {
+                remoteData.m_FirstStart = 1;
+            }
+
+            m_SaveData = remoteData;
+            m_PlayerInfo = null;
+            EnsureLocalPlayerInfo();
+            if (!m_PendingLanguageChanged && remoteData.m_languageType != previousLanguage)
+            {
+                PlayerPrefs.SetInt(m_LocalLanguageKey, (int)remoteData.m_languageType);
+                PlayerPrefs.Save();
+                tower_defend_setting_wnd.InitLanguage();
+            }
+
+            bool needsSave = m_PendingLanguageChanged || m_PendingFirstStartConsumed;
+            m_PendingLanguageChanged = false;
+            m_PendingFirstStartConsumed = false;
+            if (needsSave)
+            {
+                SaveSaveData();
+            }
+        }
+
+        internal void ReloadForAccountChange()
+        {
+            UnInit();
+            Init();
+            SetPlayerState(PlayerState.Login);
+            EnsureLocalPlayerInfo();
         }
 
         private static void RebuildStageStarDictionary(LobbyPlayerSaveData saveData)
@@ -690,6 +684,10 @@ namespace GameHot
         }
         public void UnInit()
         {
+            GameSaveService.SaveDataReady -= ApplyRemoteSave;
+            m_IsWaitingRemoteSave = false;
+            m_PendingLanguageChanged = false;
+            m_PendingFirstStartConsumed = false;
             if (!m_IsInited)
             {
                 return;
@@ -768,7 +766,7 @@ namespace GameHot
             }
 
             saveData.m_FirstStart = 1;
-            m_PendingFirstStartConsumed = true;
+            m_PendingFirstStartConsumed = GameSaveService.Instance?.IsReady == false;
             SaveSaveData();
             return true;
         }
@@ -782,8 +780,8 @@ namespace GameHot
             // 本地副本立即写入：下次启动登录页在 SDK 存档送达前也能用上该语言。
             PlayerPrefs.SetInt(m_LocalLanguageKey, (int)languageType);
             PlayerPrefs.Save();
-            m_PendingLanguageChanged = true;
-            m_SaveData.m_languageType = languageType;
+            m_PendingLanguageChanged = GameSaveService.Instance?.IsReady == false;
+            EnsureSaveData().m_languageType = languageType;
             SaveSaveData();
         }
         public int GetBestEndlessWave()

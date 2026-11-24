@@ -1271,7 +1271,7 @@ namespace GameDll
             res.SetId(ReadId());
             SetResource(res);
             res.LoadRender(m_BulletBean.t_effect_abname, Tool.GetAssetName(m_BulletBean.t_effect_abname));
-            
+
 
             //m_BulletLogic = GameObject.CreatePrimitive(PrimitiveType.Cube);
             //m_BulletLogic.transform.localScale = new Vector3(0.05f, 1, 0.05f);
@@ -1283,7 +1283,7 @@ namespace GameDll
             m_HitSound = hitSound;
         }
         private t_bullet m_BulletBean = null;
-        
+
 
         public override void SetBean(object bean)
         {
@@ -1878,6 +1878,18 @@ namespace GameDll
                 return;
             }
 
+            // 水柱喷射期间瞄准线整线隐藏（见 TowerDefendAimAssistLine.Update），
+            // 而手操普攻的上下吸附原本是靠瞄准线每帧求解的；这里补一次同源求解，
+            // 否则水柱一开喷就锁死在开喷瞬间的俯仰上，无法像其它角色那样随目标高度吸附。
+            // 求解结果会同时写回手操俯仰缓存，角色姿态与水柱方向保持同一口径。
+            var sprayNormalSkill = m_HurtInfo != null ? m_HurtInfo.GetSkill() : null;
+            if (sprayNormalSkill != null &&
+                battle.TryResolveGuardHeroNormalAutoAim(attacker, sprayNormalSkill, forward, out var sprayAutoAimSolution) &&
+                sprayAutoAimSolution.m_HasSnapTarget)
+            {
+                forward = sprayAutoAimSolution.m_ResolvedLaunchForward;
+            }
+
             var direction = forward.normalized;
             // 水柱跟着枪口走：只更新特效根节点的位置和朝向，不把根节点搬到射线末端
             SetPosition(start);
@@ -2243,7 +2255,7 @@ namespace GameDll
         public override void SetPosition(Vector3 position)
         {
             GetRender().SetPosition(BulletFlightConstraintUtility.ResolveConstrainedPosition(m_BulletBean, position));
-            
+
         }
         public override void SetForward(Vector3 forward)
         {
@@ -2256,7 +2268,7 @@ namespace GameDll
                 return;
             }
             GetRender().SetForward(forward.normalized);
-            
+
         }
 
         public override float GetMoveSpeed()
@@ -2798,8 +2810,11 @@ namespace GameDll
         private bool FinishCurrentTargetHit(PropertyEntity hitTarget, Vector3 hitPoint)
         {
             SetPosition(hitPoint);
-            HandleHit(hitTarget, hitPoint);
-            GetRender().BulletBoom(hitPoint, GetRender().GetForward());
+            var visualHitPosition = HandleHit(hitTarget, hitPoint);
+            if (!m_CanPenetrate || m_Trajectory != 0)
+            {
+                GetRender().BulletBoom(visualHitPosition, GetRender().GetForward());
+            }
             if (m_Size > 0f)
             {
                 TriggerSizeDamage(hitPoint);
@@ -2886,9 +2901,7 @@ namespace GameDll
 
         protected virtual void OnFlyingNoTarget(float dt)
         {
-            var actors = BattleManager.GetObjectManager().ReadPropertyEntities();
             var currentPos = GetPosition();
-
             if (m_TrajectoryController.HandleNoTarget(this, dt))
             {
                 return;
@@ -2900,114 +2913,57 @@ namespace GameDll
                 return;
             }
 
-            if (m_Size > 0f)
+            bool hasAreaDamage = m_Size > 0f;
+            float hitRange = hasAreaDamage ? m_Size : m_DefaultSingleTargetHitRange;
+            PropertyEntity firstHitTarget = null;
+            Vector3 firstHitPosition = Vector3.zero;
+            float firstHitT = float.PositiveInfinity;
+            var actors = BattleManager.GetObjectManager().ReadPropertyEntities();
+            foreach (var defender in actors)
             {
-                bool isHit = false;
-                int hitNum = 0;
-                PropertyEntity firstHitTarget = null;
-                Vector3 firstHitPos = Vector3.zero;
-                float firstHitT = float.MaxValue;
-
-                foreach (var kv in actors)
+                if (!BattleManager.ReadIsEntityValide(defender) || defender.ReadIsInBorn() ||
+                    !defender.ReadCanBeTarget() || !defender.ReadCanBeHurt() ||
+                    defender.ReadHurtGroup() == m_BulletGroup ||
+                    !defender.TryIntersectSegment(currentPos, nextPos, hitRange, out float hitT, out var hitPoint))
                 {
-                    var defender = kv;
-                    if (!BattleManager.ReadIsEntityValide(defender))
-                    {
-                        continue;
-                    }
-                    if (defender.ReadIsInBorn())
-                    {
-                        continue;
-                    }
-                    if (!defender.ReadCanBeTarget() || !defender.ReadCanBeHurt())
-                    {
-                        continue;
-                    }
-                    if (defender.ReadHurtGroup() == m_BulletGroup)
-                    {
-                        continue;
-                    }
-
-                    if (!defender.TryIntersectSegment(currentPos, nextPos, m_Size, out var hitT, out var hitPoint))
-                    {
-                        continue;
-                    }
-
-                    isHit = true;
-                    hitNum++;
-
-                    if (firstHitTarget == null || hitT < firstHitT)
-                    {
-                        firstHitTarget = defender;
-                        firstHitPos = hitPoint;
-                        firstHitT = hitT;
-                    }
-
-                    if (m_CanPenetrate)
-                    {
-                        HandleHit(defender, hitPoint);
-                        continue;
-                    }
+                    continue;
                 }
 
-                if (isHit)
+                if (m_CanPenetrate)
                 {
-                    if (!m_CanPenetrate && firstHitTarget != null)
+                    HandleHit(defender, hitPoint);
+                    continue;
+                }
+
+                if (hitT < firstHitT)
+                {
+                    firstHitTarget = defender;
+                    firstHitPosition = hitPoint;
+                    firstHitT = hitT;
+                    if (firstHitT <= 0f)
                     {
-                        SetPosition(firstHitPos);
-                        HandleHit(firstHitTarget, firstHitPos);
-                        TriggerSizeDamage(firstHitPos);
-                        CacheTriggerSpawnPositionOverride(firstHitTarget);
-                        m_BulletState = BulletState.Finish;
-                        GetRender().BulletBoom(firstHitPos, GetRender().GetForward());
-                        OnFinish();
-                        return;
+                        break;
                     }
                 }
             }
 
-            if (m_Size <= 0f)
+            if (firstHitTarget == null)
             {
-                foreach (var kv in actors)
-                {
-                    var defender = kv;
-                    if (!BattleManager.ReadIsEntityValide(defender))
-                    {
-                        continue;
-                    }
-                    if (defender.ReadIsInBorn())
-                    {
-                        continue;
-                    }
-                    if (!defender.ReadCanBeTarget() || !defender.ReadCanBeHurt())
-                    {
-                        continue;
-                    }
-                    if (defender.ReadHurtGroup() == m_BulletGroup)
-                    {
-                        continue;
-                    }
-                    if (defender.TryIntersectSegment(currentPos, nextPos, m_DefaultSingleTargetHitRange, out var hitT, out var hitPoint))
-                    {
-                        if (m_CanPenetrate)
-                        {
-                            HandleHit(defender, hitPoint);
-                        }
-                        else
-                        {
-                            SetPosition(hitPoint);
-                            HandleHit(defender, hitPoint);
-                            CacheTriggerSpawnPositionOverride(defender);
-                            m_BulletState = BulletState.Finish;
-                            GetRender().BulletBoom(hitPoint, GetRender().GetForward());
-                            OnFinish();
-                            return;
-                        }
-                    }
-                }
+                AdvanceNoTargetFlight(nextPos);
+                return;
             }
 
-            AdvanceNoTargetFlight(nextPos);
+            SetPosition(firstHitPosition);
+            var visualHitPosition = HandleHit(firstHitTarget, firstHitPosition);
+            if (hasAreaDamage)
+            {
+                TriggerSizeDamage(firstHitPosition);
+            }
+
+            CacheTriggerSpawnPositionOverride(firstHitTarget);
+            m_BulletState = BulletState.Finish;
+            GetRender().BulletBoom(visualHitPosition, GetRender().GetForward());
+            OnFinish();
         }
 
         private bool TryHandleStationaryAreaDamage(Vector3 nextPos)
@@ -3034,14 +2990,14 @@ namespace GameDll
             return true;
         }
 
-        private void HandleHit(PropertyEntity defender, Vector3 damageNumberWorldPos)
+        private Vector3 HandleHit(PropertyEntity defender, Vector3 damageNumberWorldPos)
         {
-            HandleHit(defender, damageNumberWorldPos, defender.ReadHitPoint());
+            return HandleHit(defender, damageNumberWorldPos, defender.ReadHitPoint());
         }
 
         // hitEffectPos：击中点特效的世界位置。普通子弹默认取怪物命中节点；
         // 激光传视觉接触点（逻辑交点做完整弯折变换），否则特效会浮在弯折后单位的上方
-        private void HandleHit(PropertyEntity defender, Vector3 damageNumberWorldPos, Vector3 hitEffectPos)
+        private Vector3 HandleHit(PropertyEntity defender, Vector3 damageNumberWorldPos, Vector3 hitEffectPos)
         {
             int defenderId = defender.ReadId();
             // 激光（持续光束）：受击特效必须逐帧跟着最新的接触点，这里只登记本帧接触，
@@ -3053,7 +3009,7 @@ namespace GameDll
 
             if (HasAlreadyAffectedEntity(defenderId))
             {
-                return;
+                return damageNumberWorldPos;
             }
             MarkAffectedEntity(defenderId);
 
@@ -3065,7 +3021,16 @@ namespace GameDll
             }
 
             m_HurtInfo.SetDamageNumberWorldPos(damageNumberWorldPos);
-            DamageCal.Cal(m_HurtInfo, defender);
+            if (m_BulletBean != null && m_BulletBean.t_delay_damage > 0)
+            {
+                // 策划需求：命中后延迟 t_delay_damage 毫秒再结算伤害。子弹当帧就会回池复用，
+                // 伤害参数整份快照交给延迟队列，受击表现仍然当场播。
+                DelayedDamageManager.Schedule(m_HurtInfo, defender, m_BulletBean.t_delay_damage);
+            }
+            else
+            {
+                DamageCal.Cal(m_HurtInfo, defender);
+            }
             var attackedTarget = defender as MoveableCreature;
             if (attackedTarget != null)
             {
@@ -3073,10 +3038,20 @@ namespace GameDll
             }
             DamageCal.CalSickHP(m_HurtInfo.m_Attacker, m_HurtInfo.m_SickHP);
             m_HurtInfo.m_SickHP = 0;
+            var visualHitPosition = damageNumberWorldPos;
             // 持续光束（激光/水柱）的命中表现由光束或喷溅特效自己承担，不再额外播一次性受击特效
             if (!IsContinuousBeamTrajectory(m_Trajectory))
             {
-                PlayHitEffect(hitEffectPos);
+                if (TrySpawnHitStickEffect(defender, damageNumberWorldPos, out visualHitPosition))
+                {
+                    hitEffectPos = visualHitPosition;
+                }
+                bool isStraightPiercing = m_CanPenetrate && m_Trajectory == 0;
+                PlayHitEffect(isStraightPiercing ? visualHitPosition : hitEffectPos);
+                if (isStraightPiercing && GetRender() is UBullet bulletRender)
+                {
+                    bulletRender.PlayImpact(visualHitPosition, GetForward());
+                }
             }
             PlayHitSound();
 
@@ -3090,6 +3065,8 @@ namespace GameDll
                 m_MainDefender = null;
                 m_DefenderId = 0;
             }
+
+            return visualHitPosition;
         }
 
         protected virtual void OnFlyTarget(float dt)
@@ -3179,7 +3156,15 @@ namespace GameDll
                     }
 
                     m_HurtInfo.SetDamageNumberWorldPos(enemyHitPoint);
-                    DamageCal.Cal(m_HurtInfo, enemy);
+                    if (m_BulletBean != null && m_BulletBean.t_delay_damage > 0)
+                    {
+                        // 同一颗子弹的范围伤害也遵循命中延迟结算
+                        DelayedDamageManager.Schedule(m_HurtInfo, enemy, m_BulletBean.t_delay_damage);
+                    }
+                    else
+                    {
+                        DamageCal.Cal(m_HurtInfo, enemy);
+                    }
                     var target = enemy as MoveableCreature;
                     if (target != null)
                     {
@@ -3335,6 +3320,38 @@ namespace GameDll
                 eff.SetDuringTime(2.0f);
                 RenderEffManager.GetInstance().SetAutoPool(eff);
             }
+        }
+
+        private bool TrySpawnHitStickEffect(PropertyEntity defender, Vector3 impactPosition, out Vector3 visualHitPosition)
+        {
+            visualHitPosition = impactPosition;
+            if (m_BulletBean == null || m_BulletBean.t_hit_stick_eff == 0)
+            {
+                return false;
+            }
+
+            var targetRender = defender.GetRender();
+            var projectileRender = GetRender();
+            if (targetRender == null || !targetRender.TryAddHitStickEffect(m_BulletBean.t_hit_stick_eff, impactPosition,
+                    Quaternion.Euler(projectileRender.GetEulerAngles()), out visualHitPosition))
+            {
+                return false;
+            }
+
+            if (!m_CanPenetrate && projectileRender is UBullet bulletRender)
+            {
+                bulletRender.HideProjectileForHitStick();
+            }
+
+            return true;
+        }
+
+        // 子弹命中后逻辑上已回池，但命中特效还要按 m_HitShowTime 继续显示。
+        // 这里上报剩余显示时间，由对象池把它换算成延后的可复用时间。
+        public override float ReadVisualRemainTime()
+        {
+            var render = GetRender();
+            return render != null ? render.ReadVisualRemainTime() : 0f;
         }
 
         public override void PoolObj()

@@ -114,10 +114,10 @@ Material:
     - _DissColor: {r: 1, g: 0, b: 0, a: 1}
     - _DissTexParameter: {r: 0, g: 0, b: 0, a: 10}
     - _MainColor: {r: 0.745283, g: 0.745283, b: 0.745283, a: 1}
-    - _MainParameter: {r: 0, g: 0, b: 0, a: 8}
+    - _MainParameter: {r: 0, g: 0, b: 0, a: 9.32}
     - _MaskParameter: {r: 0, g: 0, b: 0, a: 0}
     - _SecColor: {r: 1, g: 1, b: 1, a: 1}
-    - _SecParameter: {r: 0, g: 0, b: 0, a: 2.6}
+    - _SecParameter: {r: 0, g: 0, b: 0, a: 7.84}
     - _TwistParameter: {r: 0, g: 0, b: 0, a: 0.1}
     - _VerParameter: {r: 0, g: 0, b: 0, a: 1}
   m_BuildTextureStacks: []

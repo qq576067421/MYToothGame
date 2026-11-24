@@ -1684,7 +1684,10 @@ public class RenderAPI
             return;
         }
 
-        RenderEvent.Event.OnRenderPrepareConfirmRequest();
+        if (RenderEvent.Event.OnRenderPrepareConfirmRequest())
+        {
+            return;
+        }
         //CGameProcedure.Event.OnInputAction(context, InputType.Enter);
         if (!TryGetCurrentButton(out var currentButton))
         {
@@ -1881,6 +1884,11 @@ public class RenderAPI
         {
             m_CurrentCol = maxColInNewRow;
         }
+    }
+
+    public static bool IsCurrentMenuButton(Button button)
+    {
+        return TryGetCurrentButton(out var currentButton) && currentButton == button;
     }
 
     private static bool TryGetCurrentButton(out Button currentButton)

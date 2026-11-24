@@ -82,6 +82,18 @@ namespace GameHot
 
             RenderAPI.SetActive(m_View.m_NotTips, model.m_ShowNotTips);
 
+            if (__ParticipateCurrentActiveWindow)
+            {
+                var buttons = new ActiveButtons();
+                foreach (var item in model.m_ButtonNames)
+                {
+                    var button = m_View.m_Menu.m_Items[item.Key].GetComponent<LUIButton>();
+                    buttons.buttons.Add(button);
+                }
+
+                __SetActiveButtons(new[] { buttons });
+            }
+
             OnInitShowTime();
         }
 
@@ -181,6 +193,13 @@ namespace GameHot
             model.OnChooseWithNotTips = null;
 
             ShowDialogImp(msg);
+        }
+
+        internal static void ShowRetryDialog(string message, Action retry)
+        {
+            var dialog = UIManager.OpenWindowAllowMultiEX<dialog_wnd>(null);
+            dialog.__ParticipateCurrentActiveWindow = true;
+            dialog.ShowDialog(message, new Dictionary<int, string> { { 0, RenderAPI.GetTextByLanId("ui_retry") } }, _ => retry());
         }
 
         public static void ShowSimpleDialog(string info, Action call = null, string lan_ok = "ok")

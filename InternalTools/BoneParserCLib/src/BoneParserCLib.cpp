@@ -4558,8 +4558,12 @@ namespace
         seatState.m_MissingFrameCount++;
         float deltaTimeSeconds = ReadDeltaTimeSeconds(frameData, seatState);
         UpdateMissingAim(config, seatState, result, deltaTimeSeconds);
-        if (seatState.m_MissingFrameCount > config.m_MaxMissingFrameCount &&
-            !seatState.m_HasAimOutput)
+        // 出过瞄准输出时先保持最后角度，避免遮挡/转身期间转向回中；
+        // 但缺失时间超过宽限上限的数倍后必须释放座位，否则旧 PersonId 会一直占着这个帧下标，
+        // 而下游只有在座位释放后才会把新的人送到这个下标上。
+        int32_t releaseFrameCount = config.m_MaxMissingFrameCount;
+        if (seatState.m_MissingFrameCount > releaseFrameCount &&
+            (!seatState.m_HasAimOutput || seatState.m_MissingFrameCount > releaseFrameCount * 4))
         {
             seatState.ResetForRelease();
         }
@@ -4771,6 +4775,17 @@ extern "C"
         context->m_SeatStates.clear();
         context->m_FrameSerial = 0;
         context->m_NextActionEventId = 1;
+    }
+
+    BONE_PARSER_CLIB_API void BONE_PARSER_CLIB_CALL BoneParserCLib_ResetSeat(BoneParserCLibHandle parser, int32_t seatIndex)
+    {
+        BoneParserCLibContext* context = ReadContext(parser);
+        if (context == nullptr || seatIndex < 0 || static_cast<size_t>(seatIndex) >= context->m_SeatStates.size())
+        {
+            return;
+        }
+
+        context->m_SeatStates[static_cast<size_t>(seatIndex)].ResetForRelease();
     }
 
     BONE_PARSER_CLIB_API void BONE_PARSER_CLIB_CALL BoneParserCLib_Destroy(BoneParserCLibHandle parser)

@@ -89,6 +89,22 @@ namespace GameDll
         private readonly List<TowerDefendMonsterPathPointData> m_MonsterPathPoints = new List<TowerDefendMonsterPathPointData>();
         private readonly List<Vector3> m_GuardHeroSpawnPoints = new List<Vector3>();
         private readonly Dictionary<int, Vector2> m_ManualAimAngles = new Dictionary<int, Vector2>();
+        // 解冻转向收敛：冰冻期间朝向定格，解冻后若与玩家当前朝向差很大，直接 SetForward 会一帧翻面。
+        // 这里改成按固定角速度在极短时间内转过去（180° 约 0.17 秒），开火与瞄准线仍立刻使用玩家最新朝向。
+        private const float m_AimTurnRecoverMaxSpeedDegreesPerSecond = 1080f;
+        private const float m_AimTurnRecoverMaxDurationSecond = 0.2f;
+        private const float m_AimTurnRecoverWindowSecond = 0.4f;
+        private const float m_AimTurnRecoverTriggerDegrees = 2f;
+        private const float m_AimTurnRecoverSnapDegrees = 0.5f;
+        private readonly bool[] m_HasGuardHeroFreezeRecordBySeat = new bool[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly float[] m_LastGuardHeroFreezeRealtimeBySeat = new float[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly bool[] m_IsAimTurnRecoveringBySeat = new bool[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly float[] m_AimTurnRecoverYawBySeat = new float[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly float[] m_AimTurnRecoverElapsedBySeat = new float[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly int[] m_AimTurnRecoverFrameBySeat = new int[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        // 冰冻期间键盘 A/D 积压的目标 yaw：冰冻中不动模型与瞄准线，解冻首帧再合并进 m_ManualAimAngles。
+        private readonly bool[] m_HasFrozenManualYawBySeat = new bool[TowerDefendSeatLayout.MaxSupportedPlayerCount];
+        private readonly float[] m_FrozenManualYawBySeat = new float[TowerDefendSeatLayout.MaxSupportedPlayerCount];
         private readonly Dictionary<int, GuardHeroAutoAimRuntimeState> m_GuardHeroAutoAimStates = new Dictionary<int, GuardHeroAutoAimRuntimeState>();
         private readonly Dictionary<int, RenderEff> m_UpgradeChallengeMaxLevelEffects = new Dictionary<int, RenderEff>();
         private readonly List<int> m_UpgradeChallengeMaxLevelEffectRecycleSeats = new List<int>();
@@ -1205,6 +1221,12 @@ namespace GameDll
                 return ReadManualAimForwardBySeat(seatId);
             }
 
+            // 冰冻期间不接受体感转向，保持冻结瞬间的朝向。
+            if (hero.ReadIsFrozen())
+            {
+                return ReadManualAimForwardBySeat(seatId);
+            }
+
             var horizontalForward = new Vector3(faceForward.x, 0f, faceForward.z);
             if (horizontalForward.sqrMagnitude <= 0.0001f)
             {
@@ -1217,9 +1239,159 @@ namespace GameDll
             m_ManualAimAngles[seatId] = new Vector2(yawDegrees, pitchOffsetDegrees);
             var aimForward = BuildForwardFromYawPitch(yawDegrees, ResolveManualAimPitchDegrees(hero, pitchOffsetDegrees));
 
-            hero.SetForward(horizontalForward);
+            // 先定水平朝向，再用瞄准方向覆盖俯仰（SetForward 会把俯仰回退到默认值）。
+            // 根节点朝向在解冻瞬间按角速度收敛；开火基准仍立刻使用玩家最新朝向。
+            ApplyAimRootForwardBySeat(seatId, hero, horizontalForward);
             hero.SetBaseForward(aimForward);
             return aimForward;
+        }
+
+        private void RefreshGuardHeroFreezeStates()
+        {
+            if (m_BattleSpawer == null)
+            {
+                return;
+            }
+
+            float now = Time.realtimeSinceStartup;
+            for (int seatId = 0; seatId < TowerDefendSeatLayout.MaxSupportedPlayerCount; seatId++)
+            {
+                var hero = m_BattleSpawer.ReadGuardHeroBySeat(seatId);
+                if (!BattleManager.ReadIsEntityValide(hero) || !hero.ReadIsFrozen())
+                {
+                    continue;
+                }
+
+                m_HasGuardHeroFreezeRecordBySeat[seatId] = true;
+                m_LastGuardHeroFreezeRealtimeBySeat[seatId] = now;
+                // 冰冻期间保持定格，不推进任何收敛。
+                m_IsAimTurnRecoveringBySeat[seatId] = false;
+                m_AimTurnRecoverElapsedBySeat[seatId] = 0f;
+            }
+        }
+
+        private void ResetAimTurnRecoveryStates()
+        {
+            for (int seatId = 0; seatId < TowerDefendSeatLayout.MaxSupportedPlayerCount; seatId++)
+            {
+                m_HasGuardHeroFreezeRecordBySeat[seatId] = false;
+                m_LastGuardHeroFreezeRealtimeBySeat[seatId] = 0f;
+                m_IsAimTurnRecoveringBySeat[seatId] = false;
+                m_AimTurnRecoverYawBySeat[seatId] = 0f;
+                m_AimTurnRecoverElapsedBySeat[seatId] = 0f;
+                m_AimTurnRecoverFrameBySeat[seatId] = 0;
+                m_HasFrozenManualYawBySeat[seatId] = false;
+                m_FrozenManualYawBySeat[seatId] = 0f;
+            }
+        }
+
+        // 根节点朝向：解冻瞬间按角速度收敛到目标水平朝向；其它情况保持原来的瞬时跟随。
+        private void ApplyAimRootForwardBySeat(int seatId, PropertyEntity hero, Vector3 targetHorizontalForward)
+        {
+            if (!TowerDefendSeatLayout.IsValidSeatId(seatId) || targetHorizontalForward.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            targetHorizontalForward.Normalize();
+            ExtractYawPitch(targetHorizontalForward, out var targetYawDegrees, out _);
+
+            if (!m_IsAimTurnRecoveringBySeat[seatId])
+            {
+                if (!ShouldStartAimTurnRecover(seatId, hero, targetYawDegrees))
+                {
+                    hero.SetForward(targetHorizontalForward);
+                    return;
+                }
+
+                ExtractYawPitch(NormalizeForwardOrDefault(hero.ReadForward()), out var startYawDegrees, out _);
+                m_AimTurnRecoverYawBySeat[seatId] = startYawDegrees;
+                m_AimTurnRecoverElapsedBySeat[seatId] = 0f;
+                m_IsAimTurnRecoveringBySeat[seatId] = true;
+                Debug.Log("[解冻转向] seat=" + seatId + " 开始收敛 startYaw=" + startYawDegrees.ToString("0.0") +
+                    " targetYaw=" + targetYawDegrees.ToString("0.0"));
+            }
+
+            float deltaTime = 0f;
+            int frameCount = Time.frameCount;
+            if (frameCount != m_AimTurnRecoverFrameBySeat[seatId])
+            {
+                // 同一帧内体感与键盘两个入口可能都走到这里，只按一帧的步长推进。
+                m_AimTurnRecoverFrameBySeat[seatId] = frameCount;
+                deltaTime = Mathf.Clamp(Time.deltaTime, 1f / 240f, 0.1f);
+                m_AimTurnRecoverElapsedBySeat[seatId] += deltaTime;
+            }
+
+            bool forceSnap = m_AimTurnRecoverElapsedBySeat[seatId] >= m_AimTurnRecoverMaxDurationSecond;
+            float nextYawDegrees = m_AimTurnRecoverYawBySeat[seatId];
+            if (forceSnap)
+            {
+                nextYawDegrees = targetYawDegrees;
+            }
+            else if (deltaTime > 0f)
+            {
+                nextYawDegrees = Mathf.MoveTowardsAngle(nextYawDegrees, targetYawDegrees,
+                    m_AimTurnRecoverMaxSpeedDegreesPerSecond * deltaTime);
+            }
+
+            if (forceSnap || Mathf.Abs(Mathf.DeltaAngle(nextYawDegrees, targetYawDegrees)) <= m_AimTurnRecoverSnapDegrees)
+            {
+                m_IsAimTurnRecoveringBySeat[seatId] = false;
+                m_AimTurnRecoverElapsedBySeat[seatId] = 0f;
+                m_AimTurnRecoverYawBySeat[seatId] = targetYawDegrees;
+                hero.SetForward(targetHorizontalForward);
+                return;
+            }
+
+            m_AimTurnRecoverYawBySeat[seatId] = nextYawDegrees;
+            hero.SetForward(BuildHorizontalForwardFromYaw(nextYawDegrees));
+        }
+
+        private bool ShouldStartAimTurnRecover(int seatId, PropertyEntity hero, float targetYawDegrees)
+        {
+            // 直接查实体状态：Scene 的骨骼输入可能早于本帧的冰冻状态刷新，
+            // 用缓存标记会把“解冻首帧”误当成“仍在冰冻”。
+            if (!BattleManager.ReadIsEntityValide(hero) || !m_HasGuardHeroFreezeRecordBySeat[seatId] ||
+                hero.ReadIsFrozen())
+            {
+                return false;
+            }
+
+            // 只在刚解冻后的短时间内收敛一次，避免长时间无输入后的一次转向也被限速。
+            if (Time.realtimeSinceStartup - m_LastGuardHeroFreezeRealtimeBySeat[seatId] > m_AimTurnRecoverWindowSecond)
+            {
+                return false;
+            }
+
+            ExtractYawPitch(NormalizeForwardOrDefault(hero.ReadForward()), out var currentYawDegrees, out _);
+            return Mathf.Abs(Mathf.DeltaAngle(currentYawDegrees, targetYawDegrees)) > m_AimTurnRecoverTriggerDegrees;
+        }
+
+        // 收敛期间一旦有开火意图，立刻把模型对齐到玩家当前朝向，避免背身出弹。
+        public void SnapAimTurnRecoverBySeat(int seatId)
+        {
+            if (!TowerDefendSeatLayout.IsValidSeatId(seatId) || !m_IsAimTurnRecoveringBySeat[seatId])
+            {
+                return;
+            }
+
+            m_IsAimTurnRecoveringBySeat[seatId] = false;
+            m_AimTurnRecoverElapsedBySeat[seatId] = 0f;
+            var hero = m_BattleSpawer != null ? m_BattleSpawer.ReadGuardHeroBySeat(seatId) : null;
+            if (!BattleManager.ReadIsEntityValide(hero))
+            {
+                return;
+            }
+
+            var aimForward = ReadManualAimForwardBySeat(seatId);
+            var horizontalForward = new Vector3(aimForward.x, 0f, aimForward.z);
+            if (horizontalForward.sqrMagnitude <= 0.0001f)
+            {
+                return;
+            }
+
+            hero.SetForward(horizontalForward.normalized);
+            hero.SetBaseForward(aimForward);
         }
 
         // 自动吸附只允许修正Y，不允许改写玩家当前的水平转向。
@@ -1253,13 +1425,19 @@ namespace GameDll
                 return;
             }
 
+            // 冰冻期间不回写朝向，避免缓存角度把冻结姿势再转走。
+            if (hero.ReadIsFrozen())
+            {
+                return;
+            }
+
             // 这里每帧都按当前缓存的水平角与俯仰变化值回写一次表现方向。
             // 这样在“刚离开一个可吸附目标、但还没碰到下一个目标”的空窗期里，角色和开火点仍会保持上一份变化值，不会突然掉回基础姿态。
             var aimForward = ReadManualAimForwardBySeat(seatId);
             var horizontalForward = new Vector3(aimForward.x, 0f, aimForward.z);
             if (horizontalForward.sqrMagnitude > 0.0001f)
             {
-                hero.SetForward(horizontalForward.normalized);
+                ApplyAimRootForwardBySeat(seatId, hero, horizontalForward);
             }
 
             hero.SetBaseForward(aimForward);
@@ -1392,6 +1570,7 @@ namespace GameDll
             m_PhaseTimer = 0f;
             ClearUpgradeChallengeMaxLevelEffects();
             m_ManualAimAngles.Clear();
+            ResetAimTurnRecoveryStates();
             m_GuardHeroAutoAimStates.Clear();
             m_PostUpgradeChallengeAimRecoveringSeats.Clear();
             m_PostUpgradeChallengeAimRecoveryFinishedSeats.Clear();
@@ -1867,7 +2046,7 @@ namespace GameDll
             RenderEvent.Event.OnAddTeamExp();
         }
 
-        // 启动升级挑战的倒计时流程：准备参与列表，冻结并隐藏场上怪物，同时清理控制效果。
+        // 启动升级挑战的倒计时流程：准备参与列表，挂起并隐藏场上怪物，同时清理控制效果。
         public void StartUpgradeChallengeCountdown()
         {
             if (m_Phase != BattlePhase.NormalGame)
@@ -3387,6 +3566,8 @@ namespace GameDll
 
             UpdateUpgradeChallengeTargetDestroyState();
             UpdateUpgradeChallengeMaxLevelEffects();
+            // 冰冻/解冻时刻要早于瞄准回写与输入处理刷新，解冻首帧才能正确触发转向收敛。
+            RefreshGuardHeroFreezeStates();
             UpdatePostUpgradeChallengeAimRecovery(dt);
             UpdateInput(dt);
         }
@@ -3459,33 +3640,31 @@ namespace GameDll
                 return;
             }
 
+            // 冰冻期间：A/D 只累积“解冻后要转到的目标 yaw”，模型与瞄准线都保持定格；普攻/技能一律拒绝。
+            if (hero.ReadIsFrozen())
+            {
+                AccumulateFrozenManualYaw(seatId, hero, turnLeftKey, turnRightKey, dt);
+                return;
+            }
+
             RefreshControlledSeatAimPose(seatId, hero);
 
             float yawInput = 0f;
             if (Input.GetKey(turnLeftKey)) yawInput -= 1f;
             if (Input.GetKey(turnRightKey)) yawInput += 1f;
 
-            if (yawInput != 0f)
+            // 解冻后不能把冰冻期间积压的 yaw 一次性写进缓存：瞄准线会瞬间跳过去，根节点再被解冻收敛以 1080°/s 追过去，
+            // 观感就是“突然飞转”。这里改成按键盘转速逐帧补齐，消化期间的转速与冻结前完全一致；
+            // 积压已经占用本帧步长时，实时按键不再叠加，避免出现双倍速。
+            bool consumedByFrozenBacklog = ApplyFrozenManualYaw(seatId, hero, yawInput, dt);
+            if (!consumedByFrozenBacklog && yawInput != 0f)
             {
                 var currentAngles = EnsureManualAimAngles(seatId, hero);
-                var currentYaw = currentAngles.x;
-
                 var nextYaw = Mathf.Clamp(
-                    currentYaw + yawInput * m_ManualYawSpeedDegrees * dt,
+                    currentAngles.x + yawInput * m_ManualYawSpeedDegrees * dt,
                     -m_ManualYawClampDegrees,
                     m_ManualYawClampDegrees);
-                var nextPitchOffset = currentAngles.y;
-
-                var nextAimForward = BuildForwardFromYawPitch(nextYaw, ResolveManualAimPitchDegrees(hero, nextPitchOffset));
-                m_ManualAimAngles[seatId] = new Vector2(nextYaw, nextPitchOffset);
-
-                var horizontalForward = new Vector3(nextAimForward.x, 0f, nextAimForward.z);
-                if (horizontalForward.sqrMagnitude > 0.0001f)
-                {
-                    hero.SetForward(horizontalForward.normalized);
-                }
-                hero.SetBaseForward(nextAimForward);
-                m_BattleSpawer.MarkManualControl(hero);
+                ApplyManualAimYaw(seatId, hero, nextYaw, currentAngles.y);
             }
 
             if (Input.GetKeyDown(normalAttackKey))
@@ -3502,6 +3681,76 @@ namespace GameDll
                 var faceDir = ReadManualAimForwardBySeat(seatId);
                 m_BattleSpawer.TryGuardHeroBoneActionBySeat(seatId, 1, faceDir, Vector3.zero, false);
             }
+        }
+
+        // 冰冻期间键盘转向被拒绝，但这段时间按下的 A/D 不能直接丢掉：只累积“解冻后要转到的目标 yaw”，
+        // 不动模型也不动瞄准线缓存，解冻后由 ApplyFrozenManualYaw 按键盘转速逐帧补齐。
+        private void AccumulateFrozenManualYaw(int seatId, PropertyEntity hero, KeyCode turnLeftKey, KeyCode turnRightKey, float dt)
+        {
+            float yawInput = 0f;
+            if (Input.GetKey(turnLeftKey)) yawInput -= 1f;
+            if (Input.GetKey(turnRightKey)) yawInput += 1f;
+            if (yawInput == 0f)
+            {
+                return;
+            }
+
+            float baseYaw = m_HasFrozenManualYawBySeat[seatId]
+                ? m_FrozenManualYawBySeat[seatId]
+                : EnsureManualAimAngles(seatId, hero).x;
+            m_FrozenManualYawBySeat[seatId] = Mathf.Clamp(
+                baseYaw + yawInput * m_ManualYawSpeedDegrees * dt,
+                -m_ManualYawClampDegrees,
+                m_ManualYawClampDegrees);
+            m_HasFrozenManualYawBySeat[seatId] = true;
+        }
+
+        // 解冻后消化冰冻期间积压的目标 yaw：每帧最多按键盘转速前进一个步长，不做瞬切。
+        // 返回 true 表示本帧步长已被积压消化占用，调用方不应再叠加实时转向。
+        private bool ApplyFrozenManualYaw(int seatId, PropertyEntity hero, float yawInput, float dt)
+        {
+            if (!m_HasFrozenManualYawBySeat[seatId])
+            {
+                return false;
+            }
+
+            float step = m_ManualYawSpeedDegrees * dt;
+            // 积压目标本身也按键盘转速推进，按住不放时转速与冻结前一致，不会因为解冻瞬间的差值而变快。
+            m_FrozenManualYawBySeat[seatId] = Mathf.Clamp(
+                m_FrozenManualYawBySeat[seatId] + yawInput * step,
+                -m_ManualYawClampDegrees,
+                m_ManualYawClampDegrees);
+
+            var angles = EnsureManualAimAngles(seatId, hero);
+            float nextYaw = Mathf.MoveTowards(angles.x, m_FrozenManualYawBySeat[seatId], step);
+            if (Mathf.Abs(m_FrozenManualYawBySeat[seatId] - nextYaw) < 0.01f)
+            {
+                // 消化完就把控制权还给实时转向；若有残留位移，本帧仍然只走这一个步长。
+                m_HasFrozenManualYawBySeat[seatId] = false;
+            }
+
+            if (Mathf.Approximately(nextYaw, angles.x))
+            {
+                return false;
+            }
+
+            ApplyManualAimYaw(seatId, hero, nextYaw, angles.y);
+            return true;
+        }
+
+        private void ApplyManualAimYaw(int seatId, PropertyEntity hero, float yawDegrees, float pitchOffsetDegrees)
+        {
+            m_ManualAimAngles[seatId] = new Vector2(yawDegrees, pitchOffsetDegrees);
+
+            var aimForward = BuildForwardFromYawPitch(yawDegrees, ResolveManualAimPitchDegrees(hero, pitchOffsetDegrees));
+            var horizontalForward = new Vector3(aimForward.x, 0f, aimForward.z);
+            if (horizontalForward.sqrMagnitude > 0.0001f)
+            {
+                ApplyAimRootForwardBySeat(seatId, hero, horizontalForward);
+            }
+
+            hero.SetBaseForward(aimForward);
+            m_BattleSpawer.MarkManualControl(hero);
         }
 
         private static void ExtractYawPitch(Vector3 forward, out float yawDegrees, out float pitchDegrees)
@@ -3534,6 +3783,12 @@ namespace GameDll
                 Mathf.Sin(pitchRadians),
                 Mathf.Cos(yawRadians) * cosPitch);
             return forward.sqrMagnitude > 0.0001f ? forward.normalized : Vector3.forward;
+        }
+
+        private static Vector3 BuildHorizontalForwardFromYaw(float yawDegrees)
+        {
+            var yawRadians = yawDegrees * Mathf.Deg2Rad;
+            return new Vector3(Mathf.Sin(yawRadians), 0f, Mathf.Cos(yawRadians));
         }
 
         private static Vector3 NormalizeForwardOrDefault(Vector3 forward)
@@ -3570,6 +3825,7 @@ namespace GameDll
         public override void OnRelease()
         {
             m_ManualAimAngles.Clear();
+            ResetAimTurnRecoveryStates();
             m_GuardHeroAutoAimStates.Clear();
             ClearUpgradeChallengeMaxLevelEffects();
             m_PostUpgradeChallengeAimRecoveringSeats.Clear();

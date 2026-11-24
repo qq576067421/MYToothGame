@@ -1,14 +1,18 @@
-﻿using GameDll;
-using System;
-using LCL;
+﻿using System;
+using GameDll;
 
 namespace GameHot
 {
     public class tower_defend_pause_wnd : WindowBase
     {
         private v_tower_defend_pause_wnd m_View;
-        private bool m_ShouldResumeBattleOnClose;
-        private bool m_IsBattleTransitionRequested;
+        private Action m_OnResume;
+        private Action m_OnRestart;
+        private Action m_OnReturn;
+        private TowerDefendResumeStatus m_ResumeStatus;
+        private bool m_IsRestartFrameCheckPending;
+        private bool IsWaitingForTracking =>
+            m_IsRestartFrameCheckPending || m_ResumeStatus == TowerDefendResumeStatus.WaitingForTracking;
 
         public override void OnClassConstructed()
         {
@@ -17,7 +21,13 @@ namespace GameHot
             __CustomUIPrefabDir = UIPrefabDirs.lobby;
             __ParticipateCurrentActiveWindow = true;
             __SetWindowCacheTime(0);
+        }
 
+        public void SetCallbacks(Action onResume, Action onRestart, Action onReturn)
+        {
+            m_OnResume = onResume;
+            m_OnRestart = onRestart;
+            m_OnReturn = onReturn;
         }
 
         protected override void OnInitComponent()
@@ -27,62 +37,118 @@ namespace GameHot
 
             RenderAPI.AddButtonClick(m_View.m_luibutton_filled_1, OnClickResume);
             RenderAPI.AddButtonClick(m_View.m_luibutton_filled_2, OnClickRestart);
-            RenderAPI.AddButtonClick(m_View.m_luibutton_filled_3, OnClickReturnLobby);
-            RenderAPI.AddButtonClick(m_View.m_luibutton_filled_4, OnClickClose);
-            //RenderAPI.AddButtonClick(m_View.m_Pause_Btn, OnClickResume);
-            OnInitLanguage();
-        }
-
-        private void OnClickResume()
-        {
-            ForceResumeBattle();
-            UIManager.CloseWindow(this);
-        }
-
-        private void OnClickRestart()
-        {
-            RequestBattleTransition(RenderEvent.Event.OnTowerDefendRestartBattleRequest);
-        }
-
-        private void OnClickReturnLobby()
-        {
-            RequestBattleTransition(RenderEvent.Event.OnTowerDefendReturnLobbyRequest);
-        }
-
-        private void OnClickClose()
-        {
-            UIManager.CloseWindow(this);
+            RenderAPI.AddButtonClick(m_View.m_luibutton_filled_3, () => RequestTransition(m_OnReturn, "td_pause_return_failed"));
+            RenderAPI.AddButtonClick(m_View.m_luibutton_filled_4, OnClickSettings);
         }
 
         protected override void OnOpen()
         {
-            m_IsBattleTransitionRequested = false;
-            m_ShouldResumeBattleOnClose = false;
-            var battleLogic = CBattleLogic.GetInstance();
-            // 只有本窗口把战斗从运行切到暂停时，普通关闭才负责恢复。
-            if (!battleLogic.IsTowerDefendBattlePaused())
-            {
-                m_ShouldResumeBattleOnClose = battleLogic.SetTowerDefendBattlePause(true);
-            }
-
+            OnInitLanguage();
+            RefreshResumeStatus();
             RenderEvent.Event.OnUpdateSelectionVisuals += OnUpdateSelectionVisuals;
         }
 
         protected override void OnClose()
         {
             RenderEvent.Event.OnUpdateSelectionVisuals -= OnUpdateSelectionVisuals;
-            // 重开或返回大厅已经交给加载过渡流程处理，此时不能恢复旧战斗。
-            if (!m_IsBattleTransitionRequested)
+            m_OnResume = null;
+            m_OnRestart = null;
+            m_OnReturn = null;
+            m_ResumeStatus = TowerDefendResumeStatus.Ready;
+            m_IsRestartFrameCheckPending = false;
+        }
+
+        internal void SetRestartFrameCheckPending(bool pending)
+        {
+            m_IsRestartFrameCheckPending = pending;
+            RefreshResumeStatus();
+        }
+
+        internal void ShowRestartFailure()
+        {
+            if (__IsLogicOpen())
             {
-                ResumeBattleIfNeeded();
+                tip_wnd.GetInstance().OnShowTipLanId("td_pause_restart_failed");
+            }
+        }
+
+        public void SetResumeStatus(TowerDefendResumeStatus status)
+        {
+            m_ResumeStatus = status;
+            RefreshResumeStatus();
+            if (status == TowerDefendResumeStatus.TimedOut && __IsLogicOpen())
+            {
+                tip_wnd.GetInstance().OnShowTipLanId("td_pause_resume_failed");
+            }
+        }
+
+        private void RefreshResumeStatus()
+        {
+            if (m_View == null)
+            {
+                return;
             }
 
-            m_ShouldResumeBattleOnClose = false;
-            m_IsBattleTransitionRequested = false;
+            bool waiting = IsWaitingForTracking;
+            m_View.m_luibutton_filled_1.interactable = !waiting;
+            m_View.m_luibutton_filled_2.interactable = !waiting;
+            m_View.m_luibutton_filled_4.interactable = !m_IsRestartFrameCheckPending;
+            RenderAPI.SetTextLan(m_View.m_stop_txt, waiting ? "td_pause_resume_tracking" : "td_pause_title");
         }
+
+        public void OnClickResume()
+        {
+            if (!__IsLogicOpen() || loading_wnd.IsBlockingFlowInput() || IsWaitingForTracking)
+            {
+                return;
+            }
+
+            m_OnResume?.Invoke();
+            if (__IsLogicOpen() && !IsWaitingForTracking &&
+                RenderEvent.Event.OnTowerDefendBattlePauseStateQuery())
+            {
+                tip_wnd.GetInstance().OnShowTipLanId("td_pause_resume_failed");
+            }
+        }
+
+        private void OnClickRestart()
+        {
+            if (!__IsLogicOpen() || loading_wnd.IsBlockingFlowInput() || IsWaitingForTracking)
+            {
+                return;
+            }
+
+            m_OnRestart?.Invoke();
+            if (!m_IsRestartFrameCheckPending && !loading_wnd.IsBlockingFlowInput())
+            {
+                ShowRestartFailure();
+            }
+        }
+
+        private void RequestTransition(Action request, string failureLanId)
+        {
+            if (!__IsLogicOpen() || loading_wnd.IsBlockingFlowInput())
+            {
+                return;
+            }
+
+            request?.Invoke();
+            if (__IsLogicOpen() && !loading_wnd.IsBlockingFlowInput())
+            {
+                tip_wnd.GetInstance().OnShowTipLanId(failureLanId);
+            }
+        }
+
+        private void OnClickSettings()
+        {
+            if (__IsLogicOpen() && !loading_wnd.IsBlockingFlowInput() && !m_IsRestartFrameCheckPending)
+            {
+                UIManager.OpenWindowEX<tower_defend_setting_wnd>(this);
+            }
+        }
+
         private void OnInitLanguage()
         {
-            RenderAPI.SetTextLan(m_View.m_stop_txt, "td_pause_title");
             RenderAPI.SetTextLan(m_View.m_continue_txt, "td_pause_continue");
             RenderAPI.SetTextLan(m_View.m_continue_choose_txt, "td_pause_continue");
             RenderAPI.SetTextLan(m_View.m_startOver_txt, "td_pause_start_over");
@@ -92,64 +158,13 @@ namespace GameHot
             RenderAPI.SetTextLan(m_View.m_gameSetting_txt, "td_pause_game_setting");
             RenderAPI.SetTextLan(m_View.m_gameSetting_choose_txt, "td_pause_game_setting");
         }
-        private void ForceResumeBattle()
-        {
-            CBattleLogic.GetInstance().ResumeTowerDefendBattle();
-            m_ShouldResumeBattleOnClose = false;
-        }
-
-        private void ResumeBattleIfNeeded()
-        {
-            if (!m_ShouldResumeBattleOnClose)
-            {
-                return;
-            }
-
-            CBattleLogic.GetInstance().ResumeTowerDefendBattle();
-            m_ShouldResumeBattleOnClose = false;
-        }
-
-        private void RequestBattleTransition(Action request)
-        {
-            var hadLoading = loading_wnd.HasWnd();
-            request?.Invoke();
-            if (hadLoading || loading_wnd.HasWnd())
-            {
-                m_IsBattleTransitionRequested = true;
-                CloseWithLoadingDelayIfNeeded();
-                return;
-            }
-
-            UIManager.CloseWindow(this);
-        }
-
-        private void CloseWithLoadingDelayIfNeeded()
-        {
-            var delayMs = loading_wnd.GetRemainingVisibleMilliseconds();
-            if (delayMs > 0)
-            {
-                AddCounter(delayMs, 1, null, 0, () =>
-                {
-                    UIManager.CloseWindow(this);
-                });
-                return;
-            }
-
-            UIManager.CloseWindow(this);
-        }
 
         private void OnUpdateSelectionVisuals()
         {
-            var active = UIManager.GetCurrentActiveWindow();
-            if (active == null || active != this)
+            if (UIManager.GetCurrentActiveWindow() == this)
             {
-                return;
+                AudioManager.GetInstance().Play2D(4);
             }
-            AudioPlay2D();
-        }
-        private void AudioPlay2D()
-        {
-            AudioManager.GetInstance().Play2D(4);
         }
     }
 }

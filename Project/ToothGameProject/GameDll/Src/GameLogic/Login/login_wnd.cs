@@ -415,6 +415,8 @@ namespace GameHot
         private FilePreloadHandler m_LoginFilePreloadHandler = null;
         private bool m_HasClosedLoading = false;
         private bool m_CanStartGame = false;
+        private bool m_FilePreloadFinished;
+        private dialog_wnd m_AccountSaveRecoveryDialog;
         private bool m_StartGameRequested = false;
         private GMTrigger m_GMTrigger = null;
 
@@ -448,6 +450,11 @@ namespace GameHot
         private void OnSaveDataReadyForStart()
         {
             GameSaveService.SaveDataReady -= OnSaveDataReadyForStart;
+            if (!__IsLogicOpen())
+            {
+                return;
+            }
+
             m_CanStartGame = true;
             SetStartButtonInteractable(true);
             // 预加载先完成、存档后到时，仍需关闭启动 loading，否则会停在遮挡界面。
@@ -466,6 +473,7 @@ namespace GameHot
         {
             m_HasClosedLoading = false;
             m_CanStartGame = false;
+            m_FilePreloadFinished = false;
             m_StartGameRequested = false;
             SetStartButtonInteractable(false);
             m_LoginFilePreloadHandler = new FilePreloadHandler(this, OnFilePreloadFinished);
@@ -508,6 +516,7 @@ namespace GameHot
 
         protected override void OnClose()
         {
+            GameSaveService.SaveDataReady -= OnSaveDataReadyForStart;
             UIManager.ChangeGlobalCanvasRenderMode(RenderMode.ScreenSpaceOverlay);
             if (m_GMTrigger != null)
             {
@@ -547,7 +556,7 @@ namespace GameHot
                 return;
             }
 
-            if (!m_CanStartGame)
+            if (!m_CanStartGame || GameSaveService.Instance?.IsReady == false)
             {
                 Debug.Log("login_wnd: 登录资源或SDK存档尚未准备完成");
                 return;
@@ -569,8 +578,65 @@ namespace GameHot
             loading_wnd.CloseLoading();
         }
 
+        internal void UpdateAccountSaveRecovery(GameSaveService saveService)
+        {
+            if (saveService?.IsAccountReadBlocked != true)
+            {
+                if (m_AccountSaveRecoveryDialog != null)
+                {
+                    UIManager.CloseWindow(m_AccountSaveRecoveryDialog);
+                    m_AccountSaveRecoveryDialog = null;
+                }
+                return;
+            }
+
+            if (!__IsLogicOpen() || !m_FilePreloadFinished ||
+                m_AccountSaveRecoveryDialog?.__IsLogicOpen() == true)
+            {
+                return;
+            }
+
+            DoCloseLoading();
+            var dialog = UIManager.OpenWindowAllowMultiEX<dialog_wnd>(this);
+            m_AccountSaveRecoveryDialog = dialog;
+            dialog.__ParticipateCurrentActiveWindow = true;
+            dialog.ShowDialog(RenderAPI.GetTextByLanId("td_login_save_account_wait"), new System.Collections.Generic.Dictionary<int, string>
+            {
+                { 0, RenderAPI.GetTextByLanId("ui_retry") },
+                { 1, RenderAPI.GetTextByLanId("td_login_save_readonly") }
+            }, choice =>
+            {
+                if (choice == 0)
+                {
+                    saveService.RetryBlockedAccountRead();
+                }
+                else
+                {
+                    saveService.ContinueWithReadOnlyProfile();
+                }
+            });
+        }
+
+        internal void OnSaveProfileReloading()
+        {
+            m_CanStartGame = false;
+            SetStartButtonInteractable(false);
+            if (m_FilePreloadFinished)
+            {
+                GameSaveService.SaveDataReady -= OnSaveDataReadyForStart;
+                GameSaveService.SaveDataReady += OnSaveDataReadyForStart;
+            }
+        }
+
+        internal void CancelStartForProfileReload()
+        {
+            m_StartGameRequested = false;
+            OnSaveProfileReloading();
+        }
+
         private void OnFilePreloadFinished()
         {
+            m_FilePreloadFinished = true;
             var saveService = GameSaveService.Instance;
             if (saveService != null && !saveService.IsReady)
             {

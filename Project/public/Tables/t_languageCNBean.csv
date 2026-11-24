@@ -83,7 +83,7 @@ td_result_endless_kill_detail_line,{0} x{1}
 td_result_endless_kill_detail_empty,本次未记录到怪物击杀明细
 td_result_endless_rank_score,排行榜分数 {0}
 td_result_endless_rank_position,当前排名 {0}
-td_result_endless_rank_pending,排行榜上传待接 SDK
+td_result_endless_rank_pending,排行榜尚未配置
 td_result_endless_rank_submitted,排行榜已上传
 td_result_endless_rank_failed,排行榜上传失败
 td_result_endless_fail,零食大军蛀坏了你的牙齿
@@ -353,3 +353,23 @@ td_lobby_player_count_three,三人模式
 td_lobby_player_count_four,四人模式
 td_lobby_prepare_title,所有人准备好后，即可开始
 td_lobby_prepare_cut,挥手切换角色
+td_prepare_start_countdown,{0}秒后开始游戏
+td_prepare_open_failed,暂时无法进入准备界面，请重试。
+td_prepare_start_failed,开战确认失败，请确认玩家已准备后重试。
+td_prepare_exit_failed,暂时无法退出准备，请重试。
+td_lobby_exit_failed,暂时无法退出大厅，请重试。
+td_pause_resume_failed,继续战斗失败，请重试。
+td_pause_restart_failed,暂时无法重开。请先让所有玩家回到镜头前，必要时继续战斗以重新识别。
+td_pause_return_failed,返回大厅失败，请重试。
+td_loading_lobby_failed,大厅场景加载失败，请重试。
+td_loading_login_failed,登录场景加载失败，请重试。
+td_loading_battle_failed_return,战斗加载失败，正在返回大厅。
+ui_retry,重试
+td_loading_battle_busy,战斗正在加载中。
+td_loading_login_busy,正在返回登录。
+td_loading_screen_busy,正在切换，请稍候。
+td_lobby_start_unavailable,暂时无法进入战斗。
+td_lobby_chapter_locked,当前主题暂未解锁
+td_pause_resume_tracking,正在恢复识别…
+td_login_save_account_wait,上一账号的存档请求还未结束。可重试，或退出后重新打开游戏。若选择只读继续，本次进度不会上传。
+td_login_save_readonly,只读继续

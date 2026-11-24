@@ -26,7 +26,8 @@ namespace GameHot
     public class tower_defend_lvchoose_wnd : WindowBase
     {
         long m_CounterId;
-        public static int m_levelCount = 5;
+        internal const int m_LevelsPerChapter = 5;
+        private int m_FirstStageId = 1;
         private int m_StageUnlockCount;        //当前解锁到的关卡数
         private v_tower_defend_lvchoose_wnd m_View;
         private SlideShowScrollViewPro_Scroll m_Scroll;
@@ -42,11 +43,13 @@ namespace GameHot
 
         public void SetRequest(
             BattleStartupRequest request,
+            int chapterId,
             Func<WindowBase> onConfirm,
             Action onCancel)
         {
             var model = GetModel<tower_defend_lvchoose_model>();
             model.m_Request = request;
+            m_FirstStageId = (chapterId - 1) * m_LevelsPerChapter + 1;
             model.m_OnConfirm = onConfirm;
             model.m_OnCancel = onCancel;
 
@@ -70,7 +73,6 @@ namespace GameHot
             RenderAPI.AddButtonClick(m_View.m_btnRight, OnClickRight, 0);
 
             m_Scroll = __GetWindowObj().GetComponentInChildren<SlideShowScrollViewPro_Scroll>();
-            InitStar();
             OnInitLanguage();
         }
 
@@ -120,19 +122,10 @@ namespace GameHot
         }
         private void SetStar(int index, Transform obj)
         {
-            int starCount = LobbyPlayer.GetInstance().GetStageStar((tower_defend_chapter_wnd.m_chapterId-1) * m_levelCount + index);
-
-            if (starCount > 0)
+            int starCount = LobbyPlayer.GetInstance().GetStageStar(m_FirstStageId + index - 1);
+            for (int star = 1; star <= 3; star++)
             {
-                obj.Find($"Topic_1/stars{index}/star1/yellow_star").gameObject.SetActive(true);
-            }
-            if(starCount > 1)
-            {
-                obj.Find($"Topic_1/stars{index}/star2/yellow_star").gameObject.SetActive(true);
-            }
-            if(starCount > 2)
-            {
-                obj.Find($"Topic_1/stars{index}/star3/yellow_star").gameObject.SetActive(true);
+                RenderAPI.SetActive(obj.Find($"Topic_1/stars{index}/star{star}/yellow_star"), star <= starCount);
             }
         }
         private void OnInitLanguage()
@@ -154,7 +147,8 @@ namespace GameHot
         private void OnClickConfirm(Transform ts)
         {
             var model = GetModel<tower_defend_lvchoose_model>();
-            if (m_StageUnlockCount <= m_Scroll.selectedElementID)
+            int levelIndex = m_Scroll.selectedElementID;
+            if (model.m_Request == null || levelIndex < 0 || levelIndex >= m_StageUnlockCount)
             {
                 ts.parent.DOKill();
                 ts.parent.DOShakePosition(0.5f, 10, 10);
@@ -162,9 +156,13 @@ namespace GameHot
                 return;
             }
 
-            int stageId = m_Scroll.selectedElementID + 1;
+            int stageId = m_FirstStageId + levelIndex;
+            if (!CGameProcedure.s_ProcLobby.TrySetSelectedStageId(model.m_Request.m_GameMode, stageId))
+            {
+                tip_wnd.GetInstance().OnShowTipLanId("td_error_battle_stage_locked");
+                return;
+            }
             model.m_Request.m_StageId = stageId;
-            CGameProcedure.s_ProcLobby.TrySetSelectedStageId(model.m_Request.m_GameMode, stageId);
 
             if (model.m_OnConfirm == null)
             {
@@ -192,13 +190,14 @@ namespace GameHot
             {
                 return;
             }
+            InitStar();
             InitUnlockTopic();
         }
         //初始化关卡解锁到多少（GetUnlockedStage 是全局进度，换算成本章内已解锁的关卡数）
         private void InitUnlockTopic()
         {
             int unlockedStage = LobbyPlayer.GetInstance().GetUnlockedStage();
-            m_StageUnlockCount = Mathf.Clamp(unlockedStage - (tower_defend_chapter_wnd.m_chapterId - 1) * m_levelCount, 0, m_levelCount);
+            m_StageUnlockCount = Mathf.Clamp(unlockedStage - m_FirstStageId + 1, 0, m_LevelsPerChapter);
             m_View.m_lock.gameObject.SetActive(m_StageUnlockCount<1);
             m_View.m_lock_new1.gameObject.SetActive(m_StageUnlockCount<2);
             m_View.m_lock_new2.gameObject.SetActive(m_StageUnlockCount<3);
@@ -213,7 +212,7 @@ namespace GameHot
 
             RenderAPI.NextFrameCall(() =>
             {
-                if (m_Scroll != null && m_Scroll.activeButtons.Count >= m_StageUnlockCount)
+                if (m_Scroll != null && m_StageUnlockCount > 0 && m_Scroll.activeButtons.Count >= m_StageUnlockCount)
                 {
                     m_Scroll.SelectButtonByID_Click(m_StageUnlockCount - 1);
                 }

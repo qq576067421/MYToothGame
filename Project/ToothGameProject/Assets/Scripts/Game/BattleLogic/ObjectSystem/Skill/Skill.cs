@@ -375,7 +375,7 @@ namespace GameDll
                 return;
             }
             if (!BattleManager.ReadIsEntityValide(m_Attacker) || m_Attacker.ReadIsBeingControlled() ||
-                m_Attacker.ReadIsFreeze())
+                m_Attacker.ReadIsSuspended() || m_Attacker.ReadIsFrozen())
             {
                 Stop();
                 return;
@@ -410,7 +410,9 @@ namespace GameDll
                 var render = m_Attacker.GetRender();
                 if (render != null)
                 {
-                    render.SetAnimationSpeed(m_Attacker.ReadIsFreeze() ? 0f : 1f);
+                    // 冰冻/挂起期间保持动画定格，不能把速度恢复成 1 把 Freeze/挂起的定格顶掉。
+                    bool keepStill = m_Attacker.ReadIsSuspended() || m_Attacker.ReadIsFrozen();
+                    render.SetAnimationSpeed(keepStill ? 0f : 1f);
                 }
             }
         }
@@ -705,6 +707,139 @@ namespace GameDll
             }
             return m_SkillBean.t_skill_cast_style;
         }
+
+        // 技能施放方式：0手动施放 1自动施放 2被动施放。
+        // 被动施放不打断角色当前行为，走独立于 SkillManager.m_CurrentSkill 的旁路通道：
+        // 不占施法通道、不切角色状态、不改朝向、不播自身动作，只结算音效/特效/发弹/伤害。
+        public const int PassiveCastStyle = 2;
+
+        public bool ReadIsPassiveCastStyle()
+        {
+            return ReadCastStyle() == PassiveCastStyle;
+        }
+
+        // 技能本身的特效（t_atk_eff）：按 t_atk_eff_pos/t_atk_eff_parent 挂点跟随施法者，
+        // 与施法动作同时出现。施法生效点的特效走 t_atk_cast_eff（CommonBulletSkill 的发弹点分支），
+        // 两者是独立字段、独立播放入口。
+        // holdUntilStop=true 用于“特效要和持续施法窗口同寿”的技能（如水柱/激光）：不进自动回收队列，
+        // 由 StopSkillEffect 在施法结束时统一停发射，避免按特效表 t_time 提前或滞后消失。
+        protected void PlaySkillEffect(bool holdUntilStop = false)
+        {
+            if (m_SkillDescBean == null || m_SkillDescBean.t_atk_eff == 0)
+            {
+                return;
+            }
+
+            float effectDuration = ResolveSkillEffectDurationSecond();
+            string[] mountPaths = ParseMountPaths(m_SkillDescBean.t_atk_eff_pos);
+            bool hasMounted = false;
+
+            if (mountPaths.Length > 0 && m_Attacker != null)
+            {
+                foreach (var singlePath in mountPaths)
+                {
+                    var mount = m_Attacker.ReadMountTransform(singlePath);
+                    if (mount == null)
+                    {
+                        continue;
+                    }
+
+                    var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_eff);
+                    if (eff == null)
+                    {
+                        continue;
+                    }
+
+                    if (m_SkillDescBean.t_atk_eff_parent == 0)
+                    {
+                        eff.SetParent(mount);
+                        eff.ShowEff(true, Vector3.zero, Vector2.zero, Vector3.one);
+                    }
+                    else
+                    {
+                        eff.SetParent(RenderEffManager.GetInstance().GetRenderEffParent());
+                        eff.ShowEff(false, mount.position, mount.eulerAngles, mount.localScale);
+                    }
+
+                    ApplySkillEffectLifetime(eff, effectDuration, holdUntilStop);
+                    hasMounted = true;
+                }
+            }
+
+            if (!hasMounted)
+            {
+                // 没配挂点时落在施法开火点，朝向取施法者发射方向，不依赖角色自身朝向
+                var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_eff);
+                if (eff == null)
+                {
+                    return;
+                }
+
+                eff.ShowEffDir(false, ReadCastFirePoint(), ResolveLaunchForward(), Vector3.one);
+                ApplySkillEffectLifetime(eff, effectDuration, holdUntilStop);
+            }
+        }
+
+        // 普通技能特效按特效表时长自动回收；holdUntilStop 的特效改为手动持有，等施法结束再停。
+        private void ApplySkillEffectLifetime(RenderEff eff, float effectDuration, bool holdUntilStop)
+        {
+            if (holdUntilStop)
+            {
+                // 顺手清掉已回池的旧实例，避免频繁施法后持有列表无限增长
+                for (int i = m_SkillEffs.Count - 1; i >= 0; --i)
+                {
+                    if (m_SkillEffs[i] == null || m_SkillEffs[i].m_IsPooled)
+                    {
+                        m_SkillEffs.RemoveAt(i);
+                    }
+                }
+
+                m_SkillEffs.Add(eff);
+                return;
+            }
+
+            eff.SetDuringTime(effectDuration);
+            RenderEffManager.GetInstance().SetAutoPool(eff);
+        }
+
+        // 停掉 PlaySkillEffect(holdUntilStop: true) 持有的特效：先停粒子发射，让已喷出的粒子自然消失再回池。
+        protected void StopSkillEffect()
+        {
+            for (int i = m_SkillEffs.Count - 1; i >= 0; --i)
+            {
+                var eff = m_SkillEffs[i];
+                if (eff == null || eff.m_IsPooled)
+                {
+                    continue;
+                }
+
+                RenderEffManager.GetInstance().StopEmissionAndAutoPool(eff);
+            }
+
+            m_SkillEffs.Clear();
+        }
+
+        // 技能特效的可见时长以特效表配置为准，未配时按施法动作长度兜底
+        protected virtual float ResolveSkillEffectDurationSecond()
+        {
+            var effBean = MonoBean.t_effectBean.GetConfig(m_SkillDescBean.t_atk_eff, false);
+            if (effBean != null && effBean.t_time > 0)
+            {
+                return effBean.t_time / 1000.0f;
+            }
+
+            if (m_CurAction != null)
+            {
+                return BattleManager.ConvertFrame2Second(m_CurAction.t_ac_finish, GetAttackSpeed(), GetActionFrameRate());
+            }
+
+            return m_DefaultSkillEffectDurationSecond;
+        }
+
+        private const float m_DefaultSkillEffectDurationSecond = 2.0f;
+
+        // 由 PlaySkillEffect(holdUntilStop: true) 持有、需要跟施法窗口同寿的技能特效。
+        protected readonly List<RenderEff> m_SkillEffs = new List<RenderEff>();
 
         protected Vector3 m_SkillPos;
         private Vector3 m_CastFirePoint;
@@ -1050,6 +1185,11 @@ namespace GameDll
                 PreLoadRenderEffOnRegister(m_SkillDescBean.t_atk_eff);
             }
 
+            if (m_SkillDescBean != null && m_SkillDescBean.t_atk_cast_eff != 0)
+            {
+                PreLoadRenderEffOnRegister(m_SkillDescBean.t_atk_cast_eff);
+            }
+
             if (m_Slot == 0 && m_SkillDescBean != null && m_SkillDescBean.t_hitEff != 0)
             {
                 PreLoadRenderEffOnRegister(m_SkillDescBean.t_hitEff);
@@ -1150,7 +1290,7 @@ namespace GameDll
                     int rate = GetActionFrameRate();
                     var action_time = BattleManager.ConvertFrame2Second(m_CurAction.t_ac_finish, atk_speed, rate);
                     var atk_idle_time = 0.1f;
-                    
+
                     if (atk_idle_time >= action_time)
                     {
                         //攻击间隔大于攻击时间
@@ -1234,6 +1374,39 @@ namespace GameDll
         {
             return m_SkillBean.t_id;
         }
+
+        // 被动施放标记：为 true 时本技能实例跑在旁路施法通道上，与 SkillManager.m_CurrentSkill 无关。
+        private bool m_IsPassiveCast;
+        public bool ReadIsPassiveCast()
+        {
+            return m_IsPassiveCast;
+        }
+        public void SetPassiveCast(bool passive)
+        {
+            m_IsPassiveCast = passive;
+        }
+        // 施法状态机是否仍在推进（含被动施放）。
+        public bool ReadIsCasting()
+        {
+            return m_CastStatus != SkillCastStatus.none && m_CastStatus != SkillCastStatus.end;
+        }
+        // 被动施放入口：不进 SkillManager 的当前技能通道，由 SkillManager 对全部技能的逐帧 Update 推进状态机。
+        public void EnterPassive()
+        {
+            m_IsPassiveCast = true;
+            OnEnter();
+        }
+        // 施法者死亡/受控/挂起/冰冻时被动施放自检终止；被动施放不走 BreakSkill，必须在这里兼顾。
+        private bool ReadPassiveCastCanContinue()
+        {
+            if (!BattleManager.ReadIsEntityValide(m_Attacker))
+            {
+                return false;
+            }
+            return !m_Attacker.ReadIsBeingControlled() &&
+                !m_Attacker.ReadIsSuspended() &&
+                !m_Attacker.ReadIsFrozen();
+        }
         /// <summary>
         /// 发动技能前调用
         /// </summary>
@@ -1248,6 +1421,15 @@ namespace GameDll
             m_CastId++;
             m_SkillCastBuffApplied = false;
             m_HasCastFirePoint = false;
+
+            if (m_IsPassiveCast)
+            {
+                // 被动施放和角色正在进行的其他技能同时存在：不能重置上半身姿态，
+                // 也不走“施法时移除 buff”，否则会把当前行为的表现/buff 一起打断。
+                BattleManager.GetBattleTool().ConsumeSkillPreconditionIfNeeded(m_Attacker, m_SkillBean);
+                return;
+            }
+
             // 清掉上一轮施法的上半身转动残留，新一轮按 warming_up 重新启动
             m_UpperRotLaunched = false;
             m_UpperRotRestored = false;
@@ -1335,6 +1517,17 @@ namespace GameDll
         public virtual void Update(float dt)
         {
             OnUpdateCooldown(dt);
+
+            if (m_IsPassiveCast)
+            {
+                // 被动施放不占施法通道，不会经 BreakSkill 收到打断，也不允许碰上半身姿态（可能正被其他技能占用）
+                if (ReadIsCasting() && !ReadPassiveCastCanContinue())
+                {
+                    OnCastOver();
+                }
+                return;
+            }
+
             UpdateBoneNormalAttackProgress();
             UpdateUpperBodyRotate(dt);
         }
@@ -1435,6 +1628,12 @@ namespace GameDll
         /// </summary>
         public virtual void Stop()
         {
+            if (m_IsPassiveCast)
+            {
+                // 被动施放没有占用施法通道，不能在这里重置施法者的上半身姿态，只收尾自己持有的表现
+                OnCastOver();
+                return;
+            }
             // 施法被打断时上半身姿态不能停留在转动后的状态
             RestoreUpperBodySpine();
             if (m_IsBoneNormalAttack)
@@ -1456,6 +1655,7 @@ namespace GameDll
 
         public virtual void Destroy()
         {
+            m_IsPassiveCast = false;
             RestoreBoneNormalAttackAnimation();
             RestoreUpperBodySpine();
             if (m_CastStatus == SkillCastStatus.warming_up ||

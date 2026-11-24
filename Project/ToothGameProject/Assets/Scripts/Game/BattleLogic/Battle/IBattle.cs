@@ -232,7 +232,7 @@ namespace GameDll
             m_IsBattlePause = pause;
         }
 
-        // GM 调试冻结只服务调试流程，不等同于正式战斗暂停。
+        // GM 调试暂停只服务调试流程，不等同于正式战斗暂停，也不等同于 buff 冰冻。
         protected bool m_GM_IsPause = false;
         public bool GM_IsPause()
         {

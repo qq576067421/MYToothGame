@@ -99,6 +99,7 @@ namespace GameDll
 
             GetStateManager().AddState(emEntityState.em_EntityState_Move, new State_Move());
             GetStateManager().AddState(emEntityState.em_EntityState_Attack, new State_Attack());
+            GetStateManager().AddState(emEntityState.em_EntityState_Freeze, new State_Freeze());
             GetStateManager().AddState(emEntityState.em_EntityState_Dead, new State_Dead());
 
 

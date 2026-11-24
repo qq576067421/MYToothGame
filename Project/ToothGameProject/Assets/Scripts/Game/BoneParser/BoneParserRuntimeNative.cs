@@ -79,6 +79,25 @@ namespace GameDll
             ResetFrameResult();
         }
 
+        public void ResetSeat(int seatIndex)
+        {
+            if (m_NativeHandle != IntPtr.Zero)
+            {
+                try
+                {
+                    BoneParserCLib_ResetSeat(m_NativeHandle, seatIndex);
+                }
+                catch (EntryPointNotFoundException)
+                {
+                    LogNativeFailureOnce("[塔防骨骼输入] BoneParserCLib 缺少座位重置入口，请更新原生插件。");
+                }
+            }
+
+#if BoneParserLib
+            m_FallbackRuntime.ResetSeat(seatIndex);
+#endif
+        }
+
         public BoneParserFrameResult Update(BoneTrackedFrame frameData, IList<BoneParserSeatDefinition> seatDefinitions)
         {
             EnsureNativeCreated();
@@ -767,6 +786,9 @@ namespace GameDll
 
         [DllImport("BoneParserCLib", CallingConvention = CallingConvention.Cdecl)]
         private static extern void BoneParserCLib_Reset(IntPtr parser);
+
+        [DllImport("BoneParserCLib", CallingConvention = CallingConvention.Cdecl)]
+        private static extern void BoneParserCLib_ResetSeat(IntPtr parser, int seatIndex);
 
         [DllImport("BoneParserCLib", CallingConvention = CallingConvention.Cdecl)]
         private static extern void BoneParserCLib_Destroy(IntPtr parser);

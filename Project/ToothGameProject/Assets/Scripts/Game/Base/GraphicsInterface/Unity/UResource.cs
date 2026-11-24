@@ -261,6 +261,13 @@ namespace GameDll
         public virtual void SetPosition(Vector3 value)
         {
         }
+
+        // 表现还有多久需要继续显示（秒，如子弹命中/枪口特效）。
+        // 对象回池时据此顺延可复用时间，避免复用时把上一发还没到时间的表现提前清掉。
+        public virtual float ReadVisualRemainTime()
+        {
+            return 0f;
+        }
         protected virtual void OnAfterLoadedCall()
         {
             int count = m_LoadedCalls.Count;
@@ -560,6 +567,19 @@ namespace GameDll
         }
         //添加特效到我身上
         public virtual void AddRenderEffect(int effCfgId, int duringTimeMM = 0, bool single = false)
+        {
+
+        }
+
+        // 生成跟随目标的残留特效，并返回飞行特效交接使用的表现落点。
+        public virtual bool TryAddHitStickEffect(int effCfgId, Vector3 worldPos, Quaternion worldRotation, out Vector3 visualHitPosition)
+        {
+            visualHitPosition = worldPos;
+            return false;
+        }
+
+        //回收所有命中残留特效
+        public virtual void ClearHitStickEffects()
         {
 
         }

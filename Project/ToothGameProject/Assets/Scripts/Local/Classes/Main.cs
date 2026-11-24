@@ -193,6 +193,7 @@ public class Main : MonoBehaviour
             return;
         }
 
+        GameFrameworkBootstrap.TryLeaveSession("application-quit");
         m_MainHotFixManager_SystemDll?.OnApplicationQuit();
         
         Debug.Log("OnApplicationQuit");

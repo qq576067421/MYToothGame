@@ -10,7 +10,6 @@ namespace GameDll
 {
     public sealed class TowerDefendBossSkillRuntimeData
     {
-        public int m_BossEntityId;
         public float m_NextCastTime;
         public float m_CastResolveTime;
         public float m_Cooldown;
@@ -24,7 +23,8 @@ namespace GameDll
 
         private List<PropertyEntity> m_GuradHeroes = new List<PropertyEntity>();
         private readonly List<PropertyEntity> m_TargetCandidates = new List<PropertyEntity>();
-        private readonly List<PropertyEntity> m_BossCandidates = new List<PropertyEntity>();
+        private readonly List<MasterHero> m_BossCandidates = new List<MasterHero>();
+        private readonly List<int> m_InvalidBossRuntimeIds = new List<int>();
         private readonly Dictionary<int, float> m_ManualControlExpireTimes = new Dictionary<int, float>();
         private readonly Dictionary<int, TowerDefendBossSkillRuntimeData> m_BossSkillRuntimes = new Dictionary<int, TowerDefendBossSkillRuntimeData>();
         private bool m_IsMonsterSuspended = false;
@@ -449,6 +449,12 @@ namespace GameDll
                 return false;
             }
 
+            // 被动施放不走自动选技通道，它由 SkillManager 的被动通道自行发动（不打断当前行为）
+            if (skill.ReadIsPassiveCastStyle())
+            {
+                return false;
+            }
+
             if (slot > 0 &&
                 m_Battle != null &&
                 m_Battle.RequiresPlayerSkillEnergy(hero, skill) &&
@@ -513,9 +519,10 @@ namespace GameDll
 
         public bool CanConsumeGuardHeroBoneAction(PropertyEntity hero, Skill skill, bool boneNormalAttack)
         {
+            // 挂起与 buff 冰冻都要拒绝：冰冻不走 SetSuspended，只查 ReadIsSuspended 会漏。
             if (m_Battle == null || m_Battle.GM_IsPause() ||
                 !BattleManager.ReadIsEntityValide(hero) || hero.ReadIsBeingControlled() ||
-                hero.ReadIsFreeze() || skill == null)
+                hero.ReadIsSuspended() || hero.ReadIsFrozen() || skill == null)
             {
                 return false;
             }
@@ -548,6 +555,12 @@ namespace GameDll
             var hero = ReadGuardHeroBySeat(seatId);
             var skillManager = hero != null ? hero.GetSkillManager() : null;
             var skill = skillManager != null ? skillManager.ReadSkillBySlot(slot) : null;
+
+            // 被动技能不接受手操输入，它由被动通道自行发动
+            if (skill != null && skill.ReadIsPassiveCastStyle())
+            {
+                return false;
+            }
 
             if (slot == 0 && hero is PlayerHero attackInputHero)
             {
@@ -631,6 +644,12 @@ namespace GameDll
             var playerId = hero.ReadBattlePlayerId();
             var skill = hero.GetSkillManager().ReadSkillBySlot(slot);
             if (skill == null)
+            {
+                return false;
+            }
+
+            // 被动技能不接受手操输入，它由被动通道自行发动
+            if (skill.ReadIsPassiveCastStyle())
             {
                 return false;
             }
@@ -802,6 +821,12 @@ namespace GameDll
                 return false;
             }
 
+            // 冰冻期间不接受升级挑战阶段的输入转向。
+            if (hero.ReadIsFrozen())
+            {
+                return false;
+            }
+
             if (faceForward.sqrMagnitude <= 0.0001f)
             {
                 faceForward = hero.ReadForward();
@@ -867,8 +892,7 @@ namespace GameDll
             foreach (var kv in m_BossSkillRuntimes)
             {
                 var runtime = kv.Value;
-                var boss = BattleManager.GetObjectManager().ReadPropertyEntityById(runtime.m_BossEntityId) as MasterHero;
-                if (!BattleManager.ReadIsEntityValide(boss))
+                if (!m_MonsterSpawer.TryReadAliveBoss(kv.Key, out var boss))
                 {
                     continue;
                 }
@@ -921,36 +945,27 @@ namespace GameDll
 
         private void SyncBossSkillRuntimes()
         {
-            m_BossCandidates.Clear();
-            m_MonsterSpawer.ReadAliveMonsters(m_BossCandidates);
+            m_MonsterSpawer.ReadAliveBosses(m_BossCandidates);
 
-            var invalidIds = new List<int>();
+            m_InvalidBossRuntimeIds.Clear();
             foreach (var kv in m_BossSkillRuntimes)
             {
-                var boss = BattleManager.GetObjectManager().ReadPropertyEntityById(kv.Key) as MasterHero;
-                if (!BattleManager.ReadIsEntityValide(boss) ||
-                    m_MonsterSpawer.ReadMonsterKind(kv.Key) != MonsterType.Boss ||
+                if (!m_MonsterSpawer.TryReadAliveBoss(kv.Key, out var boss) ||
                     !TryResolveBossActiveSkill(boss, out _, out _))
                 {
-                    invalidIds.Add(kv.Key);
+                    m_InvalidBossRuntimeIds.Add(kv.Key);
                 }
             }
 
-            int invalidCount = invalidIds.Count;
-            for (int i = 0; i < invalidCount; i++)
+            foreach (int entityId in m_InvalidBossRuntimeIds)
             {
-                m_BossSkillRuntimes.Remove(invalidIds[i]);
+                m_BossSkillRuntimes.Remove(entityId);
             }
 
             int candidateCount = m_BossCandidates.Count;
             for (int i = 0; i < candidateCount; i++)
             {
-                var boss = m_BossCandidates[i] as MasterHero;
-                if (!BattleManager.ReadIsEntityValide(boss) || m_MonsterSpawer.ReadMonsterKind(boss.ReadId()) != MonsterType.Boss)
-                {
-                    continue;
-                }
-
+                var boss = m_BossCandidates[i];
                 if (m_BossSkillRuntimes.ContainsKey(boss.ReadId()))
                 {
                     continue;
@@ -964,10 +979,9 @@ namespace GameDll
                 }
 
                 var runtime = new TowerDefendBossSkillRuntimeData();
-                runtime.m_BossEntityId = boss.ReadId();
                 runtime.m_Cooldown = ResolveBossSkillCooldownSec(skillBean);
                 runtime.m_NextCastTime = BattleManager.ReadBattleTime() + runtime.m_Cooldown;
-                m_BossSkillRuntimes.Add(runtime.m_BossEntityId, runtime);
+                m_BossSkillRuntimes.Add(boss.ReadId(), runtime);
             }
         }
 
@@ -983,6 +997,14 @@ namespace GameDll
             skill = boss.GetSkillManager().ReadSkillBySlot(1);
             if (skill == null)
             {
+                return false;
+            }
+
+            // 配成被动施放（cast_style=2）的 Boss 技能交给被动通道驱动，
+            // 不再进 Boss 自身的施法运行时，避免同一份技能被两条链路重复释放。
+            if (skill.ReadIsPassiveCastStyle())
+            {
+                skill = null;
                 return false;
             }
 

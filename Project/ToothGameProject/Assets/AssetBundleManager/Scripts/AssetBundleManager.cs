@@ -409,12 +409,13 @@ namespace AssetBundles
             {
                 hash = downloadSettings == DownloadSettings.UseCacheIfAvailable ? Manifest.GetAssetBundleHash(bundleName) : default(Hash128);
             }
+            var acquiredDependencies = new List<string>();
             var mainBundle = new AssetBundleDownloadCommand 
             {
                 BundleName = bundleName,
                 FullPath = fullPath,
                 Hash = hash,
-                OnComplete = bundle => OnDownloadComplete(bundleName, bundle)
+                OnComplete = bundle => OnDownloadComplete(bundleName, bundle, acquiredDependencies)
             };
 
             var dependencies = Manifest.GetDirectDependencies(bundleName);
@@ -423,26 +424,43 @@ namespace AssetBundles
             for (int i = 0; i < dependencies.Length; i++) {
                 if (activeBundles.TryGetValue(dependencies[i], out active)) {
                     active.References++;
+                    acquiredDependencies.Add(dependencies[i]);
                 } else {
                     dependenciesToDownload.Add(dependencies[i]);
                 }
             }
 
             if (dependenciesToDownload.Count > 0) {
-                var dependencyCount = dependenciesToDownload.Count;
-                Action<AssetBundle> onDependenciesComplete = dependency => {
-                    if (--dependencyCount == 0)
-                        handler.Handle(mainBundle);
-                };
-
-                for (int i = 0; i < dependenciesToDownload.Count; i++)
+                int remainingDependencies = dependenciesToDownload.Count;
+                bool dependencyFailed = false;
+                foreach (string dependencyKey in dependenciesToDownload)
                 {
-                    var dependencyName = dependenciesToDownload[i];
-                    if (useHash)
+                    string dependencyName = useHash ? GetUnhashedBundleName(dependencyKey) : dependencyKey;
+                    GetBundle(dependencyName, fullPath, dependency =>
                     {
-                        dependencyName = GetUnhashedBundleName(dependencyName);
-                    }
-                    GetBundle(dependencyName, fullPath, onDependenciesComplete);
+                        if (dependency == null)
+                        {
+                            dependencyFailed = true;
+                            Debug.LogWarning("[资源包] 依赖加载失败。bundle=" + bundleName +
+                                             " dependency=" + dependencyKey);
+                        }
+                        else
+                        {
+                            acquiredDependencies.Add(dependencyKey);
+                        }
+
+                        if (--remainingDependencies == 0)
+                        {
+                            if (dependencyFailed)
+                            {
+                                mainBundle.OnComplete(null);
+                            }
+                            else
+                            {
+                                handler.Handle(mainBundle);
+                            }
+                        }
+                    });
                 }
             } else {
                 handler.Handle(mainBundle);
@@ -663,16 +681,27 @@ namespace AssetBundles
         /// <summary>
         ///     Caches the downloaded bundle and pushes it to the onComplete callback.
         /// </summary>
-        private void OnDownloadComplete(string bundleName, AssetBundle bundle)
+        private void OnDownloadComplete(string bundleName, AssetBundle bundle, List<string> acquiredDependencies)
         {
             var inProgress = downloadsInProgress[bundleName];
             downloadsInProgress.Remove(bundleName);
+
+            if (bundle == null)
+            {
+                foreach (string dependency in acquiredDependencies)
+                {
+                    UnloadBundlepublic(dependency, false, false);
+                }
+
+                inProgress.OnComplete(null);
+                return;
+            }
 
             try {
                 activeBundles.Add(bundleName, new AssetBundleContainer {
                     AssetBundle = bundle,
                     References = inProgress.References,
-                    Dependencies = Manifest.GetDirectDependencies(bundleName)
+                    Dependencies = acquiredDependencies.ToArray()
                 });
             } catch (ArgumentException) {
                 Debug.LogWarning("Attempted to activate a bundle that was already active.  Not sure how this happened, attempting to fail gracefully.");

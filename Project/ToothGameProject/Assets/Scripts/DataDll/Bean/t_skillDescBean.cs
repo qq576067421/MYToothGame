@@ -59,6 +59,12 @@ private static string m_FileName = "t_skillDescBean.csv";
     public int t_gesture{ get { return _t_gesture; }}
     private int _t_gesture_phase;
     public int t_gesture_phase{ get { return _t_gesture_phase; }}
+    private int _t_atk_cast_eff;
+    public int t_atk_cast_eff{ get { return _t_atk_cast_eff; }}
+    private string _t_atk_cast_eff_pos;
+    public string t_atk_cast_eff_pos{ get { return _t_atk_cast_eff_pos; }}
+    private int _t_atk_cast_eff_parent;
+    public int t_atk_cast_eff_parent{ get { return _t_atk_cast_eff_parent; }}
     private static List<long> m_Keys = new List<long>();
     public static List<long> GetKeys()
     {
@@ -130,6 +136,9 @@ private static string m_FileName = "t_skillDescBean.csv";
         _t_icon = source._t_icon;
         _t_gesture = source._t_gesture;
         _t_gesture_phase = source._t_gesture_phase;
+        _t_atk_cast_eff = source._t_atk_cast_eff;
+        _t_atk_cast_eff_pos = source._t_atk_cast_eff_pos;
+        _t_atk_cast_eff_parent = source._t_atk_cast_eff_parent;
     }
     private static t_skillDescBean GetCSVConfigImp(long key)
     {
@@ -161,6 +170,9 @@ private static string m_FileName = "t_skillDescBean.csv";
             bean._t_icon = ReadString(datas[index++]);
             bean._t_gesture = ReadInt(datas[index++]);
             bean._t_gesture_phase = ReadInt(datas[index++]);
+            bean._t_atk_cast_eff = ReadInt(datas[index++]);
+            bean._t_atk_cast_eff_pos = ReadString(datas[index++]);
+            bean._t_atk_cast_eff_parent = ReadInt(datas[index++]);
         }
         if(bean == null)
         {
@@ -200,6 +212,9 @@ private static string m_FileName = "t_skillDescBean.csv";
             bean._t_icon = SqliteDataManager_ReadString();
             bean._t_gesture = SqliteDataManager_ReadInt();
             bean._t_gesture_phase = SqliteDataManager_ReadInt();
+            bean._t_atk_cast_eff = SqliteDataManager_ReadInt();
+            bean._t_atk_cast_eff_pos = SqliteDataManager_ReadString();
+            bean._t_atk_cast_eff_parent = SqliteDataManager_ReadInt();
         }
         SqliteDataManager_EndRead();
         StringBuilder.Clear();

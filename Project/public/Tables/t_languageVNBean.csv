@@ -70,11 +70,11 @@ td_result_endless_wave,td_result_endless_wave
 td_result_endless_best_wave,td_result_endless_best_wave
 td_result_endless_kill_detail_line,td_result_endless_kill_detail_line
 td_result_endless_kill_detail_empty,td_result_endless_kill_detail_empty
-td_result_endless_rank_score,td_result_endless_rank_score
-td_result_endless_rank_position,td_result_endless_rank_position
-td_result_endless_rank_pending,td_result_endless_rank_pending
-td_result_endless_rank_submitted,td_result_endless_rank_submitted
-td_result_endless_rank_failed,td_result_endless_rank_failed
+td_result_endless_rank_score,Điểm bảng xếp hạng: {0}
+td_result_endless_rank_position,Hạng hiện tại: {0}
+td_result_endless_rank_pending,Bảng xếp hạng chưa được thiết lập
+td_result_endless_rank_submitted,Đã gửi điểm lên bảng xếp hạng
+td_result_endless_rank_failed,Không thể gửi điểm lên bảng xếp hạng
 td_loading_enter_battle,td_loading_enter_battle
 td_loading_return_lobby,td_loading_return_lobby
 td_game_title,td_game_title
@@ -281,3 +281,23 @@ td_error_battle_player_role_missing,td_error_battle_player_role_missing
 td_prepare_face_enter_area,td_prepare_face_enter_area
 td_prepare_face_wait_avatar_select,td_prepare_face_wait_avatar_select
 td_prepare_face_select_avatar,td_prepare_face_select_avatar
+td_prepare_start_countdown,Bắt đầu sau {0}
+td_prepare_open_failed,Không thể mở màn hình chuẩn bị. Vui lòng thử lại.
+td_prepare_start_failed,Không thể bắt đầu trận đấu. Hãy kiểm tra mọi người đã sẵn sàng rồi thử lại.
+td_prepare_exit_failed,Không thể thoát màn hình chuẩn bị. Vui lòng thử lại.
+td_lobby_exit_failed,Không thể rời sảnh. Vui lòng thử lại.
+td_pause_resume_failed,Không thể tiếp tục trận đấu. Vui lòng thử lại.
+td_pause_restart_failed,Không thể chơi lại trận đấu. Hãy để tất cả người chơi trở lại trước camera. Tiếp tục trận đấu nếu cần nhận diện lại người chơi.
+td_pause_return_failed,Không thể quay lại sảnh. Vui lòng thử lại.
+td_loading_lobby_failed,Không thể tải sảnh. Vui lòng thử lại.
+td_loading_login_failed,Không thể tải màn hình đăng nhập. Vui lòng thử lại.
+td_loading_battle_failed_return,Không thể tải trận đấu. Đang quay lại sảnh.
+ui_retry,Thử lại
+td_loading_battle_busy,Đang tải trận đấu.
+td_loading_login_busy,Đang quay lại màn hình đăng nhập.
+td_loading_screen_busy,Đang chuyển màn hình. Vui lòng đợi.
+td_lobby_start_unavailable,Hiện chưa thể vào trận đấu.
+td_lobby_chapter_locked,Chủ đề này vẫn đang bị khóa.
+td_pause_resume_tracking,Đang khôi phục nhận diện…
+td_login_save_account_wait,"Yêu cầu tải dữ liệu lưu của tài khoản trước vẫn chưa hoàn tất. Hãy thử lại hoặc khởi động lại trò chơi. Nếu tiếp tục ở chế độ chỉ đọc, tiến độ phiên này sẽ không được tải lên."
+td_login_save_readonly,Tiếp tục chỉ đọc

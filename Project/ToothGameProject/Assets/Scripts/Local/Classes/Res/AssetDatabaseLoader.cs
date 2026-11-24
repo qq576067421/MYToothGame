@@ -335,36 +335,32 @@ public class AssetDatabaseLoader : MonoBehaviour
         return strFullName;
     }
 
-    public void LoadLevel(string abName, string assetName, int mode, Action func)
+    public void LoadLevel(string abName, string assetName, int mode, Action<bool> onCompleted)
     {
-        if (!m_IsInitSceneOpened)
-        {
-            m_IsInitSceneOpened = true;
-            EditorSceneManager.sceneLoaded += EditorSceneManager_sceneLoaded;
-        }
-        m_LoadedSceneFunc = func;
         string path = "Assets/art/out/" + abName.Replace(".jpg", ".unity");
-
-        UnityEngine.SceneManagement.LoadSceneParameters p = new UnityEngine.SceneManagement.LoadSceneParameters();
-        p.loadSceneMode = (UnityEngine.SceneManagement.LoadSceneMode)mode;
-        var result = EditorSceneManager.LoadSceneAsyncInPlayMode(path, p);
-
-    }
-    private bool m_IsInitSceneOpened = false;
-    private Action m_LoadedSceneFunc;
-    private void EditorSceneManager_sceneLoaded(UnityEngine.SceneManagement.Scene scene, UnityEngine.SceneManagement.LoadSceneMode arg1)
-    {
-        //这里不需要代码释放，unity会自动处理
-        //if(m_LastScene != null)
-        //{
-        //    EditorSceneManager.CloseScene(m_LastScene, true);
-        //}
-        if (m_LoadedSceneFunc != null)
+        var parameters = new UnityEngine.SceneManagement.LoadSceneParameters(
+            (UnityEngine.SceneManagement.LoadSceneMode)mode);
+        AsyncOperation operation = null;
+        try
         {
-            var func = m_LoadedSceneFunc;
-            m_LoadedSceneFunc = null;
-            func();
+            operation = EditorSceneManager.LoadSceneAsyncInPlayMode(path, parameters);
         }
+        catch (Exception exception)
+        {
+            Debug.LogException(exception);
+        }
+
+        if (operation == null)
+        {
+            onCompleted?.Invoke(false);
+            return;
+        }
+
+        operation.completed += _ =>
+        {
+            var scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(path);
+            onCompleted?.Invoke(scene.IsValid() && scene.isLoaded);
+        };
     }
 }
 #endif

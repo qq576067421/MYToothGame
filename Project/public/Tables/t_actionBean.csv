@@ -3,10 +3,10 @@
 string,string,int32,int32,int32
 Id,动作名字,技能生效时机（在动作的哪一帧生效）,攻击动作结束,帧率（默认30fps）
 100_attack,attack,1,10,10
-110_attack,attack,12,20,20
+110_attack,attack,2,20,20
 120_attack,attack,4,10,20
-130_attack,attack,12,20,20
-130_special_attack,special_attack,12,20,20
+130_attack,attack,6,20,20
+130_special_attack,special_attack,7,20,20
 100_skill,attack,10,10,20
 110_skill,attack,10,10,20
 120_skill,attack,10,10,20

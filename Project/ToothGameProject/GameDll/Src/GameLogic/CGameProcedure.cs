@@ -167,12 +167,15 @@ namespace GameHot
             Event = null;
         }
 
-        private static void OnRenderPrepareConfirmRequest()
+        private static bool OnRenderPrepareConfirmRequest()
         {
             if (UIManager.GetCurrentActiveWindow() is tower_defend_prepare_wnd prepare)
             {
-                prepare.OnClickConfirm();
+                prepare.HandleConfirmInput();
+                return true;
             }
+
+            return false;
         }
 
         private static void OnRenderEscapePressedRequest(InputAction.CallbackContext context)
@@ -188,6 +191,8 @@ namespace GameHot
         public static void Update()
         {
             TickActive();
+            loading_wnd.Tick();
+            s_ProcScene?.PollLeaderboardSubmission();
 
 
         }

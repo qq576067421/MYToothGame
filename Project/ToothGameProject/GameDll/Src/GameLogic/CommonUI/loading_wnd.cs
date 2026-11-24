@@ -1,27 +1,33 @@
 ﻿using LCL;
 using System;
-using System.Collections.Generic;
-using System.Text;
 using UnityEngine;
-using UnityEngine.UI;
 using GameDll;
 using MonoBean;
-using System.Collections;
 
 namespace GameHot
 {
     public class loading_wnd : WindowBase
     {
         private const string m_LanTdGameTitle = "td_game_title";
-        private static List<Action> m_AfterCoveredCalls = new List<Action>();
-        private static List<Action> m_ClosedLoadingCalls = new List<Action>();
+        private const float m_AnimationTimeoutSeconds = 5f;
+        private const float m_PrefabSlowWarningSeconds = 10f;
+
+        private enum LoadingState
+        {
+            WaitingForPrefab,
+            Covering,
+            Covered,
+            Uncovering,
+            PrefabFailed
+        }
+
+        private static Action m_AfterCoveredCall;
         private static loading_wnd m_Instance = null;
         private static float m_Percent = 0.0f;
         private static string m_Info = "";
         private static float m_MinVisibleUntilTime = 0.0f;
         private static int m_LoadingSessionId = 0;
-        private static bool m_IsWaitingMinVisibleClose = false;
-        private static bool m_CloseRequested = false;
+        private static float m_CloseAtGameTime = float.PositiveInfinity;
         //这个是给热更新这边用
         public static void SetLoadingInfo(float percent, string info)
         {
@@ -47,11 +53,6 @@ namespace GameHot
 
             return Mathf.Max(0, Mathf.CeilToInt((m_MinVisibleUntilTime - Time.realtimeSinceStartup) * 1000.0f));
         }
-        static System.Collections.IEnumerator AutoClose()
-        {
-            yield return new WaitForSeconds(1f);
-            CloseLoading();
-        }
         public static void OpenLoading(Action afterCoveredCall = null)
         {
             OpenLoadingInternal(0.0f, afterCoveredCall);
@@ -62,34 +63,38 @@ namespace GameHot
         }
         private static void OpenLoadingInternal(float minVisibleSeconds, Action afterCoveredCall)
         {
-            AudioManager.GetInstance().Play2D(2);
+            if (DataManager.IsInitialized)
+            {
+                AudioManager.GetInstance().Play2D(2);
+            }
+
             //UDebug.Log("-------------->>>>>:OpenLoading");
             //这个是给主工程那边用
             RenderEvent.Event.OnLoadingProChanged = OnLoadingProChanged;
-            ClearAfterCoveredCalls();
-            if (afterCoveredCall != null)
-            {
-                m_AfterCoveredCalls.Add(afterCoveredCall);
-            }
-            m_IsWaitingMinVisibleClose = false;
-            m_CloseRequested = false;
+            m_AfterCoveredCall = afterCoveredCall;
+            m_CloseAtGameTime = float.PositiveInfinity;
             ++m_LoadingSessionId;
             minVisibleSeconds = Mathf.Max(0.0f, minVisibleSeconds);
             m_MinVisibleUntilTime = Time.realtimeSinceStartup + minVisibleSeconds;
-            if (m_Instance == null)
+            if (m_Instance == null || m_Instance.__GetWindowStage() == WindowStage.Cached)
             {
                 m_Instance = UIManager.OpenWindowEX<loading_wnd>(null);
+                m_Instance.m_PrefabWarningAt = GameProductUiAdapter.ForegroundRealtime + m_PrefabSlowWarningSeconds;
             }
             else
             {
                 m_Instance.ShowInfo();
-                m_Instance.ResetAfterCoveredCallState();
-                if (m_Instance.m_IsCovered)
+                if (m_Instance.m_State == LoadingState.Uncovering)
+                {
+                    m_Instance.RestoreCover();
+                }
+                if (m_Instance.m_State == LoadingState.Covered)
                 {
                     m_Instance.AfterCoveredCall();
                 }
             }
         }
+
         private static void OnLoadingProChanged(float arg1, string arg2)
         {
             m_Percent = arg1;
@@ -110,11 +115,12 @@ namespace GameHot
         }
         public static bool IsCovering()
         {
-            return m_Instance != null && !m_Instance.m_IsCovered;
+            return m_Instance != null && !IsCovered();
         }
         public static bool IsCovered()
         {
-            return m_Instance != null && m_Instance.m_IsCovered;
+            return m_Instance != null &&
+                (m_Instance.m_State == LoadingState.Covered || m_Instance.m_State == LoadingState.Uncovering);
         }
         public static bool IsBlockingFlowInput()
         {
@@ -123,61 +129,33 @@ namespace GameHot
         }
         public static void DelayClose()
         {
-            Main.GetInstance().StartCoroutine(DelayCloseLoading());
-        }
-        static System.Collections.IEnumerator DelayCloseLoading()
-        {
-            yield return new WaitForSeconds(1f);
-            CloseLoading();
-        }
-        static System.Collections.IEnumerator DelayCloseLoadingByMinVisible(int sessionId)
-        {
-            while (m_Instance != null && sessionId == m_LoadingSessionId)
+            if (m_Instance != null)
             {
-                if (Time.realtimeSinceStartup >= m_MinVisibleUntilTime)
-                {
-                    break;
-                }
-
-                yield return null;
+                m_CloseAtGameTime = Mathf.Min(m_CloseAtGameTime, Time.time + 1f);
             }
-
-            if (sessionId != m_LoadingSessionId)
-            {
-                yield break;
-            }
-
-            m_IsWaitingMinVisibleClose = false;
-            CloseLoading();
-        }
-        private static void ClearAfterCoveredCalls()
-        {
-            if (m_AfterCoveredCalls == null || m_AfterCoveredCalls.Count == 0)
-            {
-                return;
-            }
-
-            m_AfterCoveredCalls.Clear();
         }
         public static void CloseLoading()
         {
             if (m_Instance != null)
             {
-                if (Time.realtimeSinceStartup < m_MinVisibleUntilTime)
-                {
-                    if (!m_IsWaitingMinVisibleClose)
-                    {
-                        m_IsWaitingMinVisibleClose = true;
-                        Main.GetInstance().StartCoroutine(DelayCloseLoadingByMinVisible(m_LoadingSessionId));
-                    }
-                    return;
-                }
-
-                m_CloseRequested = true;
-                m_Instance.TryPlayCloseAnimation();
+                m_CloseAtGameTime = float.NegativeInfinity;
             }
         }
-        private static void CloseLoadingWindowNow()
+
+        internal static void Tick()
+        {
+            m_Instance?.AdvanceState();
+        }
+
+        internal static void ShowSceneLoadRetry(string message, Action retry)
+        {
+            ++m_LoadingSessionId;
+            m_AfterCoveredCall = null;
+            CloseLoadingWindowNow(true);
+            dialog_wnd.ShowRetryDialog(message, retry);
+        }
+
+        private static void CloseLoadingWindowNow(bool jumpAnimation = false)
         {
             if (m_Instance == null)
             {
@@ -185,17 +163,25 @@ namespace GameHot
             }
 
             var wnd = m_Instance;
-            m_Instance = null;
-            m_MinVisibleUntilTime = 0.0f;
-            m_IsWaitingMinVisibleClose = false;
-            m_CloseRequested = false;
-            UIManager.CloseWindow(wnd);
+            ResetLoadingState();
+            UIManager.CloseWindow(wnd, jumpAnimation);
         }
+        private static void ResetLoadingState()
+        {
+            m_Instance = null;
+            m_Info = "";
+            m_Percent = 0;
+            m_MinVisibleUntilTime = 0.0f;
+            m_CloseAtGameTime = float.PositiveInfinity;
+            m_AfterCoveredCall = null;
+        }
+
         private v_loading_wnd m_View = null;
-        private Coroutine m_CheckAniCoroutine = null;
-        private bool m_IsCovered = false;
-        private bool m_HasCalledAfterCovered = false;
+        private LoadingState m_State;
         private Animator m_LoadingAnimator = null;
+        private float m_PrefabWarningAt;
+        private float m_AnimationDeadline;
+        private int m_AnimationStartedFrame;
         public override void OnClassConstructed()
         {
             base.OnClassConstructed();
@@ -208,92 +194,121 @@ namespace GameHot
             m_View.InitComponent(__GetWindowObj());
         }
 
-        private void ResetAfterCoveredCallState()
+        private void RestoreCover()
         {
-            m_HasCalledAfterCovered = false;
+            BeginAnimation(LoadingState.Covering);
+            if (m_LoadingAnimator != null)
+            {
+                m_LoadingAnimator.SetInteger("Step", 1);
+                m_LoadingAnimator.Play("jiazai", 0, 0);
+            }
         }
 
         private void AfterCoveredCall()
         {
-            if (m_HasCalledAfterCovered)
-            {
-                return;
-            }
-
-            m_HasCalledAfterCovered = true;
-            if (m_AfterCoveredCalls != null && m_AfterCoveredCalls.Count > 0)
-            {
-                int count = m_AfterCoveredCalls.Count;
-                for (int i = 0; i < count; ++i)
-                {
-                    var call = m_AfterCoveredCalls[i];
-                    if (call != null)
-                    {
-                        m_AfterCoveredCalls[i] = null;
-                        call();
-                        call = null;
-                    }
-                }
-                m_AfterCoveredCalls.Clear();
-            }
+            var callback = m_AfterCoveredCall;
+            m_AfterCoveredCall = null;
+            callback?.Invoke();
         }
 
         protected override void OnOpen()
         {
-            m_IsCovered = false;
-            m_HasCalledAfterCovered = false;
-            var loading = m_View.m_Loading.GetComponent<Animator>();
-            m_LoadingAnimator = loading;
-            loading.SetInteger("Step", 1);
-            loading.Play("normal", 0, 0);
-            m_CheckAniCoroutine = RenderAPI.StartCoroutine(CheckAnimationState(loading));
+            m_LoadingAnimator = m_View.m_Loading != null ? m_View.m_Loading.GetComponent<Animator>() : null;
+            if (m_LoadingAnimator != null)
+            {
+                m_LoadingAnimator.updateMode = AnimatorUpdateMode.UnscaledTime;
+                m_LoadingAnimator.SetInteger("Step", 1);
+                m_LoadingAnimator.Play("normal", 0, 0);
+            }
+            BeginAnimation(LoadingState.Covering);
             ShowInfo();
         }
-        private IEnumerator CheckAnimationState(Animator animator)
+
+        private void AdvanceState()
         {
-            while (true)
+            switch (m_State)
             {
-                var stateInfo = animator.GetCurrentAnimatorStateInfo(0);
-
-                if (stateInfo.IsName("jiazai"))
-                {
-                    // 进入 jiazai 状态说明遮挡动画已经完成，此时再执行切场景等业务流程。
-                    m_IsCovered = true;
-                    AfterCoveredCall();
-                    if (m_CloseRequested)
-                    {
-                        TryPlayCloseAnimation();
-                    }
-                }
-                else if(stateInfo.IsName("normal") && animator.GetInteger("Step")==2 && m_CloseRequested)
-                {
-                    CloseLoadingWindowNow();
+                case LoadingState.WaitingForPrefab:
+                    CheckPrefabLoad();
                     break;
-                }
-
-                yield return null; // 每帧检查
-            }
-            if (m_CheckAniCoroutine != null)
-            {
-                RenderAPI.StopCoroutine(m_CheckAniCoroutine);
-                m_CheckAniCoroutine = null;  // 置空引用
+                case LoadingState.Covering:
+                    if (CheckAnimation("jiazai", "遮挡动画未就绪，继续切换流程。", out _))
+                    {
+                        m_State = LoadingState.Covered;
+                        AfterCoveredCall();
+                    }
+                    break;
+                case LoadingState.Covered:
+                    if (Time.time >= m_CloseAtGameTime && Time.realtimeSinceStartup >= m_MinVisibleUntilTime)
+                    {
+                        BeginAnimation(LoadingState.Uncovering);
+                        if (m_LoadingAnimator != null)
+                        {
+                            m_LoadingAnimator.SetInteger("Step", 2);
+                        }
+                    }
+                    break;
+                case LoadingState.Uncovering:
+                    if (CheckAnimation("normal", "退出动画未完成，关闭加载界面。", out bool forceClose))
+                    {
+                        CloseLoadingWindowNow(forceClose);
+                    }
+                    break;
             }
         }
-        private void TryPlayCloseAnimation()
+
+        private void CheckPrefabLoad()
         {
-            if (!m_IsCovered)
+            var stage = __GetWindowStage();
+            if (stage == WindowStage.LoadFailed)
             {
-                return;
+                m_State = LoadingState.PrefabFailed;
+                m_AfterCoveredCall = null;
+                Debug.LogError("[加载界面] 预制件加载失败。session=" + m_LoadingSessionId +
+                               " resource=" + __GetABId()?.abName);
+            }
+            else if (stage == WindowStage.Cached)
+            {
+                ResetLoadingState();
+            }
+            else if (GameProductUiAdapter.ForegroundRealtime >= m_PrefabWarningAt)
+            {
+                m_PrefabWarningAt = float.PositiveInfinity;
+                Debug.LogWarning("[加载界面] 预制件加载较慢，继续等待。session=" + m_LoadingSessionId +
+                                 " resource=" + __GetABId()?.abName + " stage=" + stage);
+            }
+        }
+
+        private void BeginAnimation(LoadingState state)
+        {
+            m_State = state;
+            m_AnimationStartedFrame = Time.frameCount;
+            m_AnimationDeadline = GameProductUiAdapter.ForegroundRealtime + m_AnimationTimeoutSeconds;
+        }
+
+        private bool CheckAnimation(string targetState, string warning, out bool animationIncomplete)
+        {
+            animationIncomplete = false;
+            if (Time.frameCount == m_AnimationStartedFrame)
+            {
+                return false;
             }
 
-            if (m_LoadingAnimator == null)
+            bool available = m_LoadingAnimator != null && m_LoadingAnimator.isActiveAndEnabled &&
+                m_LoadingAnimator.runtimeAnimatorController != null && m_LoadingAnimator.layerCount > 0;
+            if (available && m_LoadingAnimator.GetCurrentAnimatorStateInfo(0).IsName(targetState))
             {
-                CloseLoadingWindowNow();
-                return;
+                return true;
             }
 
-            // 关闭请求由业务流程发起，覆盖动画完成前只记录请求，避免提前露出底层界面。
-            m_LoadingAnimator.SetInteger("Step", 2);
+            if (available && GameProductUiAdapter.ForegroundRealtime < m_AnimationDeadline)
+            {
+                return false;
+            }
+
+            animationIncomplete = true;
+            Debug.LogWarning("[加载界面] " + warning + "session=" + m_LoadingSessionId + " animator=" + available);
+            return true;
         }
         private void ShowInfo()
         {
@@ -321,34 +336,20 @@ namespace GameHot
 
         protected override void OnClose()
         {
-            m_Info = "";
-            m_Percent = 0;
-            m_MinVisibleUntilTime = 0.0f;
-            m_IsWaitingMinVisibleClose = false;
-            m_CloseRequested = false;
-            m_IsCovered = false;
-            m_HasCalledAfterCovered = false;
+            m_State = LoadingState.WaitingForPrefab;
             m_LoadingAnimator = null;
-            if (m_CheckAniCoroutine != null)
+            if (m_Instance == this)
             {
-                RenderAPI.StopCoroutine(m_CheckAniCoroutine);
-                m_CheckAniCoroutine = null;  
+                ResetLoadingState();
             }
-            ClearAfterCoveredCalls();
-            m_Instance = null;
         }
+
         protected override void OnDestroy()
         {
-            m_MinVisibleUntilTime = 0.0f;
-            m_IsWaitingMinVisibleClose = false;
-            m_CloseRequested = false;
-            m_IsCovered = false;
-            m_HasCalledAfterCovered = false;
-            m_LoadingAnimator = null;
-            ClearAfterCoveredCalls();
-            m_Instance = null;
+            if (m_Instance == this)
+            {
+                ResetLoadingState();
+            }
         }
-
-
     }
 }

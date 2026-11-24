@@ -333,7 +333,9 @@ namespace GameDll
 
         public static bool IsCanUseBoneSkillDirect(PropertyEntity entity, int slot, bool boneNormalAttack)
         {
-            if (!ReadIsEntityValide(entity) || entity.ReadIsBeingControlled() || entity.ReadIsFreeze())
+            // 挂起与 buff 冰冻都要拒绝：冰冻不走 SetSuspended，只查 ReadIsSuspended 会漏。
+            if (!ReadIsEntityValide(entity) || entity.ReadIsBeingControlled() ||
+                entity.ReadIsSuspended() || entity.ReadIsFrozen())
             {
                 return false;
             }
@@ -361,9 +363,20 @@ namespace GameDll
                     return false;
                 }
             }
-            else if (entity.CanAttack(skill) != AttackFailedReason.Success)
+            else
             {
-                return false;
+                // 持续型普攻（激光/水柱）的节奏由 keep 窗口和 hurt_interval 控制，
+                // 普攻冷却（t_Interval）不再参与拦截，否则续射输入会被 CD 卡断成"喷一下停一下"。
+                bool isContinuousNormalAttack = slot == 0 &&
+                    skill is CommonBulletSkill continuousNormalSkill &&
+                    continuousNormalSkill.ReadIsContinuousBulletCast();
+                var attackResult = isContinuousNormalAttack
+                    ? entity.CanBoneNormalAttack(skill)
+                    : entity.CanAttack(skill);
+                if (attackResult != AttackFailedReason.Success)
+                {
+                    return false;
+                }
             }
 
             if (currentSkill == null)
@@ -493,7 +506,14 @@ namespace GameDll
                 return false;
             }
 
-            if (entity.CanAttack(use_skill) != AttackFailedReason.Success)
+            // 持续型普攻（激光/水柱）不查普攻冷却（t_Interval），与 IsCanUseBoneSkillDirect 口径一致。
+            bool isContinuousNormalAttack = slot == 0 &&
+                use_skill is CommonBulletSkill continuousNormalSkill &&
+                continuousNormalSkill.ReadIsContinuousBulletCast();
+            var attackResult = isContinuousNormalAttack
+                ? entity.CanBoneNormalAttack(use_skill)
+                : entity.CanAttack(use_skill);
+            if (attackResult != AttackFailedReason.Success)
             {
                 skillMgr.SetWillNextUseSkill(use_skill, defender);
                 return false;
@@ -604,6 +624,7 @@ namespace GameDll
 
             m_logicUpdateIndex = 0;
             BulletObj.ResetSharedTrackingState();
+            DelayedDamageManager.Clear();
 
             //初始化表数据
             InitBean();
@@ -672,6 +693,7 @@ namespace GameDll
 
             m_IsBattleValid = false;
             BulletObj.ResetSharedTrackingState();
+            DelayedDamageManager.Clear();
             if (m_Battle != null)
             {
                 m_Battle.OnRelease();
@@ -682,11 +704,18 @@ namespace GameDll
 
         public static void LogicUpdate(float logic_time)
         {
+            if (m_Battle.IsBattlePause())
+            {
+                return;
+            }
+
             m_Battle.UpdateProjectilePools(m_battleTime);
             m_Battle.Update(logic_time);
 
             m_battleTime += logic_time;
             m_logicUpdateIndex++;
+            // 延迟伤害按 m_battleTime 计时，时间推进后统一检查到期的结算
+            DelayedDamageManager.Update();
         }
         public static float ReadBattleTime()
         {

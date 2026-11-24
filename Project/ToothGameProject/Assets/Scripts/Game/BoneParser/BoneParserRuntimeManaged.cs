@@ -31,6 +31,11 @@ namespace GameDll
             m_BoneParser.Reset();
         }
 
+        public void ResetSeat(int seatIndex)
+        {
+            m_BoneParser.ResetSeat(seatIndex);
+        }
+
         public BoneParserFrameResult Update(BoneTrackedFrame frameData, IList<BoneParserSeatDefinition> seatDefinitions)
         {
             CopyConfigToExternal();

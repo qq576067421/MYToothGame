@@ -298,6 +298,24 @@ namespace GameDll
         {
             SetPosition(new Vector3(x, y, z));
         }
+        //只刷新已显示特效的世界位姿：不重置播放时间、不重播音效、不重放粒子。
+        //给需要跟随目标的残留特效（例如插在身上的箭）逐帧摆位用。
+        public void SetPose(Vector3 worldPos, Vector3 worldEuler)
+        {
+            m_IsLocal = false;
+            m_UseDir = false;
+            m_Position = worldPos;
+            m_Rot = worldEuler;
+
+            //资源还没加载完时只记录位姿，OnLoadRes 会用最新的 m_Position/m_Rot 显示
+            if (m_Eff == null)
+            {
+                return;
+            }
+            var trans = m_Eff.transform;
+            trans.position = m_Position;
+            trans.eulerAngles = m_Rot;
+        }
         public virtual void Destroy()
         {
             OnLoadedCall = null;

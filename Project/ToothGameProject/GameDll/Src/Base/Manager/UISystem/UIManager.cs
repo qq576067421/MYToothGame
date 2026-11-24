@@ -187,6 +187,8 @@ namespace GameHot
             evtObj.transform.SetParent(m_GlobalUI.transform, false);
             m_EventSystem = evtObj.GetComponent(typeof(EventSystem)) as EventSystem;
             m_EventSystem.pixelDragThreshold = GetPixelDragThresholdByResolution();
+            // 方向、确认和返回统一由输入桥分发，EventSystem 保留指针事件。
+            m_EventSystem.sendNavigationEvents = false;
             InputSystemCompat.EnsureInputSystemUIInputModule(evtObj);
 
 
@@ -620,6 +622,11 @@ namespace GameHot
         public static void RefreshRemoteMenuBinding()
         {
             WindowBase currentWindow = GetCurrentActiveWindow();
+            if (m_LastRemoteMenuWindow != currentWindow)
+            {
+                GameControllerInputBridge.Instance?.DiscardPendingInput();
+            }
+
             if (currentWindow == null)
             {
                 if (m_HasRemoteMenuBinding || m_LastRemoteMenuWindow != null || m_LastRemoteMenuUI != null)

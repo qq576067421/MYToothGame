@@ -81,11 +81,12 @@ namespace GameHot
                 var lvChooseWnd = UIManager.OpenWindowEX<tower_defend_chapter_wnd>(this);
                 lvChooseWnd.SetRequest(
                 request,
-                () =>
+                chapterId =>
                 {
                     var chapterWnd = UIManager.OpenWindowEX<tower_defend_lvchoose_wnd>(this);
                     chapterWnd.SetRequest(
                         request,
+                        chapterId,
                         () => OpenPlayerCountWindow(request),
                         null);
                     return chapterWnd;
@@ -110,24 +111,32 @@ namespace GameHot
 
         private tower_defend_prepare_wnd OpenPrepareWindow(BattleStartupRequest request)
         {
-            // 每次新开准备界面都开始一轮全新的匹配，清掉上次准备/战斗留下的槽位状态。
-            // 重置后再应用本次人数，避免复用同人数时 SetPlayerCount 不触发重配。
-            if (request != null && GameFrameworkBootstrap.CompositionRoot != null)
+            if (GameSaveService.Instance?.RequiresProfileReload == true)
             {
-                var compositionRoot = GameFrameworkBootstrap.CompositionRoot;
-                bool reset = !GameProductUiAdapter.HasLiveSession || YoudooAPI.ResetSession();
-                bool playerCountApplied = GameFrameworkBootstrap.TrySetSessionPlayerCount(request.ReadPreparePlayerCount());
-                Debug.Log("[新SDK整合] prepare session begin reset=" +
-                          (GameProductUiAdapter.HasLiveSession ? (reset ? "1" : "0") : "skip") +
-                          " playerCount=" + request.ReadPreparePlayerCount() +
-                          " applied=" + (playerCountApplied ? "1" : "0"));
+                return null;
+            }
+
+            if (request == null)
+            {
+                Debug.LogError("[准备流程] 缺少开战请求。");
+                return null;
+            }
+
+            int playerCount = request.ReadPreparePlayerCount();
+            if (!GameFrameworkBootstrap.TryBeginPrepareSession(playerCount))
+            {
+                dialog_wnd.ShowRetryDialog(RenderAPI.GetTextByLanId("td_prepare_open_failed"), () =>
+                {
+                    if (__IsLogicOpen())
+                    {
+                        OpenPrepareWindow(request);
+                    }
+                });
+                return null;
             }
 
             // 相机生命周期只在大厅入口启动一次；窗口 OnOpen 负责视图绑定，避免重复重启流程。
-            if (GameProductUiAdapter.HasLiveSession)
-            {
-                GameProductUiAdapter.EnterPrepareCamera("prepare-open");
-            }
+            GameProductUiAdapter.EnterPrepareCamera("prepare-open");
 
             var prepareWnd = UIManager.OpenWindowEX<tower_defend_prepare_wnd>(this);
             prepareWnd.SetRequest(request);

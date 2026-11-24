@@ -26,7 +26,7 @@ namespace GameDll
         private const int m_ChapterOneStarClearGold = 50;
         private const int m_ChapterTwoStarClearGold = 150;
         private const int m_ChapterThreeStarClearGold = 300;
-        // 结算表现属于塔防流程本身，胜负确认后先停留 1 秒，再通知场景打开结算界面。
+        // 胜负确定时写入结算，保留 1 秒过场后再打开结算界面。
         private const float m_BattleResultTransitionSeconds = 1.0f;
         private float m_StageTimeUsed = 0;
         private float m_DisplayStageTimeUsed = 0;
@@ -151,14 +151,15 @@ namespace GameDll
         public override void Update(float dt)
         {
             var battle = BattleManager.GetBattle();
-            bool freezeDisplay = battle != null && battle.GM_IsPause();
+            // GM 暂停只冻结表现计时，不是 buff 冰冻（冰冻走 FreezeBuff + em_EntityState_Freeze）。
+            bool gmPauseDisplay = battle != null && battle.GM_IsPause();
 
             switch (m_State)
             {
                 case TowerDefendBattleState.WaitingChessMan:
                     {
                         m_StageTimeUsed += dt;
-                        if (!freezeDisplay) m_DisplayStageTimeUsed += dt;
+                        if (!gmPauseDisplay) m_DisplayStageTimeUsed += dt;
                         NotifyTowerDefendRuntimeState(0, false, false, false);
                         NotifyHUDThrottled(0, false, false, false, 0, 0, dt);
                         if(m_StageTimeUsed >= 1.0f)
@@ -182,7 +183,7 @@ namespace GameDll
                 case TowerDefendBattleState.NpcSpeakIntro:
                     {
                         m_StageTimeUsed += dt;
-                        if (!freezeDisplay) m_DisplayStageTimeUsed += dt;
+                        if (!gmPauseDisplay) m_DisplayStageTimeUsed += dt;
                         NotifyTowerDefendRuntimeState(0, false, false, false);
                         NotifyHUDThrottled(0, false, false, false, 0, 0, dt);
                         break;
@@ -190,7 +191,7 @@ namespace GameDll
                 case TowerDefendBattleState.PreStart:
                     {
                         m_StageTimeUsed += dt;
-                        if (!freezeDisplay) m_DisplayStageTimeUsed += dt;
+                        if (!gmPauseDisplay) m_DisplayStageTimeUsed += dt;
                         var displayPrepareLeft = Math.Max(0, 5.0f - m_DisplayStageTimeUsed);
                         NotifyTowerDefendRuntimeState(displayPrepareLeft, true, false, false);
                         NotifyHUDThrottled(displayPrepareLeft, true, false, false, 0, 0, dt);
@@ -211,7 +212,7 @@ namespace GameDll
                     {
                         m_StageTimeUsed += dt;
                         m_FreeGameTimeUsed += dt;
-                        if (!freezeDisplay)
+                        if (!gmPauseDisplay)
                         {
                             m_DisplayStageTimeUsed += dt;
                             m_DisplayFreeGameTimeUsed += dt;
@@ -250,7 +251,7 @@ namespace GameDll
                         if (isActualCountdown)
                         {
                             m_StageTimeUsed += dt;
-                            if (!freezeDisplay)
+                            if (!gmPauseDisplay)
                             {
                                 m_DisplayStageTimeUsed += dt;
                             }
@@ -280,7 +281,7 @@ namespace GameDll
                         }
 
                         m_StageTimeUsed += dt;
-                        if (!freezeDisplay) m_DisplayStageTimeUsed += dt;
+                        if (!gmPauseDisplay) m_DisplayStageTimeUsed += dt;
                         var displayLeft = Math.Max(0, TowerDefendBattle.m_UpgradeChallengeDuration - m_DisplayStageTimeUsed);
                         NotifyTowerDefendRuntimeState(0, false, true, false, 0, displayLeft);
                         NotifyHUDThrottled(0, false, true, false, 0, displayLeft, dt);
@@ -296,7 +297,7 @@ namespace GameDll
                 case TowerDefendBattleState.ShowWinFailed:
                     {
                         m_StageTimeUsed += dt;
-                        if (!freezeDisplay)
+                        if (!gmPauseDisplay)
                         {
                             m_DisplayStageTimeUsed += dt;
                         }
@@ -308,7 +309,7 @@ namespace GameDll
                 case TowerDefendBattleState.ShowReward:
                     {
                         m_StageTimeUsed += dt;
-                        if (!freezeDisplay)
+                        if (!gmPauseDisplay)
                         {
                             m_DisplayStageTimeUsed += dt;
                         }
@@ -335,6 +336,11 @@ namespace GameDll
         }
         public override BattleResultData OnFinishGame(FinishReason camp, object userData)
         {
+            if (m_HasPendingBattleResult || m_State == TowerDefendBattleState.GameOver)
+            {
+                return m_PendingBattleResult;
+            }
+
             var isWin = camp == FinishReason.DefenseSucceeded;
             m_State = isWin ? TowerDefendBattleState.ShowReward : TowerDefendBattleState.ShowWinFailed;
             m_StageTimeUsed = 0f;
@@ -362,7 +368,10 @@ namespace GameDll
             if (!m_HasPendingBattleResult)
             {
                 m_State = TowerDefendBattleState.GameOver;
+                return null;
             }
+
+            RenderEvent.Event.OnTowerDefendBattleResultFinalized(rd);
             return rd;
 
         }

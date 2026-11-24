@@ -17,7 +17,8 @@ namespace GameDll
     public class UScene
     {
         public LoadLevelParam m_Param = null;
-        private string m_MapAb;
+        private bool m_IsLoading;
+        private ThreadPriority m_PreviousLoadingPriority;
 
         public UScene()
         {
@@ -25,61 +26,34 @@ namespace GameDll
         }
         public void LoadEmpty(Action<bool> onLoadCall)
         {
-            m_MapAb = "scene/loading.jpg";
-            if (m_Param == null)
-            {
-                m_Param = new LoadLevelParam();
-            }
-            m_Param.m_MapAb = m_MapAb;
-            m_Param.m_LoadMode = 0;
-            m_Param.m_OnLoadCall = onLoadCall;
-            LoadLevel(m_Param);
+            Init("scene/loading.jpg", (int)LoadSceneMode.Single, onLoadCall);
         }
-        public void Init(string  mapAb, int loadMode, Action<bool> onLoadCall)
+
+        public void Init(string mapAb, int loadMode, Action<bool> onLoadCall)
         {
-            m_MapAb = mapAb;
-
-
-
-            //string GridABName = ABName.Replace(".jpg", "_grid.jpg");
-            if(m_Param == null)
+            LoadLevel(new LoadLevelParam
             {
-                m_Param = new LoadLevelParam();
-            }
-            m_Param.m_MapAb = mapAb;
-            m_Param.m_LoadMode = loadMode;
-            m_Param.m_OnLoadCall = onLoadCall;
-            LoadLevel(m_Param);
+                m_MapAb = mapAb,
+                m_LoadMode = loadMode,
+                m_OnLoadCall = onLoadCall,
+            });
         }
 
         public void Destroy()
         {
-            if (m_Param != null)
+            var request = m_Param;
+            m_Param = null;
+            RestoreLoadingPriority();
+            if (request == null || request.m_LoadMode != (int)LoadSceneMode.Additive)
             {
-
-                var assetName = Tool.GetAssetName(m_Param.m_MapAb);
-                UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetSceneByName(assetName);
-                if (scene != null)
-                {
-                    if (!scene.isLoaded)
-                    {
-                        return;
-                    }
-                    if(m_Param.m_LoadMode == (int)LoadSceneMode.Additive)
-                    {
-                        //UDebug.LogWarning("我们这里手动调用了卸载场景， scene：" + assetName);
-                        //Unloading the last loaded scene , is not supported.Please use SceneManager.LoadScene() / EditorSceneManager.OpenScene() to switch to another scene.
-                        UnityEngine.SceneManagement.SceneManager.UnloadSceneAsync(scene);
-                    }
-
-                }
-                
-
-                m_Param.m_OnLoadCall = null;
-                m_Param = null;
+                return;
             }
 
-
+            var scene = SceneManager.GetSceneByName(Tool.GetAssetName(request.m_MapAb));
+            if (scene.isLoaded)
+            {
+                SceneManager.UnloadSceneAsync(scene);
+            }
         }
 
         public void Enter()
@@ -116,22 +90,30 @@ namespace GameDll
 
         public void LoadLevel(LoadLevelParam param)
         {
-            LoadLevelParam temp = param;
-            if (temp != null)
+            if (param == null)
             {
-                var last_backgroupdLoadingPriority = Application.backgroundLoadingPriority;
-                Application.backgroundLoadingPriority = ThreadPriority.High;
-                UDebug.Log("开启到 Application.backgroundLoadingPriority = ThreadPriority.High");
-                LCL.UIRes.LoadLevel(temp.m_MapAb, Tool.GetAssetName(param.m_MapAb), param.m_LoadMode, () =>
-                {
-                    Application.backgroundLoadingPriority = last_backgroupdLoadingPriority;
-                    UDebug.Log("关闭到 Application.backgroundLoadingPriority = " + last_backgroupdLoadingPriority);
-                    if (temp.m_OnLoadCall != null)
-                    {
-                        temp.m_OnLoadCall(true);
-                    }
-                });
-            }      
+                return;
+            }
+
+            RestoreLoadingPriority();
+            m_Param = param;
+            m_PreviousLoadingPriority = Application.backgroundLoadingPriority;
+            Application.backgroundLoadingPriority = ThreadPriority.High;
+            m_IsLoading = true;
+            UIRes.LoadLevel(param.m_MapAb, Tool.GetAssetName(param.m_MapAb), param.m_LoadMode, loaded =>
+            {
+                RestoreLoadingPriority();
+                param.m_OnLoadCall?.Invoke(loaded);
+            }, () => ReferenceEquals(m_Param, param));
+        }
+
+        private void RestoreLoadingPriority()
+        {
+            if (m_IsLoading)
+            {
+                Application.backgroundLoadingPriority = m_PreviousLoadingPriority;
+                m_IsLoading = false;
+            }
         }
 
         private static Ray m_Ray = new Ray(Vector3.zero, Vector3.down);

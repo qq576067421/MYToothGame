@@ -237,7 +237,8 @@
                             continue;
                         }
                         var cooledSkill = skillMgr.ReadSkillBySlot(i);
-                        if (cooledSkill != null && cooledSkill.ReadIsCooldown())
+                        // 被动技能不走 AI 选技，它由 SkillManager 的被动通道自行发动
+                        if (cooledSkill != null && cooledSkill.ReadIsCooldown() && !cooledSkill.ReadIsPassiveCastStyle())
                         {
                             cooledSkills.Add(cooledSkill);
                         }
@@ -414,13 +415,19 @@
         }
         public override void Update(float dt)
         {
-            if (ReadIsFreeze())
+            if (ReadIsSuspended())
             {
                 return;
             }
+
+            // 冰冻期间不写朝向（State_Freeze 只定格动画，转弯会破坏定格姿势）；
+            // 其余更新照常跑：冰冻 buff 的到期检测在 BuffManager 里，整段跳过会永久冰冻。
             BeforeUpdateCheckData();
             base.Update(dt);
-            OnUpdateNextDir();
+            if (!ReadIsFrozen())
+            {
+                OnUpdateNextDir();
+            }
 
 
 
@@ -433,7 +440,7 @@
 
         public override bool CanMove()
         {
-            if (ReadIsFreeze())
+            if (ReadIsSuspended() || ReadIsFrozen())
             {
                 return false;
             }

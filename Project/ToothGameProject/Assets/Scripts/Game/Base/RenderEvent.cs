@@ -19,6 +19,13 @@ namespace GameDll
 
     public delegate bool BattleStartupRequestHandler(BattleStartupRequest request, out string error);
 
+    public enum TowerDefendResumeStatus
+    {
+        Ready,
+        WaitingForTracking,
+        TimedOut
+    }
+
     public class RenderEvent
     {
         private static RenderEvent m_Instance = new RenderEvent();
@@ -38,10 +45,11 @@ namespace GameDll
 
 
         public Func<string, string, string> OnCallFunction = (_func, _param) => string.Empty;
+        public Action<BattleResultData> OnTowerDefendBattleResultFinalized = (result) => { };
         public Action<BattleResultData> OnBattleResult = (result) => { };
         public Action<float> OnBattlePrepareTimeChanged = (time) => { };
         public Action OnPreStart = () => { };
-        // 正式战斗暂停请求，由战斗界面使用，不用于 GM 调试冻结。
+        // 正式战斗暂停请求，由战斗界面使用，不用于 GM 调试暂停。
         public Func<bool> OnTowerDefendPauseRequest = () => false;
         // 正式战斗暂停状态设置和查询，供界面或外部输入直接调用。
         public Func<bool, bool> OnTowerDefendBattlePauseStateRequest = (pause) => false;
@@ -57,9 +65,10 @@ namespace GameDll
         public Action OnTowerDefendBattleHudCloseRequest = () => { };
         public Func<Action, Action, Action, object> OnTowerDefendPauseOpenRequest = (onResume, onRestart, onReturn) => null;
         public Action<object> OnTowerDefendPauseCloseRequest = (pauseWindow) => { };
+        public Action<object, TowerDefendResumeStatus> OnTowerDefendPauseResumeStatusChanged = (window, status) => { };
         public Action OnTowerDefendRestartBattleRequest = () => { };
         public Action OnTowerDefendReturnLobbyRequest = () => { };
-        public Action OnRenderPrepareConfirmRequest = () => { };
+        public Func<bool> OnRenderPrepareConfirmRequest = () => false;
         public Action<InputAction.CallbackContext> OnRenderEscapePressedRequest = (context) => { };
         public Func<bool> OnRenderShouldIgnoreInputDuringLoading = () => false;
         public BattleStartupRequestHandler OnGmStartBattleRequest = DefaultGmStartBattleRequest;

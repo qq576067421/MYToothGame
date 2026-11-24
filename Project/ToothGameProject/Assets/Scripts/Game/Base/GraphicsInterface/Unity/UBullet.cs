@@ -140,6 +140,16 @@ namespace GameDll
                 m_Mover.Emit(m_MoveSpeed * 0.001f);
             }
         }
+        internal void HideProjectileForHitStick()
+        {
+            m_Mover?.HideProjectileForHitStick();
+        }
+
+        internal void PlayImpact(Vector3 pos, Vector3 dir)
+        {
+            m_Mover?.PlayImpact(pos, dir);
+        }
+
         public override void BulletBoom(Vector3 pos, Vector3 dir)
         {
             m_NeedEmit = false;
@@ -230,6 +240,13 @@ namespace GameDll
             {
                 m_LineRenderer.SetPosition(i, points[i]);
             }
+        }
+
+        // 命中/枪口特效还要显示多久：子弹回池时据此顺延可复用时间。
+        // 否则复用触发的 Emit -> PrepareForEmit 会把上一发还没到时间的命中特效提前清掉。
+        public override float ReadVisualRemainTime()
+        {
+            return m_Mover != null ? m_Mover.ReadVisualRemainTime() : 0f;
         }
 
     }

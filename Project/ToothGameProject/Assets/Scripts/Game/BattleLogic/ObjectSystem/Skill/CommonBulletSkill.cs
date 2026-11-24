@@ -24,6 +24,8 @@ namespace GameDll
         private BulletObj m_ActiveLaserBullet;
         // 本次发弹是否复用了存活光束（续发）；OnCastPoint 据此跳过开火特效
         private bool m_LastCastRenewedLaser;
+        // 施法生效点特效的兜底可见时长：t_keep_time 为 0 时避免创建后立即回收
+        private const float m_DefaultShootEffectDurationSecond = 2.0f;
         protected List<RenderEff> m_KeepShootEffs = new List<RenderEff>();
         private List<Transform> m_KeepShootEffParentTransforms = new List<Transform>();
         protected float m_KeepShootStartTime = -1;
@@ -72,7 +74,6 @@ namespace GameDll
         public override void OnEnter()
         {
             base.OnEnter();
-
             SetCurAction();
             if (ReadIsBoneNormalAttack())
             {
@@ -85,7 +86,15 @@ namespace GameDll
             // 常规手势普攻在输入层续发、不会进入施法，这里覆盖的是直连 AttackDir 的施法路径。
             if (!ReadHasAliveLaserBullet())
             {
-                PlayAction(m_CurAction.t_ac_name);
+                // 被动施放不播自身动作，但音效/特效/发弹照常
+                if (!ReadIsPassiveCast())
+                {
+                    PlayAction(m_CurAction.t_ac_name);
+                }
+                // t_atk_eff 是技能本身的特效，随施法动作在入场播；
+                // 施法生效点的特效是独立字段 t_atk_cast_eff，在 OnCastPoint 播（见 StartShootEffect）
+                // 水柱/激光的 t_atk_eff 是随着喷射一直存在的特效，必须跟 keep 窗口同寿（见 HoldSkillEffectForKeep）
+                PlaySkillEffect(HoldSkillEffectForKeep());
             }
             //Debug.Log("开始播放子弹动画时间：" + Time.realtimeSinceStartup);
             m_CastStatus =  SkillCastStatus.warming_up;
@@ -107,6 +116,9 @@ namespace GameDll
                 // 只延后结束时间，不重置发弹节拍、施法标识、前摇和已经运行的特效。
                 m_BoneKeepShootEndTime = now + GetKeepShootDurationSecond();
                 battleTool.AddSkillCastBuffs(m_Attacker, m_SkillBean);
+                // 每次续期都是一次真实出手，按输入补一声攻击音效；
+                // 窗口内按 t_hurt_interval 连发的子弹不再逐颗补声（见 ShootKeepModeBullet）。
+                PlayAttackSound(0, m_Attacker.GetPosition());
             }
             else
             {
@@ -122,6 +134,15 @@ namespace GameDll
                 (m_CastStatus == SkillCastStatus.warming_up ||
                  m_CastStatus == SkillCastStatus.cast_point ||
                  m_CastStatus == SkillCastStatus.cast_keep);
+        }
+
+        // 水柱/激光的 t_atk_eff 不是一次性特效，而是随喷射一直挂在枪口的持续特效，必须跟 keep 窗口同寿。
+        // 按特效表 t_time 自动回收会出现两种错误表现：喷水 1 秒就结束时它还在喷到 3 秒；
+        // 持续喷水超过 t_time 时它又会在中途消失。
+        private bool HoldSkillEffectForKeep()
+        {
+            return UseKeepShootMode() && m_BulletBean != null &&
+                BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory);
         }
 
         /// <summary>
@@ -153,6 +174,9 @@ namespace GameDll
                 return;
             }
 
+            // 攻击音效按“一次出手一声”结算：首发放弹播一次（CommonBulletSkill 直接继承 Skill，
+            // 不走 CommonSkill.OnWarmUp，这里是子弹技能攻击音效的唯一入场入口）；
+            // keep 窗口内按 t_hurt_interval 的续发不再逐颗播，改为按续期输入补声（TryRenewBoneKeepShoot/TryRenewKeepShoot）。
             // 持续光束续发（复用存活光束）时整次触发静默：攻击音效在此跳过，开火特效在 OnCastPoint 跳过
             if (m_BulletBean == null || !BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory) || !ReadHasAliveLaserBullet())
             {
@@ -236,13 +260,6 @@ namespace GameDll
 
             int defenderId = defender != null ? defender.ReadId() : 0;
             int bulletId = bulletBean != null ? bulletBean.t_id : 0;
-            //Debug.Log(
-            //    $"[技能发弹] skillId={cfg.t_id}，bulletId={bulletId}，attackerId={m_AttackerId}，defenderId={defenderId}，" +
-            //    $"needTarget={bullet.GetHurtInfo().m_NeedTarget}，startPos={m_StartPos}，forward={forward}，" +
-            //    $"triggerBulletId={(bulletBean != null ? bulletBean.t_trigger_bullet_id : 0)}，" +
-            //    $"triggerCount={(bulletBean != null ? bulletBean.t_trigger_bullet_count : 0)}，" +
-            //    $"triggerType={(bulletBean != null ? bulletBean.t_trigger_type : 0)}");
-
             if (m_BulletBean != null && BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory))
             {
                 m_ActiveLaserBullet = bullet;
@@ -443,11 +460,21 @@ namespace GameDll
             SetAtk(m_Attacker);
             m_KeepShootStartTime = BattleManager.ReadBattleTime();
             m_CastStatus = SkillCastStatus.cast_keep;
+            // 每次续期都是一次真实出手，补一声攻击音效；连续光束由 t_keepSound 循环覆盖，整轮静默。
+            if (m_BulletBean == null || !BulletObj.IsContinuousBeamTrajectory(m_BulletBean.t_trajectory))
+            {
+                PlayAttackSound(0, m_Attacker.GetPosition());
+            }
             if (resumeFromCastBack)
             {
                 RenderEvent.Event.KeepSkill(this.GetCastId(), true);
                 // 宽限期续射：循环音效已随窗口结束停止，重新播放
                 StartKeepShootSound();
+                // 喷水/光束特效已随上一轮窗口停掉，续射重新挂上，避免继续喷水但枪口没特效
+                if (HoldSkillEffectForKeep() && m_SkillEffs.Count == 0)
+                {
+                    PlaySkillEffect(true);
+                }
             }
             return true;
         }
@@ -498,12 +525,10 @@ namespace GameDll
                             m_CastStatus = SkillCastStatus.cast_point;
 
                         }
-                        //Debug.Log("子弹预热的时间：" + Time.realtimeSinceStartup);
                         break;
                     }
                 case SkillCastStatus.cast_point:
                     {
-                        //Debug.Log("子弹发射的时间：" + Time.realtimeSinceStartup);
                         OnCastPoint();
                         break;
                     }
@@ -562,7 +587,8 @@ namespace GameDll
             {
                 return;
             }
-            if (!BattleManager.ReadIsEntityValide(m_Attacker) || m_Attacker.ReadIsBeingControlled())
+            if (!BattleManager.ReadIsEntityValide(m_Attacker) || m_Attacker.ReadIsBeingControlled() ||
+                m_Attacker.ReadIsSuspended() || m_Attacker.ReadIsFrozen())
             {
                 Stop();
                 return;
@@ -646,7 +672,7 @@ namespace GameDll
             FirstShootBullet();
             if (UseKeepShootMode() || ReadIsBoneNormalAttack())
             {
-                // keep 型开火特效在续发时沿用还挂着的实例（见 StartKeepShootEffect），不会重播闪烁
+                // keep 型施法特效在续发时沿用还挂着的实例（见 StartKeepShootEffect），不会重播闪烁
                 StartKeepShootEffect();
                 StartKeepShootSound();
                 m_KeepShootStartTime = BattleManager.ReadBattleTime();
@@ -719,9 +745,9 @@ namespace GameDll
                 return Mathf.Max(0.1f, GetKeepShootDurationSecond());
             }
 
-            // 非持续子弹技能也要给技能特效可见时长，
+            // 非持续子弹技能也要给开火特效可见时长，
             // 否则 t_keep_time 为 0 时会在创建后立即回收。
-            return 2.0f;
+            return m_DefaultShootEffectDurationSecond;
         }
 
         protected virtual float GetKeepShootIntervalSecond()
@@ -736,6 +762,8 @@ namespace GameDll
 
         protected virtual void ShootKeepModeBullet()
         {
+            // 攻击音效不跟发弹节拍逐颗播放（一次施法会连发多颗，逐颗补声会让一次普攻叠出好几声），
+            // 改由续期输入补声（见 TryRenewBoneKeepShoot/TryRenewKeepShoot）。
             var defender = FindKeepShootTarget();
             if (defender != null)
             {
@@ -957,13 +985,13 @@ namespace GameDll
             }
 
             StopKeepShootEffect();
-            if (m_SkillDescBean == null || m_SkillDescBean.t_atk_eff == 0)
+            if (m_SkillDescBean == null || m_SkillDescBean.t_atk_cast_eff == 0)
             {
                 return;
             }
 
             float effectDuration = ResolveAttackEffectDurationSecond();
-            string[] mountPaths = ParseMountPaths(m_SkillDescBean.t_atk_eff_pos);
+            string[] mountPaths = ParseMountPaths(m_SkillDescBean.t_atk_cast_eff_pos);
             bool hasMounted = false;
 
             if (mountPaths.Length > 0 && m_Attacker != null)
@@ -973,11 +1001,11 @@ namespace GameDll
                     var mount = m_Attacker.ReadMountTransform(singlePath);
                     if (mount == null) continue;
 
-                    var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_eff);
+                    var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_cast_eff);
                     if (eff == null) continue;
 
                     m_KeepShootEffParentTransforms.Add(mount);
-                    if (m_SkillDescBean.t_atk_eff_parent == 0)
+                    if (m_SkillDescBean.t_atk_cast_eff_parent == 0)
                     {
                         eff.SetParent(mount);
                         eff.ShowEff(true, Vector3.zero, Vector2.zero, Vector3.one);
@@ -1004,7 +1032,7 @@ namespace GameDll
 
             if (!hasMounted)
             {
-                var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_eff);
+                var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_cast_eff);
                 if (eff == null) return;
 
                 m_KeepShootEffParentTransforms.Add(null);
@@ -1020,13 +1048,13 @@ namespace GameDll
 
         protected virtual void StartShootEffect()
         {
-            if (m_SkillDescBean == null || m_SkillDescBean.t_atk_eff == 0)
+            if (m_SkillDescBean == null || m_SkillDescBean.t_atk_cast_eff == 0)
             {
                 return;
             }
 
             float effectDuration = ResolveAttackEffectDurationSecond();
-            string[] mountPaths = ParseMountPaths(m_SkillDescBean.t_atk_eff_pos);
+            string[] mountPaths = ParseMountPaths(m_SkillDescBean.t_atk_cast_eff_pos);
             bool hasMounted = false;
 
             if (mountPaths.Length > 0 && m_Attacker != null)
@@ -1036,9 +1064,9 @@ namespace GameDll
                     var mount = m_Attacker.ReadMountTransform(singlePath);
                     if (mount == null) continue;
 
-                    var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_eff);
+                    var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_cast_eff);
                     if (eff == null) continue;
-                    if(m_SkillDescBean.t_atk_eff_parent == 0)
+                    if(m_SkillDescBean.t_atk_cast_eff_parent == 0)
                     {
                         eff.SetParent(mount);
                         eff.ShowEff(true, Vector3.zero, Vector2.zero, Vector3.one);
@@ -1060,7 +1088,7 @@ namespace GameDll
 
             if (!hasMounted)
             {
-                var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_eff);
+                var eff = RenderEffManager.GetInstance().CreateRenderEff(m_SkillDescBean.t_atk_cast_eff);
                 if (eff == null) return;
 
                 // 非持续型施法特效由 SetAutoPool 回收，不加入 m_KeepShootEffs。
@@ -1099,6 +1127,9 @@ namespace GameDll
                 m_ActiveLaserBullet.FinishLaserBeam();
                 m_ActiveLaserBullet = null;
             }
+
+            // 技能特效（t_atk_eff）与喷射同寿：停喷就停，不能等到特效表 t_time 到期才消失。
+            StopSkillEffect();
 
             StopKeepShootSound();
             StopKeepShootEffect();

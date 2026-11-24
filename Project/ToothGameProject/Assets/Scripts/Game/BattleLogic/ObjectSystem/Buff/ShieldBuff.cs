@@ -6,6 +6,7 @@ namespace GameDll
     public class ShieldBuff : Buff
     {
         private float m_ShieldValue;
+        private float m_InitShieldValue;
 
         protected override void ChangeProperties()
         {
@@ -20,7 +21,8 @@ namespace GameDll
                 }
             }
 
-            m_ShieldValue = Mathf.Max(0, shieldValue);
+            m_InitShieldValue = Mathf.Max(0, shieldValue);
+            m_ShieldValue = m_InitShieldValue;
         }
 
         public override void AddBuffAgain()
@@ -32,6 +34,11 @@ namespace GameDll
         public float ReadShieldValue()
         {
             return m_ShieldValue;
+        }
+
+        public float ReadInitShieldValue()
+        {
+            return m_InitShieldValue;
         }
 
         public float AbsorbDamage(float value)

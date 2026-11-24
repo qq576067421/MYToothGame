@@ -23,6 +23,7 @@ namespace AssetBundles
     {
         private const int MAX_RETRY_COUNT = 3;
         private const float RETRY_WAIT_PERIOD = 1;
+        private const int m_DownloadTimeoutSeconds = 20;
         private const int MAX_SIMULTANEOUS_DOWNLOADS = 20;
 
         private static readonly Hash128 DEFAULT_HASH = default(Hash128);
@@ -171,6 +172,7 @@ namespace AssetBundles
                 req = UnityWebRequest.GetAssetBundle(uri, cmd.Hash, 0);
 #endif
             }
+            req.timeout = m_DownloadTimeoutSeconds;
             float start_load_ab_time = Time.realtimeSinceStartup;
 #if UNITY_2017_2_OR_NEWER
             req.SendWebRequest();
@@ -178,9 +180,23 @@ namespace AssetBundles
             req.Send();
 #endif
 
+            bool timedOut = false;
             while (!req.isDone)
             {
+                if (Time.realtimeSinceStartup - start_load_ab_time >= m_DownloadTimeoutSeconds)
+                {
+                    timedOut = true;
+                    req.Abort();
+                    break;
+                }
+
                 yield return null;
+            }
+
+            if (timedOut)
+            {
+                Debug.LogWarning("[资源包] 请求超时。bundle=" + cmd.BundleName +
+                                 " timeoutSeconds=" + m_DownloadTimeoutSeconds + " attempt=" + (retryCount + 1));
             }
 
             byte[] bundle_data = null;
@@ -193,14 +209,14 @@ namespace AssetBundles
 #endif
             float load_ab_use_time = Time.realtimeSinceStartup - start_load_ab_time;
             AssetBundle bundle = null;
-            if (isHttpError || isNetworkError || !string.IsNullOrEmpty(req.error))
+            if (timedOut || isHttpError || isNetworkError || !string.IsNullOrEmpty(req.error))
             {
                 if (retryCount < MAX_RETRY_COUNT)
                 {
                     Debug.LogError($"重试, 下载实际用时{load_ab_use_time}s  错误码:{req.responseCode}  错误:{req.error} 重试次数{retryCount} 地址:{uri} 等待  [{RETRY_WAIT_PERIOD}] 秒后开始重新...");
                     req.Dispose();
                     activeDownloads--;
-                    yield return new WaitForSeconds(RETRY_WAIT_PERIOD);
+                    yield return new WaitForSecondsRealtime(RETRY_WAIT_PERIOD);
                     publicHandle(Download(cmd, retryCount + 1));
                     yield break;
                 }
@@ -233,7 +249,7 @@ namespace AssetBundles
                         cachingDisabled = true;
                         req.Dispose();
                         activeDownloads--;
-                        yield return new WaitForSeconds(RETRY_WAIT_PERIOD);
+                        yield return new WaitForSecondsRealtime(RETRY_WAIT_PERIOD);
                         publicHandle(Download(cmd, retryCount + 1));
                         yield break;
                     }

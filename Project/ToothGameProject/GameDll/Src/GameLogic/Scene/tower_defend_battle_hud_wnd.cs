@@ -2,7 +2,6 @@
 using LCL;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -118,7 +117,9 @@ namespace GameHot
         private float m_BattleHeadInputFilterSpeed = m_BattleHeadDefaultInputFilterSpeed;
         private float m_BattleHeadInputDeadzone = m_BattleHeadDefaultInputDeadzone;
 
-        private long m_DpsRefreshTimerId = 0;
+        private readonly int[] m_DpsScoresBySeat = new int[m_MaxHudPlayerCount];
+        private readonly int[] m_DpsRanksBySeat = new int[m_MaxHudPlayerCount];
+        private bool m_HasDpsSnapshot;
 
 
         public override void OnClassConstructed()
@@ -1209,11 +1210,7 @@ namespace GameHot
 
         protected override void OnClose()
         {
-            if (m_DpsRefreshTimerId != 0)
-            {
-                CounterManager.GetInstance().RemoveCounter(m_DpsRefreshTimerId);
-                m_DpsRefreshTimerId = 0;
-            }
+            m_HasDpsSnapshot = false;
             RenderEvent.Event.OnTowerDefendBaseHealthChanged -= OnTowerDefendBaseHealthChanged;
             RenderEvent.Event.OnTowerDefendBattleStateChanged -= OnTowerDefendBattleStateChanged;
             RenderEvent.Event.OnTowerDefendPlayerSkillEnergyFullStateChanged -= OnTowerDefendPlayerSkillEnergyFullStateChanged;
@@ -1346,7 +1343,7 @@ namespace GameHot
         {
             m_View.m_slider_team_exp_root.transform.DOKill();
             m_View.m_slider_team_exp_root.transform.localScale = Vector3.one;
-            m_View.m_slider_team_exp_root.transform.DOPunchScale(new Vector3(0.3f, 0.3f, 0.3f), 0.7f, 5, 0.5f);
+            m_View.m_slider_team_exp_root.transform.DOPunchScale(new Vector3(0.3f, 0.3f, 0.3f), 0.7f, 5, 0.5f).SetLink(m_View.m_slider_team_exp_root.gameObject,LinkBehaviour.KillOnDestroy);
             AudioManager.GetInstance().Play2D(105);
         }
         private static Vector2 EvaluateQuadraticBezier(Vector2 start, Vector2 control, Vector2 end, float t)
@@ -1641,70 +1638,80 @@ namespace GameHot
 
             teamExpValue = displayMax > 0 ? (float)displayCurrent / displayMax : 0f;
         }
-        private void UpdateAllPlayersDps()
+        private void UpdateAllPlayersDps(TowerDefendBattle battle)
         {
-            if (!IsInitializedView())
+            bool rankingChanged = !m_HasDpsSnapshot;
+            for (int seat = 0; seat < m_DpsScoresBySeat.Length; seat++)
             {
-                return;
+                var view = m_dps_player[seat];
+                bool visible = view != null && battle.ReadPlayerBySeat(seat) != null;
+                int score = visible ? battle.ReadUpgradeChallengeScoreBySeat(seat) : -1;
+                int previousScore = m_DpsScoresBySeat[seat];
+                if (m_HasDpsSnapshot && score == previousScore)
+                {
+                    continue;
+                }
+
+                rankingChanged = true;
+                m_DpsScoresBySeat[seat] = score;
+                if (!m_HasDpsSnapshot || (previousScore >= 0) != visible)
+                {
+                    RenderAPI.SetActive(GetDpsPlayerBridge(seat), visible);
+                    m_DpsRanksBySeat[seat] = -1;
+                }
+                if (visible)
+                {
+                    int previousVisibleScore = m_HasDpsSnapshot && previousScore >= 0 && previousScore <= score ? previousScore : 0;
+                    ScoreChangeEffect(view, previousVisibleScore, score);
+                    RenderAPI.SetText(view.m_txt_dps0, score.ToString());
+                }
             }
 
-            var battle = ReadCurrentBattle();
-            if (battle == null)
+            if (rankingChanged)
             {
-                return;
+                UpdatePlayerRanks();
             }
-            UpdatePlayerRank();
-            ScoreChangeEffect(m_dps_player[0].m_light_0.GetComponent<RectTransform>(), 0);
-            ScoreChangeEffect(m_dps_player[1].m_light_0.GetComponent<RectTransform>(), 1);
-            ScoreChangeEffect(m_dps_player[2].m_light_0.GetComponent<RectTransform>(), 2);
-            ScoreChangeEffect(m_dps_player[3].m_light_0.GetComponent<RectTransform>(), 3);
-            RenderAPI.SetText(m_dps_player[0].m_txt_dps0, battle.ReadUpgradeChallengeScoreBySeat(0).ToString());
-            RenderAPI.SetText(m_dps_player[1].m_txt_dps0, battle.ReadUpgradeChallengeScoreBySeat(1).ToString());
-            RenderAPI.SetText(m_dps_player[2].m_txt_dps0, battle.ReadUpgradeChallengeScoreBySeat(2).ToString());
-            RenderAPI.SetText(m_dps_player[3].m_txt_dps0, battle.ReadUpgradeChallengeScoreBySeat(3).ToString());
+            m_HasDpsSnapshot = true;
         }
-        Dictionary<int, int> playersRank = new();   //seat,rank
-        private void UpdatePlayerRank()
+
+        private void UpdatePlayerRanks()
         {
-            const float POSITION_OFFSET_Y = -74f;
-
-            var battle = ReadCurrentBattle();
-            Dictionary<int, int> seatScores = new();
-            for (int seat = 0; seat < 4; seat++)
+            const float rankSpacing = -74f;
+            for (int seat = 0; seat < m_DpsScoresBySeat.Length; seat++)
             {
-                var player = battle != null ? battle.ReadPlayerBySeat(seat) : null;
-                if (player == null) continue;
-                seatScores.Add(seat, battle.ReadUpgradeChallengeScoreBySeat(seat));
-            }
+                int score = m_DpsScoresBySeat[seat];
+                if (score < 0)
+                {
+                    continue;
+                }
 
-            var sorted = seatScores.OrderByDescending(item => item.Value).ToList();
-            for (int rank = 0; rank < sorted.Count; rank++)
-            {
-                int seat = sorted[rank].Key;
-                if (!playersRank.ContainsKey(seat))
+                int rank = 0;
+                for (int other = 0; other < m_DpsScoresBySeat.Length; other++)
                 {
-                    playersRank.Add(seat, rank);
+                    int otherScore = m_DpsScoresBySeat[other];
+                    if (otherScore > score || (otherScore == score && other < seat))
+                    {
+                        rank++;
+                    }
                 }
-                else
+
+                if (m_DpsRanksBySeat[seat] == rank)
                 {
-                    if (playersRank[seat] == rank) continue;
-                    playersRank[seat] = rank;
+                    continue;
                 }
-                RenderAPI.SetText(m_dps_player[seat].m_txt_rank0, (rank + 1).ToString());
-                m_dps_player[seat].m_Bridge.transform.DOKill();
-                m_dps_player[seat].m_Bridge.transform.DOLocalMoveY(rank * POSITION_OFFSET_Y, 0.5f);
-                //dps_players[seat].transform.localPosition = new Vector2(139+ (rank * 6), dps_players[seat].transform.localPosition.y);
-                m_dps_player[seat].m_Bridge.transform.DOScale(1.2f, 0.25f).OnComplete(() => m_dps_player[seat].m_Bridge.transform.DOScale(1f, 0.25f));
-                if (rank == 0)
-                {
-                    m_dps_player[seat].m_Bridge.GetComponent<RectTransform>().sizeDelta = new Vector2(290 * 1.2f, m_dps_player[seat].m_Bridge.GetComponent<RectTransform>().sizeDelta.y);
-                }
-                else
-                {
-                    m_dps_player[seat].m_Bridge.GetComponent<RectTransform>().sizeDelta = new Vector2(290 * (1.09f - rank * 0.03f), m_dps_player[seat].m_Bridge.GetComponent<RectTransform>().sizeDelta.y);
-                }
+                m_DpsRanksBySeat[seat] = rank;
+
+                var view = m_dps_player[seat];
+                RenderAPI.SetText(view.m_txt_rank0, (rank + 1).ToString());
+                var rect = view.m_Bridge.GetComponent<RectTransform>();
+                rect.DOKill();
+                rect.DOLocalMoveY(rank * rankSpacing, 0.5f);
+                rect.DOScale(1.2f, 0.25f).OnComplete(() => rect.DOScale(1f, 0.25f));
+                float widthScale = rank == 0 ? 1.2f : 1.09f - rank * 0.03f;
+                rect.sizeDelta = new Vector2(290f * widthScale, rect.sizeDelta.y);
             }
         }
+
         private void OnStartUpgradeChallenge()
         {
             var battle = ReadCurrentBattle();
@@ -1721,7 +1728,7 @@ namespace GameHot
             var battle = ReadCurrentBattle();
             if (battle == null)
             {
-                StopDpsRefreshTimer();
+                m_HasDpsSnapshot = false;
                 SetTeamExpFillAmount(0f);
                 return;
             }
@@ -1734,7 +1741,7 @@ namespace GameHot
         {
             if (battle == null)
             {
-                StopDpsRefreshTimer();
+                m_HasDpsSnapshot = false;
                 SetFightInfoDpsState(0);
                 return;
             }
@@ -1744,50 +1751,11 @@ namespace GameHot
 
             if (!showUpgradeChallengeDps)
             {
-                StopDpsRefreshTimer();
+                m_HasDpsSnapshot = false;
                 return;
             }
 
-            UpdateDpsPlayerVisibility(battle);
-            UpdateAllPlayersDps();
-            EnsureDpsRefreshTimer();
-        }
-
-        private void UpdateDpsPlayerVisibility(TowerDefendBattle battle)
-        {
-            if (battle == null)
-            {
-                return;
-            }
-
-            RenderAPI.SetActive(m_View.m_dps_player0, battle.ReadPlayerBySeat(0) != null);
-            RenderAPI.SetActive(m_View.m_dps_player1, battle.ReadPlayerBySeat(1) != null);
-            RenderAPI.SetActive(m_View.m_dps_player2, battle.ReadPlayerBySeat(2) != null);
-            RenderAPI.SetActive(m_View.m_dps_player3, battle.ReadPlayerBySeat(3) != null);
-        }
-
-        private void EnsureDpsRefreshTimer()
-        {
-            if (m_DpsRefreshTimerId != 0)
-            {
-                return;
-            }
-
-            m_DpsRefreshTimerId = CounterManager.GetInstance().AddCounter(500, 1, () =>
-            {
-                UpdateAllPlayersDps();
-            });
-        }
-
-        private void StopDpsRefreshTimer()
-        {
-            if (m_DpsRefreshTimerId == 0)
-            {
-                return;
-            }
-
-            CounterManager.GetInstance().RemoveCounter(m_DpsRefreshTimerId);
-            m_DpsRefreshTimerId = 0;
+            UpdateAllPlayersDps(battle);
         }
 
         private void SetFightInfoDpsState(int value)
@@ -1849,28 +1817,32 @@ namespace GameHot
 
             m_TeamExpRuntimeMaterial.SetFloat("_FillAmount", fillAmount);
         }
-        private List<int> m_playerScore = new List<int>() { 0, 0, 0, 0 };
-        private void ScoreChangeEffect(RectTransform light, int index)
+        private static void ScoreChangeEffect(v_tower_defend_battle_hud_wnd.v_dps_player view, int previousScore, int score)
         {
-            var battle = ReadCurrentBattle();
-            int score = battle.ReadUpgradeChallengeScoreBySeat(index);
-            if (m_playerScore[index] > score) m_playerScore[index] = 0;
-            if (m_playerScore.Count <= index) return;
-            if (m_playerScore[index] != score)       //积分变化了
+            if (previousScore != score)
             {
-                m_dps_player[index].m_txt_dps0.transform.DOScale(1.4f, 0.2f).OnComplete(() => { m_dps_player[index].m_txt_dps0.transform.DOScale(1, 0.2f); });
+                var scoreTransform = view.m_txt_dps0.transform;
+                scoreTransform.DOScale(1.4f, 0.2f).OnComplete(() => scoreTransform.DOScale(1f, 0.2f));
             }
-            int oldScore = m_playerScore[index];
-            m_playerScore[index] = score;
-            if (score / 10 <= oldScore / 10) return;    //每10积分触发下面代码
-            if (DOTween.IsTweening(light)) return;      //movex未播完则不再重新触发,保持当前动画自然播放
+
+            if (score / 10 <= previousScore / 10)
+            {
+                return;
+            }
+            var light = view.m_light_0.GetComponent<RectTransform>();
+            if (DOTween.IsTweening(light))
+            {
+                return;
+            }
             light.localPosition = new Vector2(-200, light.localPosition.y);
-            light.DOLocalMoveX(m_dps_player[index].m_Bridge.GetComponent<RectTransform>().rect.width, 1);
+            light.DOLocalMoveX(view.m_Bridge.GetComponent<RectTransform>().rect.width, 1);
         }
+
         private void OnShieldChanged(PropertyEntity entity)
         {
             var shield = entity.GetBuffManager().ReadTotalShieldValue();
-            var ratio = Mathf.Clamp01(shield / m_BossHealthOneBarValue);
+            var initShield = entity.GetBuffManager().ReadTotalInitShieldValue();
+            var ratio = Mathf.Clamp01(shield / Mathf.Max(initShield, m_BossHealthOneBarValue));
             float lastBaseHpValue = ResolveBossHealthBarValue(m_currHP);
             float shieldPos = Mathf.Min(1 - ratio, lastBaseHpValue);
 
@@ -1879,8 +1851,8 @@ namespace GameHot
 
             m_View.m_Fill_Shield.value = ratio;
             if (ratio <= 0) return;
-            shieldRect.offsetMin = new Vector2(baseHpRect.sizeDelta.x * shieldPos-(10), shieldRect.offsetMin.y);
-            shieldRect.offsetMax = new Vector2(baseHpRect.sizeDelta.x * shieldPos+(10* shieldPos/ ratio), shieldRect.offsetMax.y);
+            //shieldRect.offsetMin = new Vector2(Mathf.Max(0,baseHpRect.sizeDelta.x * shieldPos-(10)), shieldRect.offsetMin.y);
+            //shieldRect.offsetMax = new Vector2(baseHpRect.sizeDelta.x * shieldPos+(10* shieldPos/ ratio), shieldRect.offsetMax.y);
         }
         private Dictionary<int, Entity> m_bossDic = new();
         float m_currHP = 0;

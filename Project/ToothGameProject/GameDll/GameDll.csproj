@@ -56,6 +56,12 @@
     <Reference Include="YoudooGame.MatchFlow">
       <HintPath>..\Library\ScriptAssemblies\YoudooGame.MatchFlow.dll</HintPath>
     </Reference>
+    <Reference Include="YoudooGame.Platform">
+      <HintPath>..\Library\ScriptAssemblies\YoudooGame.Platform.dll</HintPath>
+    </Reference>
+    <Reference Include="YoudooGame.Player">
+      <HintPath>..\Library\ScriptAssemblies\YoudooGame.Player.dll</HintPath>
+    </Reference>
     <Reference Include="YoudooGame.PlayerAvatar">
       <HintPath>..\Library\ScriptAssemblies\YoudooGame.PlayerAvatar.dll</HintPath>
     </Reference>
@@ -188,7 +194,6 @@
     <Compile Include="Src\GameLogic\Scene\tower_defend_battle_hud_wnd.cs" />
     <Compile Include="Src\GameLogic\Scene\tower_defend_chapter_result_wnd.cs" />
     <Compile Include="Src\GameLogic\Scene\tower_defend_endless_result_wnd.cs" />
-    <Compile Include="Src\GameLogic\Scene\tower_defend_battle_pause_wnd.cs" />
     <Compile Include="Src\GameLogic\Scene\tower_defend_wave_notice_wnd.cs" />
     <Compile Include="Src\GameLogic\Start\CGamePro_StartApplication.cs" />
     <Compile Include="Src\GameLogic\System\Guide\guide_step_id.cs" />
@@ -223,7 +228,6 @@
     <Compile Include="Src\UIGen\v_tower_defend_endless_result_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_giftedness_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_lvchoose_wnd.cs" />
-    <Compile Include="Src\UIGen\v_tower_defend_battle_pause_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_prepare_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_pause_wnd.cs" />
     <Compile Include="Src\UIGen\v_tower_defend_wave_notice_wnd.cs" />

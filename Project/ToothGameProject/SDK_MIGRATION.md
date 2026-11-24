@@ -2,12 +2,13 @@
 
 ## 配置确认
 
-- Package：`com.youdoogame.framework` `v1.0.7`，Git revision `ec5b0e35572bedcdd4d83f0ee5945001bccf7d28`。
+- Package：`com.youdoogame.framework` `v1.0.13`，Git revision `987c67a9dd2df782d9acdacc7bf3649d8f74c991`。
 - Template：`1001` / `SPLIT_FIXED`，固定分屏。
 - Gameplay rebind：`SlotScoped`。
 - Lifecycle：`FrameworkManaged`。匹配与游戏阶段由 Package 的 canonical Host 管理；项目代码保留 UI、场景和玩法适配。
 - 匹配界面：保留项目准备界面，由 `GameProductUiAdapter` 消费 Package 快照；头像按会话槽位读取，保留项目占位图和本地化提示。
-- 当前会话资产仍配置 `GameplayEndMode=Timed`、`gameDurationSeconds=60`；本次未改计时策略。
+- `GameplayEndMode=ProjectControlled`。塔防产生战斗结果后调用 `YoudooAPI.CompleteGameplay()`，SDK 不运行限时结算。
+- 准备页与战斗 HUD 复用同一会话和相机实例。入战只回收准备页视图并设置画面派发帧率，加载完成后 HUD 读取 SDK 发布的相机纹理。
 
 ## 清理和迁移
 

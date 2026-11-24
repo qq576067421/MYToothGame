@@ -1,44 +1,180 @@
-﻿using UnityEngine;
+﻿using System;
+using System.Collections;
+using System.Globalization;
+using UnityEngine;
 using UnityEngine.UI;
 using YoudooGame.CameraImage;
 using YoudooGame.Core;
 using YoudooGame.Framework;
+using YoudooGame.MatchFlow;
 using YoudooGame.MatchFlow.Runtime;
 using YoudooGame.SDK.Adapter;
 
 public sealed class GameFrameworkBootstrap : MonoBehaviour
 {
     [SerializeField, Range(1, 4)] private int m_PlayerCount = 4;
+    [SerializeField] private string m_EndlessLeaderboardKey = string.Empty;
 
     public static FrameworkCompositionRoot CompositionRoot { get; private set; }
+    public static string EndlessLeaderboardKey { get; private set; }
+
+    private static bool m_PrepareStarted;
 
 #if UNITY_EDITOR
     private static GameEditorSyntheticMatchSessionRuntime m_EditorSyntheticRuntime;
 #endif
 
-    // 界面选择的人数是会话匹配人数的唯一来源：会话按 N 人匹配时，视觉槽位才与座位一一对应。
-    public static bool TrySetSessionPlayerCount(int playerCount)
+    public static bool HasLeaderboardScores(string rawJson, long[] userIds, int score)
     {
-        if (CompositionRoot == null)
+        return TryReadLeaderboardScores(rawJson, userIds, score, out _);
+    }
+
+    public static bool TryReadLeaderboardScores(string rawJson, long[] userIds, int score, out int bestRank)
+    {
+        bestRank = -1;
+        if (string.IsNullOrEmpty(rawJson) || userIds == null || userIds.Length == 0)
         {
-            Debug.LogWarning("[新SDK整合] session playerCount skipped, composition root missing, playerCount=" +
-                             playerCount);
+            return false;
+        }
+
+        YouDooSDK.Native.YouDooSDKConstants.IYMSgameGetRankHistoryScoreSuccessNotifyInfo response;
+        try
+        {
+            // v1.0.13 的历史成绩通知只在原始结果中保留 userId。
+            response = JsonUtility.FromJson<YouDooSDK.Native.YouDooSDKConstants.IYMSgameGetRankHistoryScoreSuccessNotifyInfo>(rawJson);
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+
+        if (response?.scores == null)
+        {
+            return false;
+        }
+
+        int rank = int.MaxValue;
+        foreach (long userId in userIds)
+        {
+            bool matched = false;
+            foreach (var entry in response.scores)
+            {
+                if (entry != null && entry.userId == userId &&
+                    int.TryParse(entry.score, NumberStyles.Integer, CultureInfo.InvariantCulture, out int cloudScore) &&
+                    cloudScore >= score)
+                {
+                    matched = true;
+                    if (entry.rank > 0)
+                    {
+                        rank = Math.Min(rank, entry.rank);
+                    }
+                }
+            }
+
+            if (!matched)
+            {
+                return false;
+            }
+        }
+
+        bestRank = rank == int.MaxValue ? -1 : rank;
+        return true;
+    }
+
+    public static bool TryBeginPrepareSession(int playerCount)
+    {
+        var root = CompositionRoot;
+        if (root == null || !YoudooAPI.TryGetSessionHost(out var host) || host != root.SessionHost)
+        {
+            Debug.LogWarning("[准备流程] 找不到项目配置的 SDK Host。");
+            return false;
+        }
+
+        long previousToken = host.Snapshot?.SessionToken ?? -1;
+        if (!root.SetPlayerCount(playerCount))
+        {
+            Debug.LogWarning("[准备流程] SDK 设置人数失败。players=" + playerCount + " error=" + root.LastError);
+            return false;
+        }
+
+        var session = host.Snapshot;
+        if ((session == null || session.SessionToken == previousToken) && !root.ResetSession())
+        {
+            Debug.LogWarning("[准备流程] SDK 重置会话失败。players=" + playerCount + " error=" + root.LastError);
+            return false;
+        }
+
+        session = host.Snapshot;
+        if (session == null || session.SessionToken == previousToken ||
+            session.LifecycleState != MatchSessionLifecycleState.Running ||
+            session.Phase != GameSessionPhase.Matching || host.Config.PlayerCount != playerCount ||
+            session.GameplayEndMode != GameplayEndMode.ProjectControlled || !GameProductUiAdapter.HasLiveSession)
+        {
+            Debug.LogWarning("[准备流程] SDK 会话配置不符合准备条件。players=" + playerCount +
+                             " actual=" + host.Config.PlayerCount + " session=" + session?.SessionToken +
+                             " phase=" + session?.Phase + " lifecycle=" + session?.LifecycleState +
+                             " endMode=" + session?.GameplayEndMode);
             return false;
         }
 
 #if UNITY_EDITOR
         m_EditorSyntheticRuntime?.SetPlayerCount(playerCount);
 #endif
-        bool applied = CompositionRoot.SetPlayerCount(playerCount);
-        int appliedCount = CompositionRoot.SessionHost != null && CompositionRoot.SessionHost.IsConfigured
-            ? CompositionRoot.SessionHost.Config.PlayerCount
-            : 0;
-        GameSdkLog.Info("[新SDK整合] session playerCount request=" + playerCount + " applied=" + applied +
-                  " effective=" + appliedCount +
-                  (appliedCount == playerCount
-                      ? string.Empty
-                      : " mismatch error=" + CompositionRoot.LastError));
-        return appliedCount == playerCount;
+        m_PrepareStarted = true;
+        Debug.Log("[准备流程] SDK 会话已开始。players=" + playerCount + " session=" + session.SessionToken);
+        return true;
+    }
+
+    public static bool TryLeaveSession(string reason, long expectedToken = -1, bool completeRound = true)
+    {
+        if (!YoudooAPI.TryGetSessionSnapshot(out var session))
+        {
+            if (expectedToken >= 0)
+            {
+                Debug.LogWarning("[SDK会话] 退出时缺少会话快照。reason=" + reason + " expected=" + expectedToken);
+                return false;
+            }
+
+            return !YoudooAPI.IsSessionConfigured || (YoudooAPI.StopSession() && !YoudooAPI.IsSessionRunning);
+        }
+
+        if (expectedToken >= 0 && expectedToken != session.SessionToken)
+        {
+            Debug.LogWarning("[SDK会话] 退出请求所属会话已失效。reason=" + reason +
+                             " expected=" + expectedToken + " actual=" + session.SessionToken);
+            return true;
+        }
+
+        if (session.LifecycleState == MatchSessionLifecycleState.Stopped)
+        {
+            return true;
+        }
+
+        bool roundStarted = session.Phase == GameSessionPhase.Playing ||
+            session.Phase == GameSessionPhase.Paused || session.Phase == GameSessionPhase.Settlement;
+        if (completeRound && roundStarted && !YoudooAPI.ReturnToMatching())
+        {
+            Debug.LogWarning("[SDK会话] 结束当前回合失败。reason=" + reason + " session=" + session.SessionToken +
+                             " phase=" + session.Phase + " error=" + YoudooAPI.SessionLastError);
+            return false;
+        }
+
+        bool stopped = YoudooAPI.StopSession() && !YoudooAPI.IsSessionRunning;
+        if (!stopped)
+        {
+            Debug.LogWarning("[SDK会话] 停止失败。reason=" + reason + " session=" + session.SessionToken +
+                             " error=" + YoudooAPI.SessionLastError);
+        }
+        return stopped;
+    }
+
+    private IEnumerator StopInitialSession()
+    {
+        yield return null;
+        if (!m_PrepareStarted)
+        {
+            TryLeaveSession("startup", completeRound: false);
+        }
     }
 
     private void Awake()
@@ -48,6 +184,7 @@ public sealed class GameFrameworkBootstrap : MonoBehaviour
             return;
         }
 
+        EndlessLeaderboardKey = m_EndlessLeaderboardKey?.Trim();
         GameSdkLog.Info("[新SDK整合] bootstrap start playerCount=" + m_PlayerCount +
                   " platform=" + Application.platform +
                   " newHostInitialized=" + YouDooSDK.Native.AndroidServerInfo.IsInitialized +
@@ -148,11 +285,16 @@ public sealed class GameFrameworkBootstrap : MonoBehaviour
 
         var compositionRoot = root.AddComponent<FrameworkCompositionRoot>();
         CompositionRoot = compositionRoot;
+        m_PrepareStarted = false;
         if (!compositionRoot.IsInitialized && !compositionRoot.Initialize())
         {
             Debug.LogError("[GameFrameworkBootstrap] " + compositionRoot.LastError);
             return;
         }
+
+#if UNITY_EDITOR
+        ConfigureEditorFocusPolicy(sessionHost);
+#endif
 
         // 组合根初始化默认选择 1 人，这里恢复项目设定的匹配人数。
         if (!compositionRoot.SetPlayerCount(m_PlayerCount))
@@ -167,12 +309,39 @@ public sealed class GameFrameworkBootstrap : MonoBehaviour
 
         // 框架与平台 provider 就绪后再拉取 SDK 存档，避免首次请求 NotInitialized。
         saveService.Initialize();
+        StartCoroutine(StopInitialSession());
 
         GameSdkLog.Info("[新SDK整合] framework initialized, playerCount=" + m_PlayerCount +
                   " adapterInstance=" + (GameProductUiAdapter.Instance != null) +
                   " liveSession=" + GameProductUiAdapter.HasLiveSession +
                   " newHost=" + (FindFirstObjectByType<YouDooSDK.Native.AndroidServerInfo>() != null));
     }
+
+#if UNITY_EDITOR
+    private static void ConfigureEditorFocusPolicy(MatchSessionHost host)
+    {
+        var source = host.SessionConfigAsset;
+        if (source == null)
+        {
+            return;
+        }
+
+        var config = Instantiate(source);
+        config.hideFlags = HideFlags.DontSave;
+        var serialized = new UnityEditor.SerializedObject(config);
+        var holdTracking = serialized.FindProperty("holdTrackingOnFocusLost");
+        if (holdTracking == null)
+        {
+            Destroy(config);
+            Debug.LogWarning("[SDK会话] 当前 SDK 配置缺少编辑器失焦策略。");
+            return;
+        }
+
+        holdTracking.boolValue = false;
+        serialized.ApplyModifiedPropertiesWithoutUndo();
+        host.SessionConfigAsset = config;
+    }
+#endif
 }
 
 // 新 SDK 的 CameraImage 没有分辨率接口，采集分辨率只能随“模型选择配置”一起下发给原生层。
